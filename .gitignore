@@ -43,6 +43,8 @@ memory/
 coordination/
 claude-flow*
 CLAUDE.md
+package.json
+package-lock.json
 
 # Temporary files
 tmp/
