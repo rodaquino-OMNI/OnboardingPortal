@@ -1,0 +1,65 @@
+# Development overrides for docker-compose
+version: '3.8'
+
+services:
+  # Use development Dockerfile for frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    command: npm run dev
+
+  # PHP development settings
+  php:
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - XDEBUG_MODE=coverage,debug
+      - XDEBUG_CONFIG=client_host=host.docker.internal
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+
+  # Development mail server
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: omni_mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - omni_network
+
+  # PHPMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: omni_phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_USER=root
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+    depends_on:
+      - mysql
+    networks:
+      - omni_network
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: omni_redis_commander
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - omni_network

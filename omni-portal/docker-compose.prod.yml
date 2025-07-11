@@ -1,0 +1,93 @@
+# Production configuration for docker-compose
+version: '3.8'
+
+services:
+  # Production optimizations for Nginx
+  nginx:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Production PHP configuration
+  php:
+    build:
+      args:
+        - PHP_VERSION=8.2
+      target: production
+    environment:
+      - APP_ENV=production
+      - APP_DEBUG=false
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Production frontend build
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    environment:
+      - NODE_ENV=production
+    command: node server.js
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # MySQL production settings
+  mysql:
+    restart: always
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-buffer-pool-size=1G
+      --max-connections=200
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis production settings
+  redis:
+    restart: always
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Queue worker production settings
+  queue:
+    restart: always
+    deploy:
+      replicas: 2
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Scheduler production settings
+  scheduler:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

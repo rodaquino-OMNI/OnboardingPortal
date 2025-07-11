@@ -1,0 +1,179 @@
+version: '3.8'
+
+services:
+  # Nginx Web Server
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    container_name: omni_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./backend:/var/www/backend
+      - ./frontend/.next:/var/www/frontend/.next
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - php
+      - frontend
+    networks:
+      - omni_network
+    restart: unless-stopped
+
+  # PHP-FPM Service
+  php:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+      args:
+        - PHP_VERSION=8.2
+    container_name: omni_php
+    volumes:
+      - ./backend:/var/www/backend
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-omni_portal}
+      - DB_USERNAME=${DB_USERNAME:-omni_user}
+      - DB_PASSWORD=${DB_PASSWORD:-secure_password}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - omni_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_VERSION=18
+    container_name: omni_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
+    command: ${FRONTEND_CMD:-npm run dev}
+    networks:
+      - omni_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: omni_mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=${DB_DATABASE:-omni_portal}
+      - MYSQL_USER=${DB_USERNAME:-omni_user}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-secure_password}
+    networks:
+      - omni_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7.0-alpine
+    container_name: omni_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - omni_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Queue Worker (Laravel)
+  queue:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: omni_queue
+    volumes:
+      - ./backend:/var/www/backend
+    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+    depends_on:
+      - php
+      - mysql
+      - redis
+    networks:
+      - omni_network
+    restart: unless-stopped
+
+  # Scheduler (Laravel)
+  scheduler:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    container_name: omni_scheduler
+    volumes:
+      - ./backend:/var/www/backend
+    command: /bin/sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
+    environment:
+      - APP_ENV=${APP_ENV:-local}
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+    depends_on:
+      - php
+      - mysql
+      - redis
+    networks:
+      - omni_network
+    restart: unless-stopped
+
+networks:
+  omni_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
