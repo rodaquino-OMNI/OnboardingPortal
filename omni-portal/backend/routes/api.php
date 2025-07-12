@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\RegisterController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\GamificationController;
 use App\Http\Controllers\Api\LGPDController;
+use App\Http\Controllers\Api\HealthQuestionnaireController;
+use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\SocialAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,6 +38,20 @@ Route::prefix('auth')->group(function () {
     Route::post('/check-email', [AuthController::class, 'checkEmail']);
     Route::post('/check-cpf', [AuthController::class, 'checkCpf']);
     
+    // Simple test login endpoint
+    Route::post('/test-login', function (\Illuminate\Http\Request $request) {
+        $email = $request->input('email');
+        $password = $request->input('password');
+        
+        // Debug info
+        return response()->json([
+            'request_all' => $request->all(),
+            'email' => $email,
+            'password' => $password,
+            'user_exists' => \App\Models\User::where('email', $email)->exists(),
+        ]);
+    });
+    
     // Protected auth routes
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -42,6 +59,12 @@ Route::prefix('auth')->group(function () {
         Route::post('/refresh', [AuthController::class, 'refresh']);
         Route::get('/user', [AuthController::class, 'user']);
     });
+    
+    // Social authentication routes
+    Route::get('/{provider}/redirect', [SocialAuthController::class, 'redirect'])
+        ->where('provider', 'google|facebook|instagram');
+    Route::get('/{provider}/callback', [SocialAuthController::class, 'callback'])
+        ->where('provider', 'google|facebook|instagram');
 });
 
 // Registration routes - Multi-step process
@@ -86,6 +109,35 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
         Route::get('/data-processing-activities', [LGPDController::class, 'getDataProcessingActivities']);
     });
     
-    // Additional protected routes will be added here by other modules
-    // For example: documents, interviews, health questionnaires, etc.
+    // Health Questionnaires
+    Route::prefix('health-questionnaires')->group(function () {
+        Route::get('/templates', [HealthQuestionnaireController::class, 'getTemplates']);
+        Route::post('/start', [HealthQuestionnaireController::class, 'start']);
+        Route::get('/{questionnaire}/progress', [HealthQuestionnaireController::class, 'getProgress']);
+        Route::put('/{questionnaire}/responses', [HealthQuestionnaireController::class, 'saveResponses']);
+        Route::post('/{questionnaire}/ai-insights', [HealthQuestionnaireController::class, 'getAIInsights']);
+    });
+    
+    // Document Management
+    Route::prefix('documents')->group(function () {
+        Route::get('/', [DocumentController::class, 'index']);
+        Route::post('/upload', [DocumentController::class, 'upload']);
+        Route::get('/validation-progress', [DocumentController::class, 'getValidationProgress']);
+        Route::get('/{document}', [DocumentController::class, 'show']);
+        Route::get('/{document}/download', [DocumentController::class, 'download']);
+        Route::post('/{document}/process-ocr', [DocumentController::class, 'processOCR']);
+        Route::post('/{document}/validate-ocr', [DocumentController::class, 'validateOCR']);
+        Route::delete('/{document}', [DocumentController::class, 'destroy']);
+    });
+    
+    // Gamification
+    Route::prefix('gamification')->group(function () {
+        Route::get('/progress', [GamificationController::class, 'getProgress']);
+        Route::get('/stats', [GamificationController::class, 'getStats']);
+        Route::get('/leaderboard', [GamificationController::class, 'getLeaderboard']);
+        Route::get('/badges', [GamificationController::class, 'getBadges']);
+        Route::get('/achievements', [GamificationController::class, 'getAchievements']);
+        Route::get('/activity-feed', [GamificationController::class, 'getActivityFeed']);
+        Route::get('/dashboard', [GamificationController::class, 'getDashboard']);
+    });
 });

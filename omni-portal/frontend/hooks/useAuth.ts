@@ -12,6 +12,7 @@ interface AuthState {
   error: string | null;
   login: (data: LoginData) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  socialLogin: (provider: 'google' | 'facebook' | 'instagram') => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
   addPoints: (points: number) => void;
@@ -57,6 +58,23 @@ export const useAuth = create<AuthState>()(
         } catch (error: any) {
           set({
             error: error.response?.data?.message || 'Erro ao registrar',
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      socialLogin: async (provider) => {
+        set({ isLoading: true, error: null });
+        try {
+          // Get OAuth redirect URL from backend
+          const response = await authApi.getSocialRedirect(provider);
+          
+          // Redirect to OAuth provider
+          window.location.href = response.url;
+        } catch (error: any) {
+          set({
+            error: error.response?.data?.message || 'Erro ao fazer login social',
             isLoading: false,
           });
           throw error;

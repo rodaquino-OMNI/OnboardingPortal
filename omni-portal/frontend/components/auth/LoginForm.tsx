@@ -11,12 +11,14 @@ import { loginSchema, type LoginData } from '@/lib/schemas/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SocialLoginButton } from './SocialLoginButton';
 // import { cn } from '@/lib/utils'; // Will be used for future enhancements
 
 export function LoginForm() {
   const router = useRouter();
-  const { login, error: authError, clearError } = useAuth();
+  const { login, socialLogin, error: authError, clearError } = useAuth();
   const [showSuccess, setShowSuccess] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
   const {
     register,
@@ -34,10 +36,22 @@ export function LoginForm() {
       
       // Redirect after success animation
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push('/home');
       }, 1500);
     } catch (error) {
       console.error('Login error:', error);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'facebook' | 'instagram') => {
+    try {
+      clearError();
+      setSocialLoading(provider);
+      await socialLogin(provider);
+    } catch (error) {
+      console.error('Social login error:', error);
+    } finally {
+      setSocialLoading(null);
     }
   };
 
@@ -50,17 +64,16 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
-          <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-2">
-            CPF
+          <label htmlFor="login" className="block text-sm font-medium text-gray-700 mb-2">
+            CPF ou Email
           </label>
           <Input
-            id="cpf"
+            id="login"
             type="text"
-            mask="cpf"
-            placeholder="000.000.000-00"
+            placeholder="000.000.000-00 ou seu@email.com"
             icon={User}
-            error={errors.cpf?.message}
-            {...register('cpf')}
+            error={errors.login?.message}
+            {...register('login')}
           />
         </div>
 
@@ -102,19 +115,50 @@ export function LoginForm() {
         >
           Entrar
         </Button>
-
-        <div className="text-center">
-          <p className="text-sm text-gray-600">
-            Não tem uma conta?{' '}
-            <Link
-              href="/register"
-              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-            >
-              Cadastre-se
-            </Link>
-          </p>
-        </div>
       </form>
+
+      {/* Social Login Divider */}
+      <div className="my-6">
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">ou continue com</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Social Login Buttons */}
+      <div className="space-y-3">
+        <SocialLoginButton
+          provider="google"
+          onClick={() => handleSocialLogin('google')}
+          isLoading={socialLoading === 'google'}
+        />
+        <SocialLoginButton
+          provider="facebook"
+          onClick={() => handleSocialLogin('facebook')}
+          isLoading={socialLoading === 'facebook'}
+        />
+        <SocialLoginButton
+          provider="instagram"
+          onClick={() => handleSocialLogin('instagram')}
+          isLoading={socialLoading === 'instagram'}
+        />
+      </div>
+
+      <div className="text-center mt-6">
+        <p className="text-sm text-gray-600">
+          Não tem uma conta?{' '}
+          <Link
+            href="/register"
+            className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+          >
+            Cadastre-se
+          </Link>
+        </p>
+      </div>
 
       {/* Success Animation */}
       {showSuccess && (

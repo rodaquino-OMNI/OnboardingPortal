@@ -2,6 +2,7 @@
 
 export interface User {
   id: string;
+  name: string;
   email: string;
   role: UserRole;
   profile?: UserProfile;
@@ -29,13 +30,6 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   HEALTHCARE_PROFESSIONAL = 'HEALTHCARE_PROFESSIONAL',
   REVIEWER = 'REVIEWER',
-}
-
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: ApiError;
-  message?: string;
 }
 
 export interface ApiError {

@@ -154,8 +154,18 @@ export const useGamification = create<GamificationState>()(
         try {
           const response = await apiService.getLeaderboard(limit);
           if (response.success) {
+            // Deduplicate leaderboard entries by beneficiary_id
+            const leaderboardData = response.data || [];
+            const uniqueEntries = leaderboardData.reduce((acc: any[], current: any) => {
+              const existing = acc.find(entry => entry.beneficiary_id === current.beneficiary_id);
+              if (!existing) {
+                acc.push(current);
+              }
+              return acc;
+            }, []);
+            
             set({ 
-              leaderboard: response.data || [],
+              leaderboard: uniqueEntries,
               isLoadingLeaderboard: false 
             });
           } else {

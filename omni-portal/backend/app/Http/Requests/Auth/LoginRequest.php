@@ -23,7 +23,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'email'],
+            'email' => ['required', 'string'], // Allow both email and CPF
             'password' => ['required', 'string'],
             'remember' => ['boolean'],
             'device_name' => ['sometimes', 'string', 'max:255'], // For mobile apps
@@ -36,8 +36,7 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.required' => 'O e-mail é obrigatório.',
-            'email.email' => 'Por favor, insira um e-mail válido.',
+            'email.required' => 'CPF ou e-mail é obrigatório.',
             'password.required' => 'A senha é obrigatória.',
         ];
     }

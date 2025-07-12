@@ -16,6 +16,7 @@ const Progress = React.forwardRef<
     <div
       ref={ref}
       className={cn("relative w-full", className)}
+      data-testid="progress-bar"
       {...props}
     >
       <div className="overflow-hidden h-2 text-xs flex rounded-full bg-gray-200">

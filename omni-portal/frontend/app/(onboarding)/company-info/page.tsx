@@ -17,17 +17,17 @@ export default function CompanyInfoPage() {
   const { data, setData, submit, isLoading, error, clearError } = useStep2();
   
   // Form state
-  const [formData, setFormData] = useState<RegisterStep2Data>({
+  const [formData, setFormData] = useState<RegisterStep2Data>(() => ({
     phone: data.phone || '',
     department: data.department || '',
     job_title: data.job_title || '',
     employee_id: data.employee_id || '',
     start_date: data.start_date || '',
-    birth_date: data.birth_date || '',
-    gender: data.gender || undefined,
-    marital_status: data.marital_status || undefined,
-    preferred_language: data.preferred_language || 'pt-BR'
-  });
+    ...(data.birth_date && { birth_date: data.birth_date }),
+    ...(data.gender && { gender: data.gender }),
+    ...(data.marital_status && { marital_status: data.marital_status }),
+    ...(data.preferred_language && { preferred_language: data.preferred_language })
+  }));
   
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -40,6 +40,7 @@ export default function CompanyInfoPage() {
       }, 5000);
       return () => clearTimeout(timer);
     }
+    return () => {}; // Ensure all code paths return a value
   }, [error, clearError]);
   
   const handleInputChange = (field: keyof RegisterStep2Data, value: string) => {
@@ -130,6 +131,7 @@ export default function CompanyInfoPage() {
                 value={formData.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
                 className={`w-full ${errors.phone ? 'border-red-500' : ''}`}
+                aria-invalid={!!errors.phone}
                 disabled={isLoading}
               />
               {errors.phone && (
@@ -146,6 +148,7 @@ export default function CompanyInfoPage() {
                 value={formData.department}
                 onChange={(e) => handleInputChange('department', e.target.value)}
                 className={`w-full ${errors.department ? 'border-red-500' : ''}`}
+                aria-invalid={!!errors.department}
                 disabled={isLoading}
               />
               {errors.department && (
@@ -165,6 +168,7 @@ export default function CompanyInfoPage() {
                 value={formData.job_title}
                 onChange={(e) => handleInputChange('job_title', e.target.value)}
                 className={`w-full ${errors.job_title ? 'border-red-500' : ''}`}
+                aria-invalid={!!errors.job_title}
                 disabled={isLoading}
               />
               {errors.job_title && (
@@ -181,6 +185,7 @@ export default function CompanyInfoPage() {
                 value={formData.employee_id}
                 onChange={(e) => handleInputChange('employee_id', e.target.value)}
                 className={`w-full ${errors.employee_id ? 'border-red-500' : ''}`}
+                aria-invalid={!!errors.employee_id}
                 disabled={isLoading}
               />
               {errors.employee_id && (
@@ -199,6 +204,7 @@ export default function CompanyInfoPage() {
                 value={formData.start_date}
                 onChange={(e) => handleInputChange('start_date', e.target.value)}
                 className={`w-full ${errors.start_date ? 'border-red-500' : ''}`}
+                aria-invalid={!!errors.start_date}
                 disabled={isLoading}
               />
               {errors.start_date && (

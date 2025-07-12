@@ -60,7 +60,7 @@ export default function CompletionPage() {
           <CheckCircle className="w-12 h-12 text-green-600" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Parabéns, {user?.name?.split(' ')[0] || 'Candidato'}!
+          Parabéns, {user?.fullName?.split(' ')[0] || 'Candidato'}!
         </h1>
         <p className="text-lg text-gray-600">
           Você completou todos os passos do processo de onboarding com sucesso!

@@ -7,38 +7,38 @@ const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 export const loginSchema = z.object({
-  cpf: z.string()
-    .regex(cpfRegex, 'CPF inválido. Use o formato: 000.000.000-00')
-    .transform(val => val.replace(/\D/g, '')),
+  login: z.string().min(1, 'CPF ou Email é obrigatório'),
   password: z.string().min(1, 'Senha é obrigatória'),
 });
 
 export const registerSchema = z.object({
   // Step 1: Personal Information
-  fullName: z.string().min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
+  fullName: z.string().min(1, 'Campo obrigatório').min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
   cpf: z.string()
+    .min(1, 'Campo obrigatório')
     .regex(cpfRegex, 'CPF inválido. Use o formato: 000.000.000-00')
     .transform(val => val.replace(/\D/g, '')),
-  birthDate: z.string().min(1, 'Data de nascimento é obrigatória'),
-  phone: z.string().min(10, 'Telefone inválido'),
+  birthDate: z.string().min(1, 'Campo obrigatório'),
+  phone: z.string().min(1, 'Campo obrigatório').min(10, 'Telefone inválido'),
   
   // Step 2: Address
   address: z.object({
-    street: z.string().min(3, 'Rua é obrigatória'),
-    number: z.string().min(1, 'Número é obrigatório'),
+    street: z.string().min(1, 'Campo obrigatório').min(3, 'Rua deve ter pelo menos 3 caracteres'),
+    number: z.string().min(1, 'Campo obrigatório'),
     complement: z.string().optional(),
-    neighborhood: z.string().min(3, 'Bairro é obrigatório'),
-    city: z.string().min(3, 'Cidade é obrigatória'),
-    state: z.string().length(2, 'Estado deve ter 2 caracteres'),
-    zipCode: z.string().regex(/^\d{5}-\d{3}$/, 'CEP inválido. Use o formato: 00000-000'),
+    neighborhood: z.string().min(1, 'Campo obrigatório').min(3, 'Bairro deve ter pelo menos 3 caracteres'),
+    city: z.string().min(1, 'Campo obrigatório').min(3, 'Cidade deve ter pelo menos 3 caracteres'),
+    state: z.string().min(1, 'Campo obrigatório').length(2, 'Estado deve ter 2 caracteres'),
+    zipCode: z.string().min(1, 'Campo obrigatório').regex(/^\d{5}-\d{3}$/, 'CEP inválido. Use o formato: 00000-000'),
   }),
   
   // Step 3: Account Security
-  email: z.string().email('Email inválido'),
+  email: z.string().min(1, 'Campo obrigatório').email('Email inválido'),
   password: z.string()
+    .min(1, 'Campo obrigatório')
     .min(8, 'Senha deve ter pelo menos 8 caracteres')
     .regex(passwordRegex, 'Senha deve conter maiúsculas, minúsculas, números e caracteres especiais'),
-  confirmPassword: z.string(),
+  confirmPassword: z.string().min(1, 'Campo obrigatório'),
   termsAccepted: z.boolean().refine(val => val === true, {
     message: 'Você deve aceitar os termos de uso',
   }),

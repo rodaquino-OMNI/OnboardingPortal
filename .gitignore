@@ -42,9 +42,32 @@ yarn-error.log*
 memory/
 coordination/
 claude-flow*
-CLAUDE.md
-package.json
-package-lock.json
+
+# Root-level package.json files (Claude Flow artifacts)
+/package.json
+/package-lock.json
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+
+# Testing artifacts
+test-results/
+playwright-report/
+coverage/
+.nyc_output/
+
+# Laravel cache files
+bootstrap/cache/*.php
+!bootstrap/cache/.gitkeep
+
+# Configuration files that might contain sensitive data
+.pa11yci
+
+# Report files
+*_REPORT.md
+*_SUMMARY.md
 
 # Temporary files
 tmp/

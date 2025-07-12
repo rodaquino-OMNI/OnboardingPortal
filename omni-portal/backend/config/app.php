@@ -93,7 +93,6 @@ return [
         Laravel\Sanctum\SanctumServiceProvider::class,
         Laravel\Horizon\HorizonServiceProvider::class,
         Spatie\Permission\PermissionServiceProvider::class,
-        Barryvdh\Cors\ServiceProvider::class,
 
         /*
          * Application Service Providers...

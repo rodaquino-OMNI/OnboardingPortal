@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert } from '@/components/ui/alert';
-import { Modal } from '@/components/ui/modal';
+import { Modal, ModalHeader, ModalTitle } from '@/components/ui/modal';
 import { LGPDDataExport } from '@/components/lgpd/LGPDDataExport';
 import { LGPDPrivacySettings } from '@/components/lgpd/LGPDPrivacySettings';
 import { LGPDConsentHistory } from '@/components/lgpd/LGPDConsentHistory';
@@ -22,12 +21,7 @@ import {
   Activity,
   Info,
   CheckCircle,
-  AlertTriangle,
   Eye,
-  EyeOff,
-  Lock,
-  Key,
-  FileText,
   Clock
 } from 'lucide-react';
 
@@ -35,12 +29,10 @@ export default function LGPDPage() {
   const { user } = useAuth();
   const { 
     privacySettings, 
-    consentHistory, 
     dataProcessingActivities,
     fetchPrivacySettings,
     fetchConsentHistory,
-    fetchDataProcessingActivities,
-    isLoading
+    fetchDataProcessingActivities
   } = useLGPD();
   
   const [activeTab, setActiveTab] = useState('overview');
@@ -50,7 +42,7 @@ export default function LGPDPage() {
     fetchPrivacySettings();
     fetchConsentHistory();
     fetchDataProcessingActivities();
-  }, []);
+  }, [fetchPrivacySettings, fetchConsentHistory, fetchDataProcessingActivities]);
 
   const tabs = [
     { id: 'overview', label: 'Visão Geral', icon: Shield },
@@ -66,11 +58,13 @@ export default function LGPDPage() {
       return { status: 'warning', text: 'Consentimento pendente', color: 'bg-yellow-100 text-yellow-800' };
     }
     
-    const consentDate = new Date(user.lgpd_consent_at);
-    const daysSinceConsent = Math.floor((Date.now() - consentDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysSinceConsent > 365) {
-      return { status: 'warning', text: 'Consentimento antigo', color: 'bg-yellow-100 text-yellow-800' };
+    if (user.lgpd_consent_at) {
+      const consentDate = new Date(user.lgpd_consent_at);
+      const daysSinceConsent = Math.floor((Date.now() - consentDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysSinceConsent > 365) {
+        return { status: 'warning', text: 'Consentimento antigo', color: 'bg-yellow-100 text-yellow-800' };
+      }
     }
     
     return { status: 'success', text: 'Consentimento válido', color: 'bg-green-100 text-green-800' };
@@ -256,10 +250,12 @@ export default function LGPDPage() {
 
       {/* LGPD Information Modal */}
       <Modal
-        isOpen={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-        title="Sobre a LGPD"
+        open={showInfoModal}
+        onOpenChange={(open) => setShowInfoModal(open)}
       >
+        <ModalHeader>
+          <ModalTitle>Sobre a LGPD</ModalTitle>
+        </ModalHeader>
         <div className="space-y-4">
           <div>
             <h3 className="font-semibold mb-2">Lei Geral de Proteção de Dados</h3>

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
 import { Trophy, Star, X, Sparkles, TrendingUp } from 'lucide-react';
@@ -34,7 +33,31 @@ export function AchievementNotification({
 }: AchievementNotificationProps) {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [isVisible, setIsVisible] = useState(false);
-  const { badges, stats, activityFeed } = useGamification();
+  const { badges, stats } = useGamification();
+
+  const hideNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    if (notifications.length <= 1) {
+      setIsVisible(false);
+    }
+  }, [notifications.length]);
+
+  const showNotification = useCallback((notification: NotificationData) => {
+    setNotifications(prev => {
+      // Prevent duplicates
+      const exists = prev.some(n => n.id === notification.id);
+      if (exists) return prev;
+      
+      return [...prev, notification];
+    });
+    setIsVisible(true);
+
+    if (autoHide) {
+      setTimeout(() => {
+        hideNotification(notification.id);
+      }, hideDelay);
+    }
+  }, [autoHide, hideDelay, hideNotification]);
 
   // Mock function to simulate achievement notifications
   // In real implementation, this would come from WebSocket or polling
@@ -107,31 +130,7 @@ export function AchievementNotification({
     checkForNewAchievements();
 
     return () => clearInterval(interval);
-  }, [badges, stats]);
-
-  const showNotification = (notification: NotificationData) => {
-    setNotifications(prev => {
-      // Prevent duplicates
-      const exists = prev.some(n => n.id === notification.id);
-      if (exists) return prev;
-      
-      return [...prev, notification];
-    });
-    setIsVisible(true);
-
-    if (autoHide) {
-      setTimeout(() => {
-        hideNotification(notification.id);
-      }, hideDelay);
-    }
-  };
-
-  const hideNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
-    if (notifications.length <= 1) {
-      setIsVisible(false);
-    }
-  };
+  }, [badges, stats, showNotification, hideNotification]);
 
   const getIcon = (notification: NotificationData) => {
     switch (notification.type) {

@@ -16,3 +16,14 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return ['Laravel' => app()->version()];
 });
+
+// Test route to debug request
+Route::post('/test-login', function (\Illuminate\Http\Request $request) {
+    return response()->json([
+        'all' => $request->all(),
+        'input' => $request->input(),
+        'json' => $request->json()->all(),
+        'content' => $request->getContent(),
+        'headers' => $request->headers->all(),
+    ]);
+});

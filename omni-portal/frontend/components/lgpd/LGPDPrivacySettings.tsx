@@ -8,14 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { useLGPD } from '@/hooks/useLGPD';
 import { 
-  Settings, 
   Shield, 
-  Eye, 
-  EyeOff, 
   Mail, 
   BarChart, 
   Share2, 
-  Users, 
   Activity, 
   Zap, 
   Globe,
@@ -30,7 +26,7 @@ interface PrivacySetting {
   key: string;
   label: string;
   description: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   category: 'communications' | 'data_processing' | 'visibility' | 'integrations';
   level: 'essential' | 'functional' | 'optional';
   legalBasis: string;
@@ -38,7 +34,7 @@ interface PrivacySetting {
 
 export function LGPDPrivacySettings() {
   const { privacySettings, updatePrivacySettings, isLoading } = useLGPD();
-  const [localSettings, setLocalSettings] = useState<Record<string, any>>({});
+  const [localSettings, setLocalSettings] = useState<Record<string, boolean | string>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState<PrivacySetting | null>(null);
@@ -152,7 +148,8 @@ export function LGPDPrivacySettings() {
       });
       setHasChanges(false);
       setTimeout(() => setSaveStatus({ type: null, message: '' }), 3000);
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Error saving privacy settings:', error);
       setSaveStatus({
         type: 'error',
         message: 'Erro ao salvar configurações. Tente novamente.'
@@ -384,9 +381,8 @@ export function LGPDPrivacySettings() {
 
       {/* Information Modal */}
       <Modal
-        isOpen={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-        title="Sobre as Configurações de Privacidade"
+        open={showInfoModal}
+        onOpenChange={(open) => setShowInfoModal(open)}
       >
         <div className="space-y-4">
           <div>
@@ -421,9 +417,8 @@ export function LGPDPrivacySettings() {
 
       {/* Setting Detail Modal */}
       <Modal
-        isOpen={!!selectedSetting}
-        onClose={() => setSelectedSetting(null)}
-        title={selectedSetting?.label || ''}
+        open={!!selectedSetting}
+        onOpenChange={(open) => !open && setSelectedSetting(null)}
       >
         {selectedSetting && (
           <div className="space-y-4">

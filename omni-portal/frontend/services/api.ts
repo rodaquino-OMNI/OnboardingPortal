@@ -6,7 +6,9 @@ class ApiService {
 
   constructor() {
     this.client = axios.create({
-      baseURL: `${process.env.NEXT_PUBLIC_API_URL}/${process.env.NEXT_PUBLIC_API_VERSION}`,
+      baseURL: process.env.NEXT_PUBLIC_API_VERSION 
+        ? `${process.env.NEXT_PUBLIC_API_URL}/${process.env.NEXT_PUBLIC_API_VERSION}`
+        : process.env.NEXT_PUBLIC_API_URL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
@@ -215,17 +217,37 @@ class ApiService {
     return this.uploadFile('/profile/photo', file);
   }
 
-  // Gamification methods
-  async getGamificationProgress(): Promise<ApiResponse<GamificationProgress>> {
-    return this.get('/gamification/progress');
+  // LGPD methods
+  async getLGPDPrivacySettings(): Promise<ApiResponse<any>> {
+    return this.get('/lgpd/privacy-settings');
   }
 
-  async getBadges(): Promise<ApiResponse<Badge[]>> {
-    return this.get('/gamification/badges');
+  async updateLGPDPrivacySettings(settings: any): Promise<ApiResponse<any>> {
+    return this.put('/lgpd/privacy-settings', { preferences: settings });
   }
 
-  async getLeaderboard(): Promise<ApiResponse<LeaderboardEntry[]>> {
-    return this.get('/gamification/leaderboard');
+  async getLGPDConsentHistory(): Promise<ApiResponse<any>> {
+    return this.get('/lgpd/consent-history');
+  }
+
+  async getLGPDDataProcessingActivities(): Promise<ApiResponse<any>> {
+    return this.get('/lgpd/data-processing-activities');
+  }
+
+  async exportLGPDUserData(): Promise<ApiResponse<any>> {
+    return this.get('/lgpd/export-data');
+  }
+
+  async exportLGPDUserDataPdf(): Promise<ApiResponse<any>> {
+    return this.get('/lgpd/export-data-pdf');
+  }
+
+  async withdrawLGPDConsent(data: any): Promise<ApiResponse<any>> {
+    return this.post('/lgpd/withdraw-consent', data);
+  }
+
+  async deleteLGPDAccount(data: any): Promise<ApiResponse<any>> {
+    return this.delete('/lgpd/delete-account', { data });
   }
 }
 

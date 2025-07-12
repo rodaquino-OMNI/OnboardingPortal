@@ -79,7 +79,7 @@ export function RegisterForm() {
   return (
     <div className="w-full max-w-2xl">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Crie sua conta</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Criar Conta</h1>
         <p className="text-gray-600">Complete o formulário abaixo para começar</p>
       </div>
 

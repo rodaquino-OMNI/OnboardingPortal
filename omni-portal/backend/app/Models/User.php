@@ -10,6 +10,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class User extends Authenticatable
 {
@@ -38,6 +39,18 @@ class User extends Authenticatable
         'role',
         'preferred_language',
         'preferences',
+        'google_id',
+        'facebook_id',
+        'instagram_id',
+        'avatar_url',
+        'social_provider',
+        'social_login',
+        'is_active',
+        'email_verified_at',
+        'last_login_at',
+        'last_login_ip',
+        'failed_login_attempts',
+        'locked_until',
     ];
 
     /**
@@ -161,7 +174,7 @@ class User extends Authenticatable
     /**
      * Get gamification progress through beneficiary
      */
-    public function gamificationProgress(): HasOne
+    public function gamificationProgress(): HasOneThrough
     {
         return $this->hasOneThrough(
             GamificationProgress::class,

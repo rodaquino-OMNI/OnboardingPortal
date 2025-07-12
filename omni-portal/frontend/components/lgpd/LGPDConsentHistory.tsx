@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert } from '@/components/ui/alert';
 import { Modal } from '@/components/ui/modal';
 import { useLGPD } from '@/hooks/useLGPD';
 import { 
@@ -16,12 +15,10 @@ import {
   MapPin, 
   Calendar,
   Clock,
-  Shield,
   Info,
   Eye,
   Download,
   Trash2,
-  Filter,
   RefreshCw
 } from 'lucide-react';
 
@@ -29,7 +26,7 @@ interface ConsentHistoryItem {
   date: string;
   type: string;
   action: string;
-  details: any;
+  details: Record<string, unknown>;
   ip_address: string;
   user_agent: string;
 }
@@ -38,7 +35,6 @@ export function LGPDConsentHistory() {
   const { consentHistory, fetchConsentHistory, isLoading } = useLGPD();
   const [selectedItem, setSelectedItem] = useState<ConsentHistoryItem | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
   useEffect(() => {
     fetchConsentHistory();
@@ -346,9 +342,8 @@ export function LGPDConsentHistory() {
 
       {/* Item Detail Modal */}
       <Modal
-        isOpen={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
-        title="Detalhes do Evento"
+        open={!!selectedItem}
+        onOpenChange={(open) => !open && setSelectedItem(null)}
       >
         {selectedItem && (
           <div className="space-y-4">

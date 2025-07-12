@@ -10,6 +10,7 @@ import { AchievementNotification } from '@/components/gamification/AchievementNo
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { 
   User, 
   Calendar, 
@@ -18,17 +19,14 @@ import {
   Clock, 
   TrendingUp,
   Target,
-  Activity,
-  Award
+  Activity
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { 
     dashboardSummary, 
-    fetchDashboardSummary, 
-    fetchAll,
-    isLoadingDashboard 
+    fetchAll 
   } = useGamification();
 
   useEffect(() => {
@@ -38,9 +36,9 @@ export default function DashboardPage() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return 'Bom dia';
+    if (hour < 17) return 'Boa tarde';
+    return 'Boa noite';
   };
 
   const quickStats = dashboardSummary?.quick_stats;
@@ -54,10 +52,10 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {getGreeting()}, {user?.profile?.firstName || 'User'}!
+            {getGreeting()}, {user?.fullName || 'User'}!
           </h1>
           <p className="text-gray-600">
-            Welcome to your onboarding dashboard. Track your progress and achievements.
+            Bem-vindo ao seu painel de integração. Acompanhe seu progresso e conquistas.
           </p>
         </div>
 
@@ -69,24 +67,32 @@ export default function DashboardPage() {
             
             {/* Quick Actions */}
             <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Quick Actions</h3>
+              <h3 className="font-semibold text-lg mb-4">Ações Rápidas</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                  <User className="w-6 h-6" />
-                  <span className="text-sm">Profile</span>
-                </Button>
-                <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                  <FileText className="w-6 h-6" />
-                  <span className="text-sm">Documents</span>
-                </Button>
-                <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                  <Calendar className="w-6 h-6" />
-                  <span className="text-sm">Interview</span>
-                </Button>
-                <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                  <CheckCircle className="w-6 h-6" />
-                  <span className="text-sm">Health Form</span>
-                </Button>
+                <Link href="/profile">
+                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
+                    <User className="w-6 h-6" />
+                    <span className="text-sm">Perfil</span>
+                  </Button>
+                </Link>
+                <Link href="/document-upload">
+                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
+                    <FileText className="w-6 h-6" />
+                    <span className="text-sm">Documentos</span>
+                  </Button>
+                </Link>
+                <Link href="/interview-schedule">
+                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
+                    <Calendar className="w-6 h-6" />
+                    <span className="text-sm">Entrevista</span>
+                  </Button>
+                </Link>
+                <Link href="/health-questionnaire">
+                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
+                    <CheckCircle className="w-6 h-6" />
+                    <span className="text-sm">Questionário de Saúde</span>
+                  </Button>
+                </Link>
               </div>
             </Card>
           </div>
@@ -95,12 +101,12 @@ export default function DashboardPage() {
           <div className="space-y-6">
             {/* Quick Stats */}
             <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Today's Stats</h3>
+              <h3 className="font-semibold text-lg mb-4">Estatísticas de Hoje</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <TrendingUp className="w-4 h-4 text-green-500" />
-                    <span className="text-sm">Points Today</span>
+                    <span className="text-sm">Pontos Hoje</span>
                   </div>
                   <Badge variant="secondary">
                     +{quickStats?.points_today || 0}
@@ -109,7 +115,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Activity className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm">Completion Rate</span>
+                    <span className="text-sm">Taxa de Conclusão</span>
                   </div>
                   <Badge variant="secondary">
                     {quickStats?.completion_rate || 0}%
@@ -118,7 +124,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Target className="w-4 h-4 text-purple-500" />
-                    <span className="text-sm">Company Rank</span>
+                    <span className="text-sm">Ranking da Empresa</span>
                   </div>
                   <Badge variant="secondary">
                     #{quickStats?.rank_in_company || 'N/A'}
@@ -130,7 +136,7 @@ export default function DashboardPage() {
             {/* Recent Achievements */}
             {recentBadges.length > 0 && (
               <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-4">Recent Achievements</h3>
+                <h3 className="font-semibold text-lg mb-4">Conquistas Recentes</h3>
                 <div className="space-y-3">
                   {recentBadges.map((badge, index) => (
                     <div key={index} className="flex items-center space-x-3">
@@ -154,15 +160,15 @@ export default function DashboardPage() {
 
             {/* Next Steps */}
             <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Next Steps</h3>
+              <h3 className="font-semibold text-lg mb-4">Próximos Passos</h3>
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
                     <Clock className="w-3 h-3 text-blue-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Complete Health Questionnaire</p>
-                    <p className="text-xs text-gray-500">Earn 100 points</p>
+                    <p className="text-sm font-medium">Completar Questionário de Saúde</p>
+                    <p className="text-xs text-gray-500">Ganhe 100 pontos</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -170,8 +176,8 @@ export default function DashboardPage() {
                     <FileText className="w-3 h-3 text-green-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Upload Required Documents</p>
-                    <p className="text-xs text-gray-500">Earn 50 points each</p>
+                    <p className="text-sm font-medium">Enviar Documentos Obrigatórios</p>
+                    <p className="text-xs text-gray-500">Ganhe 50 pontos cada</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -179,8 +185,8 @@ export default function DashboardPage() {
                     <Calendar className="w-3 h-3 text-purple-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">Schedule Interview</p>
-                    <p className="text-xs text-gray-500">Earn 150 points</p>
+                    <p className="text-sm font-medium">Agendar Entrevista</p>
+                    <p className="text-xs text-gray-500">Ganhe 150 pontos</p>
                   </div>
                 </div>
               </div>

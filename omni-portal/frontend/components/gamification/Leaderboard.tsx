@@ -4,8 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Trophy, Crown, Medal, Star, TrendingUp } from 'lucide-react';
-import type { LeaderboardEntry } from '@/types';
 
 interface LeaderboardProps {
   className?: string;
@@ -15,8 +15,7 @@ interface LeaderboardProps {
 
 export function Leaderboard({ 
   className, 
-  limit = 10, 
-  showCurrentUser = true 
+  limit = 10 
 }: LeaderboardProps) {
   const { 
     leaderboard, 
@@ -107,7 +106,7 @@ export function Leaderboard({
             
             return (
               <div
-                key={entry.beneficiary_id}
+                key={`${entry.beneficiary_id}-${index}`}
                 className={`
                   flex items-center space-x-4 p-4 rounded-lg border transition-all
                   ${getRankBackground(rank)}
@@ -122,9 +121,11 @@ export function Leaderboard({
                 {/* Avatar */}
                 <div className="flex-shrink-0">
                   {entry.avatar ? (
-                    <img
+                    <Image
                       src={entry.avatar}
                       alt={entry.name}
+                      width={40}
+                      height={40}
                       className="w-10 h-10 rounded-full object-cover"
                     />
                   ) : (
@@ -161,8 +162,8 @@ export function Leaderboard({
                 </div>
 
                 {/* Points */}
-                <div className="flex-shrink-0 text-right">
-                  <div className="font-bold text-lg">
+                <div className="flex-shrink-0 text-right" data-testid="points-display">
+                  <div className="font-bold text-lg" data-testid="points-counter">
                     {entry.total_points.toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500">points</div>

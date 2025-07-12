@@ -26,8 +26,7 @@ return new class extends Migration
             $table->json('metadata')->nullable(); // Additional metadata
             $table->timestamps();
             
-            // Indexes
-            $table->index(['notifiable_type', 'notifiable_id']);
+            // Indexes (morphs() already creates notifiable_type + notifiable_id index)
             $table->index('read_at');
             $table->index('channel');
             $table->index('priority');

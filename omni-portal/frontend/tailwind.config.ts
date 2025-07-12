@@ -131,6 +131,19 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    function({ addUtilities }) {
+      addUtilities({
+        '.touch-target-44': {
+          minHeight: '44px',
+          minWidth: '44px',
+        },
+        '.touch-target-48': {
+          minHeight: '48px',
+          minWidth: '48px',
+        },
+      });
+    },
+  ],
 };
 export default config;

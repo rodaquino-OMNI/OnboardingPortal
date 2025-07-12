@@ -38,7 +38,8 @@ export function LGPDDataExport() {
         expiresAt: result.expires_at,
         fileSize: result.file_size
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Error exporting JSON data:', error);
       setExportStatus({
         type: 'error',
         message: 'Erro ao gerar exportação JSON. Tente novamente.'
@@ -56,7 +57,8 @@ export function LGPDDataExport() {
         expiresAt: result.expires_at,
         fileSize: result.file_size
       });
-    } catch (error) {
+    } catch (error: unknown) {
+      console.error('Error exporting PDF data:', error);
       setExportStatus({
         type: 'error',
         message: 'Erro ao gerar exportação PDF. Tente novamente.'
@@ -234,7 +236,7 @@ export function LGPDDataExport() {
       {/* Export Status */}
       {exportStatus.type && (
         <Alert
-          type={exportStatus.type}
+          variant={exportStatus.type}
           className="p-4"
         >
           <div className="flex items-start space-x-3">
