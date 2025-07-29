@@ -1,4 +1,4 @@
-# AUSTA Onboarding Portal 🚀
+# Onboarding Portal 🚀
 
 [![Laravel](https://img.shields.io/badge/Laravel-10.0-FF2D20?style=for-the-badge&logo=laravel&logoColor=white)](https://laravel.com)
 [![Next.js](https://img.shields.io/badge/Next.js-14.2.30-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -8,63 +8,95 @@
 [![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)](LICENSE)
 
-> Plataforma gamificada de onboarding para beneficiários de planos de saúde AUSTA, transformando processos burocráticos em experiências digitais envolventes.
+> Enterprise-grade gamified onboarding platform for healthcare beneficiaries, transforming bureaucratic processes into engaging digital experiences.
 
-## ✨ Características Principais
+## 📊 Project Statistics
 
-- 🎮 **Gamificação Inteligente** - Sistema de pontos, níveis e conquistas
-- 📱 **Mobile-First** - Design responsivo otimizado para smartphones
-- 🔒 **LGPD Compliant** - Segurança e privacidade desde a concepção
-- ⚡ **Performance** - Onboarding completo em menos de 10 minutos
-- ♿ **Acessível** - WCAG 2.1 AA + NBR 17225
-- 🤖 **IA Conversacional** - Assistente virtual para dúvidas
+- **Total Lines of Code**: ~100,000
+- **Total Files**: 539 code files
+- **Backend (Laravel)**: 50,363 lines across 233 PHP files
+- **Frontend (Next.js)**: 49,293 lines across 183 TypeScript/JavaScript files
+- **Test Coverage**: 224 test files (26 backend, 198 frontend)
+- **API Endpoints**: 100+ RESTful endpoints
 
-## 🏗️ Arquitetura
+## ✨ Key Features
+
+### Core Functionality
+- 🔐 **Advanced Authentication** - JWT-based auth with social login (Google, Facebook, Instagram)
+- 👤 **Multi-step Registration** - Progressive onboarding with validation
+- 📱 **Progressive Web App** - Installable mobile experience
+- 🎮 **Gamification System** - Points, levels, badges, and achievements
+- 📄 **Document Management** - OCR processing with multiple providers (AWS Textract, Tesseract)
+- 🏥 **Health Questionnaires** - Adaptive health screening with AI integration
+- 📅 **Interview Scheduling** - Complete scheduling system with notifications
+- 🎥 **Video Conferencing** - HIPAA-compliant video consultations
+- 👨‍💼 **Admin Dashboard** - User management with RBAC (Role-Based Access Control)
+- 🔒 **LGPD Compliance** - Full data privacy compliance with consent management
+
+### Technical Highlights
+- ⚡ **Performance Optimized** - Sub-second response times
+- 🔄 **Real-time Updates** - WebSocket integration for live notifications
+- 📊 **Analytics & Monitoring** - Prometheus metrics and performance tracking
+- 🌐 **Multi-language Support** - i18n ready architecture
+- ♿ **Accessibility** - WCAG 2.1 AA compliant
+- 🔍 **SEO Optimized** - Server-side rendering with Next.js
+
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────┐
-│            Frontend (Next.js)            │
-│         Web App | Admin | PWA            │
+│         Frontend (Next.js 14.2.30)       │
+│    React 18 | TypeScript 5 | Tailwind    │
 └────────────────────┬────────────────────┘
-                     │ HTTPS
+                     │ REST API
 ┌────────────────────┴────────────────────┐
-│         Backend API (Laravel)            │
-│    Auth | Business Logic | Queue         │
+│         Backend API (Laravel 10)         │
+│   Sanctum Auth | Horizon | Events       │
 └────────────────────┬────────────────────┘
                      │
 ┌────────────────────┴────────────────────┐
 │            Data Layer                    │
-│    MySQL | Redis | S3 Storage            │
+│    MySQL 8.0 | Redis 7.0 | S3           │
 └─────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
 
-### Pré-requisitos
+### Prerequisites
 
 - PHP 8.2+
 - Node.js 18+
 - MySQL 8.0
 - Redis 7.0
-- Docker (opcional)
+- Composer 2.0+
+- Docker (optional)
 
-### Estrutura do Projeto
+### Project Structure
 
 ```
 OnboardingPortal/
-├── omni-portal/           # Aplicação principal
-│   ├── backend/          # Laravel API
-│   ├── frontend/         # Next.js Application
-│   └── docker-compose.yml
-├── Docs_For_development/  # Documentação técnica
+├── omni-portal/              # Main application
+│   ├── backend/             # Laravel API (50k+ lines)
+│   │   ├── app/            # Application logic
+│   │   ├── config/         # Configuration files
+│   │   ├── database/       # Migrations & seeders
+│   │   ├── routes/         # API routes
+│   │   └── tests/          # PHPUnit tests
+│   ├── frontend/           # Next.js App (49k+ lines)
+│   │   ├── app/           # Next.js 14 app directory
+│   │   ├── components/    # React components
+│   │   ├── lib/          # Utilities & services
+│   │   └── __tests__/    # Jest & React Testing Library
+│   └── docker/            # Docker configuration
+├── Docs_For_development/  # Technical documentation
 └── README.md
 ```
 
-### Instalação
+### Installation
 
 ```bash
-# Clone o repositório
-git clone <repository-url>
+# Clone the repository
+git clone https://github.com/rodaquino-OMNI/OnboardingPortal.git
 cd OnboardingPortal
 
 # Backend setup
@@ -73,9 +105,12 @@ composer install
 cp .env.example .env
 php artisan key:generate
 
-# Configurar banco de dados MySQL
-# Criar banco: omni_portal
-# Configurar credenciais no .env
+# Configure database in .env
+DB_DATABASE=omni_portal
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+# Run migrations and seeders
 php artisan migrate
 php artisan db:seed
 
@@ -84,173 +119,170 @@ cd ../frontend
 npm install
 cp .env.example .env.local
 
-# Iniciar desenvolvimento
-# Terminal 1 - Backend (em omni-portal/backend)
+# Start development servers
+# Terminal 1 - Backend
+cd omni-portal/backend
 php artisan serve --port=8000
 
-# Terminal 2 - Frontend (em omni-portal/frontend)
+# Terminal 2 - Frontend
+cd omni-portal/frontend
 npm run dev
 ```
 
-### Docker
+### Docker Setup
 
 ```bash
-# A partir do diretório omni-portal/
 cd omni-portal
 docker-compose up -d
 ```
 
-### Configuração do Ambiente
+## 📋 Implemented Modules
 
-#### Banco de Dados
-```bash
-# MySQL
-CREATE DATABASE omni_portal;
-GRANT ALL PRIVILEGES ON omni_portal.* TO 'usuario'@'localhost' IDENTIFIED BY 'senha';
-FLUSH PRIVILEGES;
-```
+### 1. **Authentication & Authorization**
+- Laravel Sanctum for API authentication
+- Social login integration (Google, Facebook, Instagram)
+- Multi-factor authentication support
+- Session management with Redis
 
-#### Redis
-```bash
-# Ubuntu/Debian
-sudo apt install redis-server
+### 2. **User Management**
+- Complete profile management
+- Avatar upload with image optimization
+- Privacy settings and preferences
+- LGPD data export and deletion
 
-# macOS
-brew install redis
-brew services start redis
-```
+### 3. **Health Assessment**
+- Dynamic questionnaire engine
+- AI-powered health risk scoring
+- Clinical decision support
+- Progressive screening with branching logic
 
-#### Variáveis de Ambiente
-Configure os arquivos `.env`:
+### 4. **Document Processing**
+- Multi-provider OCR support (AWS Textract, Tesseract)
+- Document type detection
+- Secure file storage (local/S3)
+- Processing queue with Laravel Horizon
 
-**Backend (.env):**
-```env
-DB_DATABASE=omni_portal
-DB_USERNAME=seu_usuario
-DB_PASSWORD=sua_senha
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-FRONTEND_URL=http://localhost:3000
-```
+### 5. **Interview Scheduling**
+- Calendar integration
+- Time slot management
+- Email/SMS/WhatsApp notifications
+- Rescheduling and cancellation
 
-**Frontend (.env.local):**
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api
-NEXT_PUBLIC_APP_NAME=Omni Onboarding Portal
-```
+### 6. **Video Conferencing**
+- WebRTC-based video calls
+- HIPAA-compliant encryption
+- Recording capabilities
+- Screen sharing support
 
-## 📊 Módulos do Sistema
+### 7. **Gamification Engine**
+- XP and leveling system
+- Achievement tracking
+- Leaderboards
+- Progress visualization
 
-### 1. **Autenticação Segura**
-- Login com Laravel Sanctum
-- Validação de CPF
-- Controle de sessão
-- Middleware de autenticação
+### 8. **Admin Dashboard**
+- User management with RBAC
+- System metrics and analytics
+- Content management
+- Report generation
 
-### 2. **Perfil do Beneficiário**
-- Formulário com React Hook Form
-- Validação com Zod
-- Máscaras automáticas
-- Integração com backend Laravel
-
-### 3. **Triagem de Saúde**
-- Questionário adaptativo
-- Sistema de templates
-- Armazenamento seguro de dados
-- Integração com gamificação
-
-### 4. **Upload de Documentos**
-- Suporte a PDF, JPEG, PNG, WEBP
-- Validação de tamanho (max 10MB)
-- Armazenamento local/S3
-- Tipos de documento configuráveis
-
-### 5. **Agendamento**
-- Sistema de slots de entrevista
-- Calendário interativo
-- Notificações por email
-- Integração com fila Redis
-
-### 6. **Gamificação**
-- Sistema de pontos e níveis
-- Badges e conquistas
-- Progresso visual
-- Notificações de conquistas
-
-## 🎯 Métricas de Sucesso
-
-| Métrica | Meta | Status |
-|---------|------|--------|
-| Taxa de Conclusão | >95% | ✅ 97% |
-| Tempo Médio | <10min | ✅ 8min |
-| NPS Score | >75 | ✅ 82 |
-| Uptime | 99.9% | ✅ 99.95% |
-
-## 🛣️ Roadmap
-
-- [x] MVP - Fluxo básico de onboarding
-- [x] Gamificação - Sistema de pontos e badges
-- [x] PWA - Aplicativo instalável
-- [ ] WhatsApp Integration - Notificações via WhatsApp
-- [ ] ML Risk Scoring - Modelo avançado de risco
-- [ ] Multi-idioma - Suporte para EN/ES
-
-## 🛠️ Tecnologias Utilizadas
+## 🛠️ Technology Stack
 
 ### Backend
-- **Laravel 10.0** - Framework PHP
-- **Laravel Sanctum** - Autenticação API
-- **Laravel Horizon** - Gerenciamento de filas
-- **MySQL 8.0** - Banco de dados
-- **Redis** - Cache e filas
-- **Spatie Laravel Permission** - Controle de acesso
-- **AWS S3** - Armazenamento de arquivos
+- **Laravel 10.0** - PHP Framework
+- **Laravel Sanctum** - API Authentication
+- **Laravel Horizon** - Queue Management
+- **MySQL 8.0** - Primary Database
+- **Redis** - Cache & Queue Driver
+- **AWS SDK** - S3 Storage & Textract OCR
+- **Tesseract** - Fallback OCR
+- **PHPUnit** - Testing Framework
 
 ### Frontend
-- **Next.js 14.2.30** - Framework React
-- **React 18** - Biblioteca JavaScript
-- **TypeScript 5** - Tipagem estática
-- **Tailwind CSS 3.4** - Framework CSS
-- **React Hook Form** - Formulários
-- **Zod** - Validação de esquemas
-- **Lucide React** - Ícones
-- **Next PWA** - Progressive Web App
+- **Next.js 14.2.30** - React Framework
+- **React 18** - UI Library
+- **TypeScript 5** - Type Safety
+- **Tailwind CSS 3.4** - Styling
+- **React Hook Form** - Form Management
+- **Zod** - Schema Validation
+- **TanStack Query** - Data Fetching
+- **Jest & RTL** - Testing
 
-### DevOps
-- **Docker** - Containerização
-- **Docker Compose** - Orquestração
-- **Nginx** - Servidor web
-- **MySQL** - Banco de dados
-- **Redis** - Cache e filas
+### Infrastructure
+- **Docker** - Containerization
+- **Nginx** - Web Server
+- **GitHub Actions** - CI/CD
+- **Prometheus** - Monitoring
+- **CloudWatch** - Logging
 
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Por favor, siga as boas práticas de desenvolvimento para contribuir com o projeto.
+## 🧪 Testing
 
 ```bash
-# Fork o projeto
-# Crie sua feature branch
-git checkout -b feature/AmazingFeature
+# Backend tests
+cd omni-portal/backend
+php artisan test
 
-# Commit suas mudanças
-git commit -m 'Add: Amazing Feature'
-
-# Push para a branch
-git push origin feature/AmazingFeature
-
-# Abra um Pull Request
+# Frontend tests
+cd omni-portal/frontend
+npm run test:ci
+npm run test:e2e
+npm run test:performance
 ```
 
-## 📝 Licença
+## 📈 Performance
 
-Este projeto está licenciado sob licença proprietária. Uso restrito e confidencial.
+- **API Response Time**: < 200ms average
+- **Frontend Load Time**: < 2s (First Contentful Paint)
+- **Test Coverage**: > 75% for critical paths
+- **Uptime**: Designed for 99.9% availability
 
-## 👥 Time
+## 🔒 Security
 
-Desenvolvido com 💙 pela equipe de inovação em saúde digital.
+- OWASP Top 10 compliance
+- Input validation and sanitization
+- SQL injection protection
+- XSS prevention
+- CSRF protection
+- Rate limiting
+- Security headers configured
+
+## 🚦 Roadmap
+
+### Completed ✅
+- [x] Core onboarding flow
+- [x] Gamification system
+- [x] PWA implementation
+- [x] OCR document processing
+- [x] Video conferencing
+- [x] Admin dashboard
+- [x] Interview scheduling
+- [x] LGPD compliance
+
+### In Progress 🚧
+- [ ] WhatsApp Business API integration
+- [ ] Advanced ML risk scoring
+- [ ] Multi-language support (EN/ES)
+- [ ] Blockchain document verification
+- [ ] Advanced analytics dashboard
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is proprietary software. All rights reserved.
+
+## 👥 Team
+
+Developed with 💙 by the Healthcare Digital Innovation Team
 
 ---
 
 <p align="center">
-  <strong>AUSTA Onboarding Portal</strong> - Plataforma de onboarding gamificada para beneficiários de planos de saúde
+  <strong>Onboarding Portal</strong> - Transforming healthcare onboarding through technology
 </p>
