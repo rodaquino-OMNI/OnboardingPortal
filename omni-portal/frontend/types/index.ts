@@ -1,284 +1,540 @@
-// Global type definitions for the Omni Onboarding Portal
+// Core TypeScript interfaces for the Onboarding Portal
+// This file eliminates all 'any' types and provides strict type safety
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  profile?: UserProfile;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface UserProfile {
-  firstName: string;
-  lastName: string;
-  phoneNumber?: string;
-  dateOfBirth?: Date;
-  address?: Address;
-}
-
-export interface Address {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
-
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  HEALTHCARE_PROFESSIONAL = 'HEALTHCARE_PROFESSIONAL',
-  REVIEWER = 'REVIEWER',
-}
+// =====================================
+// ERROR HANDLING TYPES
+// =====================================
 
 export interface ApiError {
-  code: string;
   message: string;
-  details?: Record<string, any>;
+  code?: string | number;
+  status?: number;
+  details?: Record<string, unknown>;
 }
 
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
+export interface ValidationError extends ApiError {
+  field?: string;
+  value?: unknown;
 }
 
-export interface OnboardingStep {
+export interface NetworkError extends ApiError {
+  url?: string;
+  method?: string;
+}
+
+export type AppError = ApiError | ValidationError | NetworkError | Error;
+
+// =====================================
+// API RESPONSE TYPES
+// =====================================
+
+export interface ApiResponse<T = unknown> {
+  data: T;
+  message?: string;
+  status: number;
+  success: boolean;
+  error?: ApiError;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+// =====================================
+// HEALTH QUESTIONNAIRE TYPES
+// =====================================
+
+export type QuestionType = 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'scale';
+
+export interface QuestionOption {
   id: string;
+  label: string;
+  value: string | number | boolean;
+  description?: string;
+}
+
+export interface QuestionValidation {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  customValidator?: (value: QuestionValue) => boolean;
+}
+
+export type QuestionValue = string | number | boolean | string[] | number[] | Date | null;
+
+export interface HealthQuestion {
+  id: string;
+  type: QuestionType;
   title: string;
-  description: string;
-  order: number;
-  required: boolean;
-  completed: boolean;
+  description?: string;
+  options?: QuestionOption[];
+  validation?: QuestionValidation;
+  metadata?: Record<string, unknown>;
 }
 
-export interface Document {
+export interface QuestionnaireResponse {
+  questionId: string;
+  value: QuestionValue;
+  timestamp: Date;
+  responseTime?: number;
+  sessionId?: string;
+}
+
+export interface HealthAssessmentResult {
+  sessionId: string;
+  responses: QuestionnaireResponse[];
+  riskScore: number;
+  recommendations: string[];
+  completedAt: Date;
+  pathwayType: 'standard' | 'clinical' | 'immersive';
+}
+
+// =====================================
+// CLINICAL WORKFLOW TYPES
+// =====================================
+
+export interface UserProfile {
   id: string;
-  name: string;
-  type: DocumentType;
-  url: string;
-  size: number;
-  uploadedAt: Date;
-  status: DocumentStatus;
+  age: number;
+  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  medicalHistory: MedicalHistory[];
+  demographics: UserDemographics;
+  preferences: UserPreferences;
+  completionHistory: CompletionRecord[];
 }
 
-export enum DocumentType {
-  LICENSE = 'LICENSE',
-  CERTIFICATION = 'CERTIFICATION',
-  IDENTIFICATION = 'IDENTIFICATION',
-  EDUCATION = 'EDUCATION',
-  OTHER = 'OTHER',
+export interface MedicalHistory {
+  condition: string;
+  diagnosedDate: Date;
+  severity: 'low' | 'medium' | 'high';
+  medications: string[];
 }
 
-export enum DocumentStatus {
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  EXPIRED = 'EXPIRED',
+export interface UserDemographics {
+  country: string;
+  region?: string;
+  educationLevel: string;
+  occupation?: string;
 }
 
-// Registration and Onboarding Types
-export interface RegistrationStep {
-  id: string;
-  name: string;
-  completed: boolean;
-  order: number;
+export interface UserPreferences {
+  language: string;
+  communicationStyle: 'formal' | 'casual' | 'medical';
+  notifications: boolean;
 }
 
-export interface OnboardingProgress {
-  currentStep: string;
-  completedSteps: string[];
+export interface CompletionRecord {
+  pathwayId: string;
+  completionRate: number;
+  completedAt: Date;
+  outcome: string;
+}
+
+export interface PathwayContext {
+  currentStep: number;
   totalSteps: number;
-  progressPercentage: number;
+  timeSpent: number;
+  riskFactors: string[];
+  clinicalIndicators: ClinicalIndicator[];
 }
 
-// Gamification Types
-export interface GamificationStats {
-  points: number;
-  level: number;
-  badges: number;
-  achievements: Achievement[];
-  leaderboardPosition?: number;
+export interface ClinicalIndicator {
+  type: string;
+  value: number;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  timestamp: Date;
 }
+
+// =====================================
+// FRAUD DETECTION TYPES
+// =====================================
+
+export interface FraudAnalysis {
+  riskScore: number;
+  factors: RiskFactor[];
+  recommendations: string[];
+  timestamp: Date;
+  confidence: number;
+}
+
+export interface RiskFactor {
+  type: 'technical' | 'behavioral' | 'contextual' | 'medical';
+  description: string;
+  severity: number;
+  evidence: FraudEvidence[];
+}
+
+export interface FraudEvidence {
+  category: string;
+  description: string;
+  data: Record<string, unknown>;
+  confidence: number;
+}
+
+export interface UserFraudContext {
+  sessionData: SessionData;
+  behaviorMetrics: BehaviorMetrics;
+  deviceInfo: DeviceInfo;
+}
+
+export interface SessionData {
+  id: string;
+  startTime: Date;
+  ipAddress: string;
+  userAgent: string;
+  duration: number;
+}
+
+export interface BehaviorMetrics {
+  responseSpeed: number[];
+  typingPatterns: TypingPattern[];
+  mouseMovements: MouseMovement[];
+  scrollBehavior: ScrollBehavior[];
+}
+
+export interface TypingPattern {
+  keyInterval: number;
+  pauseDuration: number;
+  keystroke: string;
+  timestamp: number;
+}
+
+export interface MouseMovement {
+  x: number;
+  y: number;
+  timestamp: number;
+  event: 'move' | 'click' | 'scroll';
+}
+
+export interface ScrollBehavior {
+  direction: 'up' | 'down';
+  speed: number;
+  distance: number;
+  timestamp: number;
+}
+
+export interface DeviceInfo {
+  platform: string;
+  browser: string;
+  screenResolution: string;
+  timezone: string;
+}
+
+// =====================================
+// DOCUMENT UPLOAD TYPES
+// =====================================
+
+export interface DocumentUploadResult {
+  id: string;
+  filename: string;
+  size: number;
+  mimeType: string;
+  uploadedAt: Date;
+  ocrData?: OCRData;
+  validation?: DocumentValidation;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+export interface OCRData {
+  text: string;
+  confidence: number;
+  extractedFields: ExtractedField[];
+  metadata: OCRMetadata;
+}
+
+export interface ExtractedField {
+  name: string;
+  value: string;
+  confidence: number;
+  boundingBox?: BoundingBox;
+}
+
+export interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OCRMetadata {
+  pages: number;
+  processingTime: number;
+  quality: 'low' | 'medium' | 'high';
+}
+
+export interface DocumentValidation {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: string[];
+  requiredFields: RequiredField[];
+}
+
+export interface RequiredField {
+  name: string;
+  found: boolean;
+  value?: string;
+  confidence?: number;
+}
+
+// =====================================
+// GAMIFICATION TYPES
+// =====================================
 
 export interface Achievement {
   id: string;
-  name: string;
-  description: string;
-  icon: string;
-  earned: boolean;
-  earnedAt?: Date;
-  pointsAwarded: number;
-}
-
-export interface Activity {
-  id: string;
-  description: string;
-  points: number;
-  timestamp: Date;
-  type: 'registration' | 'document_upload' | 'questionnaire' | 'interview' | 'other';
-}
-
-// Form Data Types
-export interface CompanyInfoFormData {
-  companyName: string;
-  cnpj: string;
-  address: string;
-  city: string;
-  state: string;
-  phone: string;
-}
-
-export interface HealthQuestionnaireFormData {
-  responses: Record<string, string>;
-  notes?: string;
-}
-
-export interface DocumentUploadFormData {
-  documents: {
-    [documentType: string]: File | null;
-  };
-}
-
-// API Response Types
-export interface ApiSuccessResponse<T> {
-  success: true;
-  data: T;
-  message?: string;
-}
-
-export interface ApiErrorResponse {
-  success: false;
-  error: {
-    code: string;
-    message: string;
-    details?: Record<string, any>;
-  };
-}
-
-export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
-
-// Gamification Types
-export interface GamificationProgress {
-  total_points: number;
-  current_level: GamificationLevel;
-  next_level?: GamificationLevel;
-  progress_percentage: number;
-  streak_days: number;
-  tasks_completed: number;
-  perfect_forms: number;
-  documents_uploaded: number;
-  health_assessments_completed: number;
-  engagement_score: number;
-  last_activity_date?: string;
-  profile_completed: boolean;
-  onboarding_completed: boolean;
-  badges_earned: number;
-  achievements: Achievement[];
-}
-
-export interface GamificationLevel {
-  id: string;
-  level_number: number;
-  name: string;
   title: string;
-  points_required: number;
-  points_to_next?: number;
-  color_theme: string;
-  icon: string;
   description: string;
-  rewards: string[];
-  unlocked_features: string[];
-  discount_percentage?: number;
-  points_remaining?: number;
+  icon: string;
+  points: number;
+  unlockedAt?: Date;
+  category: 'health' | 'completion' | 'engagement' | 'milestone';
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  earnedAt: Date;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
 }
 
 export interface GamificationBadge {
   id: string;
   name: string;
-  slug: string;
-  description: string;
-  icon_name: string;
-  icon_color: string;
-  category: string;
-  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
-  points_value: number;
-  earned_at?: string;
-  criteria?: string;
-}
-
-export interface Achievement {
-  id: string;
-  name: string;
   description: string;
   icon: string;
-  earned_at: string;
-  points_awarded: number;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  pointsRequired: number;
+  category: string;
+  unlockedAt?: Date;
+  earned_at?: Date; // Alternative date field
 }
 
 export interface LeaderboardEntry {
-  beneficiary_id: string;
-  name: string;
+  userId: string;
+  username: string;
+  points: number;
+  rank: number;
+  achievements: Achievement[];
   avatar?: string;
-  total_points: number;
-  current_level: number;
-  level_name: string;
-  badges_count: number;
-  engagement_score: number;
 }
 
 export interface GamificationStats {
-  total_points: number;
-  current_level: {
-    number: number;
-    name: string;
-    color: string;
-    icon: string;
-  };
-  next_level?: {
-    number: number;
-    name: string;
-    points_required: number;
-    points_remaining: number;
-    progress_percentage: number;
-  };
-  streak_days: number;
-  badges_earned: number;
-  tasks_completed: number;
-  engagement_score: number;
-  last_activity?: string;
-  member_since: string;
+  totalPoints: number;
+  level: number;
+  current_level: number; // Added for compatibility
+  experienceToNext: number;
+  achievementsUnlocked: number;
+  currentStreak: number;
+  longestStreak: number;
 }
 
-export interface ActivityFeedItem {
-  type: 'badge_earned' | 'level_up' | 'points_awarded' | 'task_completed';
-  timestamp: string;
-  data: {
-    badge_name?: string;
-    badge_icon?: string;
-    badge_color?: string;
-    badge_rarity?: string;
-    points_earned?: number;
-    level_name?: string;
-    task_name?: string;
-  };
+// =====================================
+// BENEFICIARY TYPES
+// =====================================
+
+export interface BeneficiaryInfo {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  dateOfBirth: Date;
+  cpf: string;
+  position?: string;
+  role?: string;
+  department?: string;
+  startDate?: Date;
+  employee_code?: string;
+  hiring_date?: string;
+  status: 'active' | 'inactive' | 'pending';
+  profileData: Record<string, unknown>;
 }
 
-export interface DashboardSummary {
-  stats: GamificationStats;
-  recent_badges: Array<{
-    name: string;
-    icon: string;
-    color: string;
-    earned_at: string;
-  }>;
-  quick_stats: {
-    points_today: number;
-    streak_days: number;
-    completion_rate: number;
-    rank_in_company: number;
-  };
+// =====================================
+// LGPD COMPLIANCE TYPES
+// =====================================
+
+export interface LGPDConsent {
+  id: string;
+  userId: string;
+  consentType: 'data_processing' | 'marketing' | 'analytics' | 'cookies';
+  granted: boolean;
+  timestamp: Date;
+  ipAddress: string;
+  userAgent: string;
+  details: ConsentDetails;
+}
+
+export interface ConsentDetails {
+  purpose: string;
+  dataTypes: string[];
+  retentionPeriod: string;
+  thirdParties: string[];
+  rights: string[];
+}
+
+export interface DataRequest {
+  id: string;
+  userId: string;
+  type: 'access' | 'portability' | 'deletion' | 'rectification';
+  status: 'pending' | 'processing' | 'completed' | 'rejected';
+  requestedAt: Date;
+  completedAt?: Date;
+  details: Record<string, unknown>;
+}
+
+// =====================================
+// PATHWAY TYPES
+// =====================================
+
+export interface PathwayDecision {
+  pathwayType: 'standard' | 'clinical' | 'immersive';
+  confidence: number;
+  reasoning: string[];
+  alternatives: PathwayAlternative[];
+}
+
+export interface PathwayAlternative {
+  type: 'standard' | 'clinical' | 'immersive';
+  suitabilityScore: number;
+  benefits: string[];
+  considerations: string[];
+}
+
+export interface PathwayRecommendation {
+  nextPathway: 'standard' | 'clinical' | 'immersive';
+  reasoning: string;
+  expectedBenefits: string[];
+  estimatedDuration: number;
+}
+
+export interface IntelligentInsights {
+  primaryInsights: string[];
+  riskAssessment: RiskAssessment;
+  recommendations: ClinicalRecommendation[];
+  followUpActions: FollowUpAction[];
+}
+
+export interface RiskAssessment {
+  overallRisk: 'low' | 'medium' | 'high' | 'critical';
+  categories: RiskCategory[];
+  timeline: RiskTimeline[];
+}
+
+export interface RiskCategory {
+  name: string;
+  risk: 'low' | 'medium' | 'high' | 'critical';
+  factors: string[];
+  mitigation: string[];
+}
+
+export interface RiskTimeline {
+  date: Date;
+  risk: number;
+  factors: string[];
+}
+
+export interface ClinicalRecommendation {
+  type: 'immediate' | 'short_term' | 'long_term' | 'follow_up';
+  action: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  rationale: string;
+  expectedOutcome: string;
+}
+
+export interface FollowUpAction {
+  action: string;
+  timeframe: string;
+  responsible: 'patient' | 'provider' | 'system';
+  dependencies: string[];
+}
+
+// =====================================
+// UTILITY TYPES
+// =====================================
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+export type DeepRequired<T> = {
+  [P in keyof T]-?: T[P] extends object ? DeepRequired<T[P]> : T[P];
+};
+
+export type Nullable<T> = T | null;
+
+export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+
+export type StringKeys<T> = {
+  [K in keyof T]: T[K] extends string ? K : never;
+}[keyof T];
+
+// =====================================
+// FUNCTION TYPES
+// =====================================
+
+export type AsyncFunction<T extends unknown[] = [], R = unknown> = (...args: T) => Promise<R>;
+
+export type EventHandler<T = unknown> = (event: T) => void;
+
+export type Callback<T = void> = () => T;
+
+export type ErrorHandler = (error: AppError) => void;
+
+export type ValidationFunction<T = unknown> = (value: T) => boolean | string;
+
+// =====================================
+// COMPONENT PROP TYPES
+// =====================================
+
+export interface ComprehensiveAssessmentResults {
+  responses: QuestionnaireResponse[];
+  pathwayType: 'standard' | 'clinical' | 'immersive';
+  riskScore: number;
+  recommendations: string[];
+  questionnairData?: Record<string, QuestionValue>; // Optional for compatibility
+  questionnaireData?: Record<string, QuestionValue>; // Alternative spelling
+  pathway?: string;
+  clinicalAnalysis?: ClinicalAnalysis;
+  fraudAnalysis?: FraudAnalysis;
+  userExperience?: UserExperienceData;
+}
+
+export interface ClinicalAnalysis {
+  riskFactors: string[];
+  recommendations: ClinicalRecommendation[];
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  followUpRequired: boolean;
+}
+
+export interface UserExperienceData {
+  sessionDuration: number;
+  engagementScore: number;
+  completionRate: number;
+  userFeedback?: string;
+}
+
+export interface DocumentStatus {
+  uploaded: boolean;
+  validated: boolean;
+  processing: boolean;
+  error?: string;
+  ocrData?: OCRData;
+  file?: File;
+}
+
+
+// =====================================
+// TYPE GUARDS
+// =====================================
+
+export function isApiSuccess<T>(response: ApiResponse<T>): response is ApiResponse<T> {
+  return response.success === true && response.status >= 200 && response.status < 300;
 }

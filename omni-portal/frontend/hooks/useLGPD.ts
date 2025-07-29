@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import api from '@/services/api';
+import type { AppError } from '@/types';
 
 interface PrivacySettings {
   settings: {
@@ -25,7 +26,7 @@ interface ConsentHistoryItem {
   date: string;
   type: string;
   action: string;
-  details: any;
+  details: Record<string, unknown>;
   ip_address: string;
   user_agent: string;
 }
@@ -89,9 +90,10 @@ export function useLGPD() {
       
       const response = await api.get('/lgpd/privacy-settings');
       setPrivacySettings(response.data);
-    } catch (err: any) {
-      console.error('Error fetching privacy settings:', err);
-      setError(err.response?.data?.message || 'Erro ao carregar configurações de privacidade');
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error fetching privacy settings:', appError);
+      setError(appError.message || 'Erro ao carregar configurações de privacidade');
     } finally {
       setIsLoading(false);
     }
@@ -117,9 +119,10 @@ export function useLGPD() {
       }
       
       return response.data;
-    } catch (err: any) {
-      console.error('Error updating privacy settings:', err);
-      const errorMessage = err.response?.data?.message || 'Erro ao atualizar configurações de privacidade';
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error updating privacy settings:', appError);
+      const errorMessage = appError.message || 'Erro ao atualizar configurações de privacidade';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -134,9 +137,10 @@ export function useLGPD() {
       
       const response = await api.get('/lgpd/consent-history');
       setConsentHistory(response.data);
-    } catch (err: any) {
-      console.error('Error fetching consent history:', err);
-      setError(err.response?.data?.message || 'Erro ao carregar histórico de consentimentos');
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error fetching consent history:', appError);
+      setError(appError.message || 'Erro ao carregar histórico de consentimentos');
     } finally {
       setIsLoading(false);
     }
@@ -149,9 +153,10 @@ export function useLGPD() {
       
       const response = await api.get('/lgpd/data-processing-activities');
       setDataProcessingActivities(response.data);
-    } catch (err: any) {
-      console.error('Error fetching data processing activities:', err);
-      setError(err.response?.data?.message || 'Erro ao carregar atividades de processamento');
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error fetching data processing activities:', appError);
+      setError(appError.message || 'Erro ao carregar atividades de processamento');
     } finally {
       setIsLoading(false);
     }
@@ -164,9 +169,10 @@ export function useLGPD() {
       
       const response = await api.get('/lgpd/export-data');
       return response.data;
-    } catch (err: any) {
-      console.error('Error exporting user data:', err);
-      const errorMessage = err.response?.data?.message || 'Erro ao exportar dados do usuário';
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error exporting user data:', appError);
+      const errorMessage = appError.message || 'Erro ao exportar dados do usuário';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -181,9 +187,10 @@ export function useLGPD() {
       
       const response = await api.get('/lgpd/export-data-pdf');
       return response.data;
-    } catch (err: any) {
-      console.error('Error exporting user data PDF:', err);
-      const errorMessage = err.response?.data?.message || 'Erro ao exportar dados em PDF';
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error exporting user data PDF:', appError);
+      const errorMessage = appError.message || 'Erro ao exportar dados em PDF';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -205,9 +212,10 @@ export function useLGPD() {
       await fetchConsentHistory();
       
       return response.data;
-    } catch (err: any) {
-      console.error('Error withdrawing consent:', err);
-      const errorMessage = err.response?.data?.message || 'Erro ao retirar consentimento';
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error withdrawing consent:', appError);
+      const errorMessage = appError.message || 'Erro ao retirar consentimento';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -233,9 +241,10 @@ export function useLGPD() {
       });
       
       return response.data;
-    } catch (err: any) {
-      console.error('Error deleting account:', err);
-      const errorMessage = err.response?.data?.message || 'Erro ao excluir conta';
+    } catch (err) {
+      const appError = err as AppError;
+      console.error('Error deleting account:', appError);
+      const errorMessage = appError.message || 'Erro ao excluir conta';
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {

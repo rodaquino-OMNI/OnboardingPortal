@@ -39,7 +39,9 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
+            \App\Http\Middleware\ForceJsonResponse::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            \App\Http\Middleware\CookieAuth::class, // Re-enabled for cookie-to-bearer conversion
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
@@ -71,5 +73,8 @@ class Kernel extends HttpKernel
         'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,
         'registration.completed' => \App\Http\Middleware\EnsureRegistrationCompleted::class,
         'account.active' => \App\Http\Middleware\EnsureAccountActive::class,
+        'video.security' => \App\Http\Middleware\VideoSecurityMiddleware::class,
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        'admin.access' => \App\Http\Middleware\AdminAccess::class,
     ];
 }

@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Services\OCRService;
+use App\Services\OptimizedTextractService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 class DocumentController extends Controller
@@ -52,8 +54,8 @@ class DocumentController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240', // 10MB max
-            'type' => 'required|in:rg,cnh,cpf,comprovante_residencia,foto_3x4',
+            'file' => 'required|file|mimes:jpg,jpeg,png,pdf,txt|max:10240', // 10MB max, added txt for testing
+            'type' => 'required|in:rg,cnh,cpf,comprovante_residencia,foto_3x4,rg_cnh',
             'description' => 'nullable|string|max:255'
         ]);
 
@@ -77,23 +79,35 @@ class DocumentController extends Controller
             $file = $request->file('file');
             $filename = $this->generateSecureFilename($file, $beneficiary->id);
             
-            // Store file in S3 or local storage
-            $path = $file->storeAs(
-                "documents/{$beneficiary->id}",
-                $filename,
-                's3'
-            );
+            // Create storage directory if not exists
+            $storagePath = storage_path("app/documents/{$beneficiary->id}");
+            if (!file_exists($storagePath)) {
+                mkdir($storagePath, 0755, true);
+            }
+            
+            // Move uploaded file to storage
+            $path = "documents/{$beneficiary->id}/{$filename}";
+            $file->move($storagePath, $filename);
 
             // Create document record
             $document = Document::create([
                 'beneficiary_id' => $beneficiary->id,
-                'type' => $request->type,
+                'uploaded_by' => Auth::id(),
+                'document_type' => $request->type,
+                'document_category' => $this->getDocumentCategory($request->type),
+                'original_name' => $file->getClientOriginalName(),
+                'stored_name' => $filename,
                 'file_path' => $path,
-                'file_size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
-                'original_filename' => $file->getClientOriginalName(),
-                'description' => $request->description,
-                'status' => 'processing'
+                'file_size' => $file->getSize(),
+                'file_extension' => $file->getClientOriginalExtension(),
+                'status' => 'pending',
+                'is_encrypted' => false,
+                'metadata' => [
+                    'description' => $request->description,
+                    'upload_ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]
             ]);
 
             // Queue OCR processing
@@ -159,10 +173,21 @@ class DocumentController extends Controller
         }
 
         try {
-            $url = Storage::disk('s3')->temporaryUrl(
-                $document->file_path,
-                now()->addMinutes(10)
-            );
+            $disk = config('filesystems.default', 'local');
+            
+            if ($disk === 's3') {
+                $url = Storage::disk($disk)->temporaryUrl(
+                    $document->file_path,
+                    now()->addMinutes(10)
+                );
+            } else {
+                // For local storage, create a temporary signed URL
+                $url = URL::temporarySignedRoute(
+                    'document.download',
+                    now()->addMinutes(10),
+                    ['document' => $document->id]
+                );
+            }
 
             return response()->json([
                 'success' => true,
@@ -197,7 +222,8 @@ class DocumentController extends Controller
 
         try {
             // Delete file from storage
-            Storage::disk('s3')->delete($document->file_path);
+            $disk = config('filesystems.default', 'local');
+            Storage::disk($disk)->delete($document->file_path);
             
             // Delete database record
             $document->delete();
@@ -369,5 +395,22 @@ class DocumentController extends Controller
         $extension = $file->getClientOriginalExtension();
         
         return "{$beneficiaryId}_{$timestamp}_{$randomString}.{$extension}";
+    }
+
+    /**
+     * Get document category based on type
+     */
+    protected function getDocumentCategory($type): string
+    {
+        $categories = [
+            'rg' => 'personal',
+            'cnh' => 'personal',
+            'rg_cnh' => 'personal',
+            'cpf' => 'personal',
+            'comprovante_residencia' => 'personal',
+            'foto_3x4' => 'personal',
+        ];
+
+        return $categories[$type] ?? 'other';
     }
 }

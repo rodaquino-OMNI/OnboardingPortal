@@ -9,14 +9,20 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, checkAuth } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    // Always check auth status on mount to verify with API
+    checkAuth();
+  }, [checkAuth]); // Include checkAuth in dependencies
+
+  useEffect(() => {
+    // Redirect if not authenticated after check
+    if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [user, isLoading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   // Show loading while checking auth
   if (isLoading) {
@@ -28,7 +34,7 @@ export default function DashboardLayout({
   }
 
   // Don't render if not authenticated
-  if (!user) {
+  if (!isAuthenticated) {
     return null;
   }
 

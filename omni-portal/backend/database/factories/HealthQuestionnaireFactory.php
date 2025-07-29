@@ -22,35 +22,33 @@ class HealthQuestionnaireFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory(),
-            'template_id' => QuestionnaireTemplate::factory(),
-            'responses' => [
-                'general_health' => [
-                    'health_rating' => fake()->randomElement(['excellent', 'good', 'fair', 'poor']),
-                    'pre_existing_conditions' => fake()->randomElement(['none', 'diabetes', 'hypertension']),
-                    'medications' => fake()->randomElement(['none', 'daily', 'occasional']),
-                ],
-                'lifestyle' => [
-                    'exercise_frequency' => fake()->randomElement(['daily', 'weekly', 'monthly', 'never']),
-                    'diet_quality' => fake()->randomElement(['excellent', 'good', 'fair', 'poor']),
-                    'smoking_drinking' => fake()->randomElement(['none', 'occasional', 'regular']),
-                ],
-            ],
-            'risk_score' => fake()->numberBetween(0, 100),
-            'risk_level' => fake()->randomElement(['low', 'medium', 'high']),
-            'ai_insights' => [
-                'recommendations' => [
-                    'Manter alimentação balanceada',
-                    'Praticar exercícios regularmente',
-                    'Fazer check-ups médicos anuais'
-                ],
-                'risk_factors' => [],
-                'health_priorities' => ['Prevenção cardiovascular', 'Controle de peso'],
-            ],
-            'completion_percentage' => fake()->numberBetween(0, 100),
-            'status' => fake()->randomElement(['in_progress', 'completed']),
-            'started_at' => fake()->dateTimeBetween('-1 month', 'now'),
-            'completed_at' => null,
+            'beneficiary_id' => \App\Models\Beneficiary::factory(),
+            'questionnaire_type' => fake()->randomElement(['initial', 'periodic', 'annual', 'specific']),
+            'status' => fake()->randomElement(['draft', 'completed']),
+            'height' => fake()->numberBetween(150, 200),
+            'weight' => fake()->numberBetween(50, 120),
+            'bmi' => fake()->randomFloat(1, 18.5, 35.0),
+            'blood_type' => fake()->randomElement(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
+            'blood_pressure_status' => fake()->randomElement(['normal', 'elevated', 'high_stage_1']),
+            'blood_pressure_values' => fake()->numerify('###/##'),
+            'chronic_conditions' => fake()->optional()->sentence(),
+            'current_medications' => fake()->optional()->sentence(),
+            'allergies' => fake()->optional()->sentence(),
+            'smoking_status' => fake()->randomElement(['never', 'former', 'current']),
+            'alcohol_consumption' => fake()->randomElement(['never', 'rarely', 'moderate']),
+            'physical_activity_level' => fake()->randomElement(['sedentary', 'light', 'moderate', 'active']),
+            'exercise_frequency_per_week' => fake()->numberBetween(0, 7),
+            'diet_type' => fake()->randomElement(['omnivore', 'vegetarian', 'vegan']),
+            'sleep_hours_average' => fake()->numberBetween(5, 10),
+            'sleep_quality' => fake()->randomElement(['poor', 'fair', 'good', 'excellent']),
+            'stress_level' => fake()->randomElement(['low', 'moderate', 'high']),
+            'mental_health_concerns' => fake()->boolean(30),
+            'currently_in_therapy' => fake()->boolean(20),
+            'taking_mental_health_medication' => fake()->boolean(15),
+            'last_medical_checkup' => fake()->dateTimeBetween('-2 years', 'now'),
+            'completion_percentage' => 100,
+            'accuracy_score' => fake()->numberBetween(80, 100),
+            'completed_at' => now(),
         ];
     }
 

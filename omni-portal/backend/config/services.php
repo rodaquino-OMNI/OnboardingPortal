@@ -66,4 +66,9 @@ return [
         'redirect' => env('INSTAGRAM_REDIRECT_URI', 'http://localhost:8000/api/auth/instagram/callback'),
     ],
 
+    'vonage' => [
+        'api_key' => env('VONAGE_API_KEY'),
+        'api_secret' => env('VONAGE_API_SECRET'),
+    ],
+
 ];

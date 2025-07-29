@@ -12,6 +12,7 @@ class EncryptCookies extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        'XSRF-TOKEN', // Sanctum needs this unencrypted for JavaScript access
+        'auth_token', // Custom auth token should not be encrypted
     ];
 }

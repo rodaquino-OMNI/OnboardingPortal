@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
-import { Building, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Building, ChevronLeft, ChevronRight, Loader2, Briefcase, Phone, Calendar, User, Hash } from 'lucide-react';
 import { useStep2 } from '@/hooks/useRegistration';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
@@ -105,135 +105,177 @@ export default function CompanyInfoPage() {
   
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-            <Building className="w-5 h-5 text-blue-600" />
+      {/* Header with Progress */}
+      <div className="mb-10">
+        <div className="flex items-center gap-5 mb-6">
+          <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Building className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Informações da Empresa</h1>
-            <p className="text-gray-600">Passo 1 de 4</p>
+            <h1 className="text-3xl font-bold text-gray-900 font-['Inter']">Informações da Empresa</h1>
+            <p className="text-gray-600 font-['Inter'] mt-1">Passo 1 de 4</p>
           </div>
         </div>
-        <Progress value={25} className="h-2" />
+        <div className="relative">
+          <Progress value={25} className="h-3 bg-gray-100" />
+          <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full shadow-sm" style={{ width: '25%' }}></div>
+        </div>
+        <div className="mt-2 text-sm text-gray-500 font-['Inter']">25% concluído</div>
       </div>
 
-      <Card className="p-6">
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Telefone *
-              </label>
-              <Input
+      <Card className="p-8 shadow-xl border-0 rounded-2xl bg-white">
+        <form className="space-y-8" onSubmit={handleSubmit}>
+          {/* Contact Information Section */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 font-['Inter'] flex items-center gap-2">
+              <Phone className="w-5 h-5 text-blue-600" />
+              Informações de Contato
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Telefone *
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
                 type="tel"
                 placeholder="(11) 99999-9999"
                 value={formData.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
-                className={`w-full ${errors.phone ? 'border-red-500' : ''}`}
+                className={`w-full pl-10 rounded-lg border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all font-['Inter'] ${errors.phone ? 'border-red-500' : ''}`}
                 aria-invalid={!!errors.phone}
                 disabled={isLoading}
               />
+                </div>
               {errors.phone && (
                 <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
               )}
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Departamento *
-              </label>
-              <Input
+          </div>
+
+          {/* Work Information Section */}
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 font-['Inter'] flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-purple-600" />
+              Informações Profissionais
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Departamento *
+                </label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
                 type="text"
                 placeholder="Recursos Humanos"
                 value={formData.department}
                 onChange={(e) => handleInputChange('department', e.target.value)}
-                className={`w-full ${errors.department ? 'border-red-500' : ''}`}
+                className={`w-full pl-10 rounded-lg border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-['Inter'] ${errors.department ? 'border-red-500' : ''}`}
                 aria-invalid={!!errors.department}
                 disabled={isLoading}
               />
+                </div>
               {errors.department && (
-                <p className="mt-1 text-sm text-red-600">{errors.department}</p>
+                <p className="mt-2 text-sm text-red-600 font-['Inter']">{errors.department}</p>
               )}
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Cargo *
-              </label>
-              <Input
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Cargo *
+                </label>
+                <div className="relative">
+                  <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
                 type="text"
                 placeholder="Analista de Sistemas"
                 value={formData.job_title}
                 onChange={(e) => handleInputChange('job_title', e.target.value)}
-                className={`w-full ${errors.job_title ? 'border-red-500' : ''}`}
+                className={`w-full pl-10 rounded-lg border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-['Inter'] ${errors.job_title ? 'border-red-500' : ''}`}
                 aria-invalid={!!errors.job_title}
                 disabled={isLoading}
               />
+                </div>
               {errors.job_title && (
-                <p className="mt-1 text-sm text-red-600">{errors.job_title}</p>
+                <p className="mt-2 text-sm text-red-600 font-['Inter']">{errors.job_title}</p>
               )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ID do Funcionário *
-              </label>
-              <Input
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  ID do Funcionário *
+                </label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
                 type="text"
                 placeholder="12345"
                 value={formData.employee_id}
                 onChange={(e) => handleInputChange('employee_id', e.target.value)}
-                className={`w-full ${errors.employee_id ? 'border-red-500' : ''}`}
+                className={`w-full pl-10 rounded-lg border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-['Inter'] ${errors.employee_id ? 'border-red-500' : ''}`}
                 aria-invalid={!!errors.employee_id}
                 disabled={isLoading}
               />
+                </div>
               {errors.employee_id && (
-                <p className="mt-1 text-sm text-red-600">{errors.employee_id}</p>
+                <p className="mt-2 text-sm text-red-600 font-['Inter']">{errors.employee_id}</p>
               )}
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Data de Início *
-              </label>
-              <Input
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Data de Início *
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => handleInputChange('start_date', e.target.value)}
-                className={`w-full ${errors.start_date ? 'border-red-500' : ''}`}
+                className={`w-full pl-10 rounded-lg border-gray-200 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all font-['Inter'] ${errors.start_date ? 'border-red-500' : ''}`}
                 aria-invalid={!!errors.start_date}
                 disabled={isLoading}
               />
+                </div>
               {errors.start_date && (
-                <p className="mt-1 text-sm text-red-600">{errors.start_date}</p>
+                <p className="mt-2 text-sm text-red-600 font-['Inter']">{errors.start_date}</p>
               )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Data de Nascimento
-              </label>
-              <Input
-                type="date"
-                value={formData.birth_date}
-                onChange={(e) => handleInputChange('birth_date', e.target.value)}
-                className="w-full"
-                disabled={isLoading}
-              />
+              </div>
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Gênero
-              </label>
-              <select
+          {/* Personal Information Section */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 font-['Inter'] flex items-center gap-2">
+              <User className="w-5 h-5 text-green-600" />
+              Informações Pessoais (Opcional)
+            </h3>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Data de Nascimento
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                type="date"
+                value={formData.birth_date}
+                onChange={(e) => handleInputChange('birth_date', e.target.value)}
+                className="w-full pl-10 rounded-lg border-gray-200 focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all font-['Inter']"
+                disabled={isLoading}
+              />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Gênero
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
                 value={formData.gender || ''}
                 onChange={(e) => handleInputChange('gender', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500 transition-all font-['Inter'] appearance-none bg-white"
                 disabled={isLoading}
               >
                 <option value="">Selecione...</option>
@@ -242,15 +284,18 @@ export default function CompanyInfoPage() {
                 <option value="other">Outro</option>
                 <option value="prefer_not_to_say">Prefiro não dizer</option>
               </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Estado Civil
-              </label>
-              <select
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3 font-['Inter']">
+                  Estado Civil
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
                 value={formData.marital_status || ''}
                 onChange={(e) => handleInputChange('marital_status', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-500 transition-all font-['Inter'] appearance-none bg-white"
                 disabled={isLoading}
               >
                 <option value="">Selecione...</option>
@@ -260,13 +305,15 @@ export default function CompanyInfoPage() {
                 <option value="widowed">Viúvo(a)</option>
                 <option value="other">Outro</option>
               </select>
+                </div>
+              </div>
             </div>
           </div>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-pulse">
               <div className="flex">
                 <div className="ml-3">
-                  <p className="text-sm text-red-800">{error}</p>
+                  <p className="text-sm text-red-800 font-['Inter']">{error}</p>
                 </div>
               </div>
             </div>
@@ -274,20 +321,21 @@ export default function CompanyInfoPage() {
         </form>
       </Card>
 
-      <div className="flex justify-between mt-8">
+      {/* Navigation Buttons */}
+      <div className="flex justify-between mt-10">
         <Button
           variant="outline"
           onClick={handleBack}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50 transition-all font-['Inter'] group"
           disabled={isLoading}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Voltar
         </Button>
         <Button
           type="submit"
           onClick={handleSubmit}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 font-['Inter'] group"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -295,7 +343,7 @@ export default function CompanyInfoPage() {
           ) : (
             <>
               Próximo
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </>
           )}
         </Button>

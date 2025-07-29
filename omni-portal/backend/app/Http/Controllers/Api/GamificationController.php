@@ -18,6 +18,7 @@ class GamificationController extends Controller
 
     public function __construct(GamificationService $gamificationService)
     {
+        $this->middleware('auth:sanctum');
         $this->gamificationService = $gamificationService;
     }
 
@@ -199,6 +200,83 @@ class GamificationController extends Controller
     }
 
     /**
+     * Get achievements for the authenticated beneficiary.
+     */
+    public function getAchievements(Request $request): JsonResponse
+    {
+        $beneficiary = $this->getBeneficiary($request);
+        
+        if (!$beneficiary) {
+            return response()->json(['error' => 'Beneficiary not found'], 404);
+        }
+        
+        $progress = $beneficiary->getOrCreateGamificationProgress();
+        $earnedBadges = $beneficiary->badges()->get();
+        
+        // Calculate various achievements based on progress
+        $achievements = [
+            'onboarding' => [
+                'profile_completed' => $progress->profile_completed,
+                'health_assessment_completed' => $progress->health_assessments_completed > 0,
+                'documents_uploaded' => $progress->documents_uploaded > 0,
+                'onboarding_completed' => $progress->onboarding_completed,
+            ],
+            'engagement' => [
+                'streak_milestone_1' => $progress->streak_days >= 7,
+                'streak_milestone_2' => $progress->streak_days >= 30,
+                'streak_milestone_3' => $progress->streak_days >= 90,
+                'high_engagement' => $progress->engagement_score >= 80,
+            ],
+            'tasks' => [
+                'first_task' => $progress->tasks_completed >= 1,
+                'task_milestone_10' => $progress->tasks_completed >= 10,
+                'task_milestone_50' => $progress->tasks_completed >= 50,
+                'perfect_form_submitted' => $progress->perfect_forms > 0,
+            ],
+            'social' => [
+                'first_badge' => $earnedBadges->count() > 0,
+                'badge_collector' => $earnedBadges->count() >= 5,
+                'badge_master' => $earnedBadges->count() >= 10,
+            ],
+            'points' => [
+                'first_100_points' => $progress->total_points >= 100,
+                'first_500_points' => $progress->total_points >= 500,
+                'first_1000_points' => $progress->total_points >= 1000,
+            ],
+        ];
+        
+        // Calculate total achievement progress
+        $totalAchievements = 0;
+        $completedAchievements = 0;
+        
+        foreach ($achievements as $category => $categoryAchievements) {
+            $totalAchievements += count($categoryAchievements);
+            $completedAchievements += count(array_filter($categoryAchievements));
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'achievements' => $achievements,
+                'summary' => [
+                    'total' => $totalAchievements,
+                    'completed' => $completedAchievements,
+                    'completion_percentage' => $totalAchievements > 0 ? round(($completedAchievements / $totalAchievements) * 100, 2) : 0,
+                ],
+                'recent_badges' => $earnedBadges->sortByDesc('pivot.earned_at')->take(5)->map(function ($badge) {
+                    return [
+                        'name' => $badge->name,
+                        'icon' => $badge->icon_name,
+                        'color' => $badge->icon_color,
+                        'earned_at' => $badge->pivot->earned_at,
+                        'points' => $badge->points_value,
+                    ];
+                }),
+            ],
+        ]);
+    }
+
+    /**
      * Get activity feed for gamification events.
      */
     public function getActivityFeed(Request $request): JsonResponse
@@ -291,19 +369,22 @@ class GamificationController extends Controller
             return null;
         }
         
-        // If user is a beneficiary directly
-        if ($user->hasRole('beneficiary')) {
-            return Beneficiary::where('user_id', $user->id)->first();
+        // First try to find existing beneficiary
+        $beneficiary = Beneficiary::where('user_id', $user->id)->first();
+        
+        if (!$beneficiary) {
+            // If no beneficiary exists, create a default one for the user
+            $beneficiary = Beneficiary::create([
+                'user_id' => $user->id,
+                'company_id' => 1, // Default company ID
+                'cpf' => $user->cpf,
+                'full_name' => $user->name,
+                'onboarding_status' => 'in_progress',
+                'onboarding_step' => 'health_questionnaire'
+            ]);
         }
         
-        // If beneficiary_id is provided in request
-        if ($request->has('beneficiary_id')) {
-            return Beneficiary::where('id', $request->input('beneficiary_id'))
-                ->where('company_id', $user->company_id)
-                ->first();
-        }
-        
-        return null;
+        return $beneficiary;
     }
 
     /**

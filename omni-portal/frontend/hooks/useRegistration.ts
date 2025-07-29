@@ -11,6 +11,7 @@ import apiService, {
   RegisterStep3Response,
   RegistrationProgressResponse
 } from '@/services/api';
+import { isApiSuccess, AppError } from '@/types';
 
 interface RegistrationState {
   // State
@@ -102,10 +103,9 @@ export const useRegistration = create<RegistrationState>()(
           } else {
             throw new Error(response.error?.message || 'Erro ao processar registro');
           }
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.message || 
-                             error.message || 
-                             'Erro ao processar registro';
+        } catch (error) {
+          const appError = error as AppError;
+          const errorMessage = appError.message || 'Erro ao processar registro';
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -128,10 +128,9 @@ export const useRegistration = create<RegistrationState>()(
           } else {
             throw new Error(response.error?.message || 'Erro ao atualizar informações');
           }
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.message || 
-                             error.message || 
-                             'Erro ao atualizar informações';
+        } catch (error) {
+          const appError = error as AppError;
+          const errorMessage = appError.message || 'Erro ao atualizar informações';
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -143,7 +142,7 @@ export const useRegistration = create<RegistrationState>()(
         try {
           const response = await apiService.registerStep3(data);
           
-          if (response.success && response.data) {
+          if (isApiSuccess(response)) {
             // Registration completed, set new auth token
             apiService.setAuth(response.data.token);
             
@@ -157,10 +156,9 @@ export const useRegistration = create<RegistrationState>()(
           } else {
             throw new Error(response.error?.message || 'Erro ao finalizar registro');
           }
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.message || 
-                             error.message || 
-                             'Erro ao finalizar registro';
+        } catch (error) {
+          const appError = error as AppError;
+          const errorMessage = appError.message || 'Erro ao finalizar registro';
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -172,7 +170,7 @@ export const useRegistration = create<RegistrationState>()(
         try {
           const response = await apiService.getRegistrationProgress();
           
-          if (response.success && response.data) {
+          if (isApiSuccess(response)) {
             set({
               progress: response.data,
               currentStep: response.data.current_step,
@@ -183,10 +181,9 @@ export const useRegistration = create<RegistrationState>()(
           } else {
             throw new Error(response.error?.message || 'Erro ao obter progresso');
           }
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.message || 
-                             error.message || 
-                             'Erro ao obter progresso';
+        } catch (error) {
+          const appError = error as AppError;
+          const errorMessage = appError.message || 'Erro ao obter progresso';
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -198,17 +195,16 @@ export const useRegistration = create<RegistrationState>()(
         try {
           const response = await apiService.cancelRegistration();
           
-          if (response.success) {
+          if (isApiSuccess(response)) {
             // Clear all data
             apiService.clearAuth();
             get().reset();
           } else {
             throw new Error(response.error?.message || 'Erro ao cancelar registro');
           }
-        } catch (error: any) {
-          const errorMessage = error.response?.data?.message || 
-                             error.message || 
-                             'Erro ao cancelar registro';
+        } catch (error) {
+          const appError = error as AppError;
+          const errorMessage = appError.message || 'Erro ao cancelar registro';
           set({ error: errorMessage, isLoading: false });
           throw error;
         }

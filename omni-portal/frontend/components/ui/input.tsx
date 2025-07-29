@@ -80,9 +80,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             "focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent",
             "disabled:cursor-not-allowed disabled:opacity-50",
             "transition-all duration-200",
+            "hover:border-gray-400",
             Icon && "pl-10",
             error && "border-red-500 focus:ring-red-500",
-            !error && "border-gray-300",
+            !error && "border-gray-200",
             className
           )}
           ref={ref}
@@ -90,7 +91,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {...props}
         />
         {error && (
-          <p className="mt-1 text-xs text-red-500">{error}</p>
+          <p role="alert" className="mt-1 text-xs text-red-500">{error}</p>
         )}
       </div>
     )

@@ -12,6 +12,7 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
+        // API routes are protected by Sanctum's stateful authentication
         'api/*',
     ];
 }

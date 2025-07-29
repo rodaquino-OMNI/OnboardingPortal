@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Rocket, User, Shield, Heart } from 'lucide-react';
@@ -9,22 +9,47 @@ import { Card } from '@/components/ui/card';
 
 export default function Home() {
   const router = useRouter();
-  const { user, token } = useAuth();
+  const { isAuthenticated, isLoading, checkAuth } = useAuth();
+  const [isClient, setIsClient] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+
+  // Ensure this only runs on client side
+  useEffect(() => {
+    setIsClient(true);
+    // Check auth status when component mounts
+    const initAuth = async () => {
+      await checkAuth();
+      setInitialLoad(false);
+    };
+    initAuth();
+  }, [checkAuth]);
 
   useEffect(() => {
-    // If user is authenticated, redirect to dashboard
-    if (user && token) {
-      router.push('/dashboard');
+    // Only redirect after auth check is complete and we're authenticated
+    if (isClient && !initialLoad && isAuthenticated && !isLoading) {
+      router.push('/home');
     }
-  }, [user, token, router]);
+  }, [isClient, initialLoad, isAuthenticated, isLoading, router]);
 
-  // If already authenticated, show loading while redirecting
-  if (user && token) {
+  // Show loading during initial auth check or SSR
+  if (!isClient || initialLoad || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting to dashboard...</p>
+          <p className="text-gray-600">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If authenticated after auth check, show redirect loading
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecionando para o dashboard...</p>
         </div>
       </div>
     );

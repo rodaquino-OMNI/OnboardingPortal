@@ -3,7 +3,7 @@ Versão 1.0 | Janeiro 2025
 
 1. VISÃO EXECUTIVA
 1.1 Resumo do Projeto
-O Portal AUSTA é uma plataforma de onboarding digital gamificada para beneficiários de planos de saúde, projetada para transformar um processo tradicionalmente burocrático em uma experiência envolvente e eficiente. A solução prioriza simplicidade técnica, manutenibilidade e experiência excepcional do usuário.
+O Portal OMNI é uma plataforma de onboarding digital gamificada para beneficiários de planos de saúde, projetada para transformar um processo tradicionalmente burocrático em uma experiência envolvente e eficiente. A solução prioriza simplicidade técnica, manutenibilidade e experiência excepcional do usuário.
 1.2 Princípios Técnicos Fundamentais
 "Boring Technology": Usar tecnologias maduras e estáveis
 Mobile-First: Design responsivo otimizado para smartphones

@@ -21,29 +21,41 @@ class DocumentFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory(),
-            'file_name' => fake()->word() . '.pdf',
-            'file_path' => 'documents/' . fake()->uuid() . '.pdf',
-            'file_size' => fake()->numberBetween(100000, 5000000),
-            'mime_type' => 'application/pdf',
+            'beneficiary_id' => \App\Models\Beneficiary::factory(),
+            'uploaded_by' => User::factory(),
             'document_type' => fake()->randomElement(['rg', 'cpf', 'cnh', 'address_proof']),
-            'upload_status' => 'completed',
-            'ocr_status' => 'pending',
-            'validation_status' => 'pending',
+            'document_category' => fake()->randomElement(['identity', 'address', 'medical', 'financial']),
+            'original_name' => fake()->word() . '.pdf',
+            'stored_name' => fake()->uuid() . '.pdf',
+            'file_path' => 'documents/' . fake()->uuid() . '.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => fake()->numberBetween(100000, 5000000),
+            'file_extension' => 'pdf',
+            'status' => 'pending',
+            'rejection_reason' => null,
+            'verified_by' => null,
+            'verified_at' => null,
+            'expiration_date' => null,
+            'is_encrypted' => true,
+            'encryption_key' => null,
+            'metadata' => null,
             'ocr_data' => null,
-            'validation_results' => null,
-            'validation_score' => null,
+            'is_sensitive' => false,
+            'checksum' => fake()->sha256(),
+            'version' => 1,
+            'parent_document_id' => null,
         ];
     }
 
     /**
-     * Indicate that the document is being processed.
+     * Indicate that the document is approved.
      */
-    public function processing(): static
+    public function approved(): static
     {
         return $this->state(fn (array $attributes) => [
-            'upload_status' => 'processing',
-            'ocr_status' => 'processing',
+            'status' => 'approved',
+            'verified_by' => User::factory(),
+            'verified_at' => now(),
         ]);
     }
 
@@ -60,7 +72,7 @@ class DocumentFactory extends Factory
         ];
 
         return $this->state(fn (array $attributes) => [
-            'ocr_status' => 'completed',
+            'status' => 'approved',
             'ocr_data' => $ocrData ?? $defaultOcrData,
         ]);
     }
@@ -68,19 +80,12 @@ class DocumentFactory extends Factory
     /**
      * Indicate that the document is validated.
      */
-    public function validated(array $validationResults = null): static
+    public function validated(): static
     {
-        $defaultValidation = [
-            'is_valid' => true,
-            'validation_errors' => [],
-            'warnings' => [],
-            'confidence_score' => fake()->randomFloat(2, 0.8, 1.0),
-        ];
-
         return $this->state(fn (array $attributes) => [
-            'validation_status' => 'completed',
-            'validation_results' => $validationResults ?? $defaultValidation,
-            'validation_score' => fake()->numberBetween(80, 100),
+            'status' => 'approved',
+            'verified_by' => User::factory(),
+            'verified_at' => now(),
         ]);
     }
 
@@ -95,14 +100,15 @@ class DocumentFactory extends Factory
     }
 
     /**
-     * Create a failed document.
+     * Create a rejected document.
      */
-    public function failed(): static
+    public function rejected(string $reason = null): static
     {
         return $this->state(fn (array $attributes) => [
-            'upload_status' => 'failed',
-            'ocr_status' => 'failed',
-            'validation_status' => 'failed',
+            'status' => 'rejected',
+            'rejection_reason' => $reason ?? 'Document quality insufficient',
+            'verified_by' => User::factory(),
+            'verified_at' => now(),
         ]);
     }
 }

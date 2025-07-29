@@ -3,13 +3,14 @@
 import { useState, useCallback } from 'react';
 import axios, { AxiosError } from 'axios';
 import type { ApiError } from '@/lib/api/auth';
+import type { ApiResponse } from '@/types';
 
 interface UseApiOptions {
-  onSuccess?: (data: any) => void;
+  onSuccess?: <T>(data: T) => void;
   onError?: (error: ApiError) => void;
 }
 
-export function useApi<T = any>(options?: UseApiOptions) {
+export function useApi<T = unknown>(options?: UseApiOptions) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [isLoading, setIsLoading] = useState(false);

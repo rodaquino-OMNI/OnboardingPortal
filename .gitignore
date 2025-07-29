@@ -72,3 +72,98 @@ bootstrap/cache/*.php
 # Temporary files
 tmp/
 temp/
+
+
+
+
+
+
+
+
+
+# Claude Flow generated files
+.claude/settings.local.json
+.mcp.json
+claude-flow.config.json
+.swarm/
+.hive-mind/
+memory/claude-flow-data.json
+memory/sessions/*
+!memory/sessions/README.md
+memory/agents/*
+!memory/agents/README.md
+coordination/memory_bank/*
+coordination/subtasks/*
+coordination/orchestration/*
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+claude-flow
+claude-flow.bat
+claude-flow.ps1
+hive-mind-prompt-*.txt
+
+# Cookie files
+cookies.txt
+*_cookies.txt
+cookies_*.txt
+test_cookies.txt
+
+# Test results and reports
+integration_test_results.json
+integration_validation_results.json
+performance-results.json
+security_scan_report.json
+qa_test_results.json
+tester_memory.json
+validation-results.json
+lighthouse-performance.json
+
+# Build and compiled files
+omni-portal/backend/.next/
+omni-portal/backend/bootstrap/cache/packages.php
+omni-portal/backend/bootstrap/cache/services.php
+omni-portal/backend/storage/framework/uptime
+omni-portal/backend/omni-portal/
+
+# Test and development scripts
+test-login.sh
+debug-integration.sh
+security-audit.sh
+security-tools.sh
+setup-enhanced-upload.sh
+nextjs-safe-upgrade.sh
+integration-test.js
+
+# Performance test files
+performance-test.php
+enhanced-performance-test.php
+integration_test_validation.php
+integration_tests.php
+qa_integration_test.php
+
+# Report markdown files
+performance-report.md
+health-performance-optimization-report.md
+build-quality-tests.md
+
+# Cache directories
+.jest-cache/
+.husky/
+.roo/
+
+# Security audit directories
+security-audit-*/
+
+# Monitoring and deployment configuration
+.env.monitoring
+.env.production
+
+# Uploaded documents (sensitive data)
+omni-portal/backend/storage/app/documents/
+
+# Test output files
+*.test_cookies.txt

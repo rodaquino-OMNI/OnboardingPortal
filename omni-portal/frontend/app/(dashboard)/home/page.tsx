@@ -9,7 +9,6 @@ import { Leaderboard } from '@/components/gamification/Leaderboard';
 import { AchievementNotification } from '@/components/gamification/AchievementNotification';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { 
   User, 
@@ -45,16 +44,16 @@ export default function DashboardPage() {
   const recentBadges = dashboardSummary?.recent_badges || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <AchievementNotification />
       
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="mb-10 animate-fade-in">
+          <h1 className="dashboard-title mb-3">
             {getGreeting()}, {user?.fullName || 'User'}!
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-lg">
             Bem-vindo ao seu painel de integração. Acompanhe seu progresso e conquistas.
           </p>
         </div>
@@ -62,36 +61,44 @@ export default function DashboardPage() {
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Progress Overview */}
-          <div className="lg:col-span-2">
-            <ProgressCard className="mb-6" />
+          <div className="lg:col-span-2 space-y-6">
+            <ProgressCard className="card-modern" />
             
             {/* Quick Actions */}
-            <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Ações Rápidas</h3>
+            <Card className="card-modern p-8">
+              <h3 className="section-title mb-6">Ações Rápidas</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Link href="/profile">
-                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                    <User className="w-6 h-6" />
-                    <span className="text-sm">Perfil</span>
-                  </Button>
+                <Link href="/profile" className="block">
+                  <div className="action-button border border-gray-200 rounded-lg p-6 h-full flex flex-col items-center justify-center cursor-pointer group">
+                    <div className="action-button-icon bg-blue-50 group-hover:bg-blue-100">
+                      <User className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Perfil</span>
+                  </div>
                 </Link>
-                <Link href="/document-upload">
-                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                    <FileText className="w-6 h-6" />
-                    <span className="text-sm">Documentos</span>
-                  </Button>
+                <Link href="/document-upload" className="block">
+                  <div className="action-button border border-gray-200 rounded-lg p-6 h-full flex flex-col items-center justify-center cursor-pointer group">
+                    <div className="action-button-icon bg-green-50 group-hover:bg-green-100">
+                      <FileText className="w-5 h-5 text-green-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Documentos</span>
+                  </div>
                 </Link>
-                <Link href="/interview-schedule">
-                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                    <Calendar className="w-6 h-6" />
-                    <span className="text-sm">Entrevista</span>
-                  </Button>
+                <Link href="/interview-schedule" className="block">
+                  <div className="action-button border border-gray-200 rounded-lg p-6 h-full flex flex-col items-center justify-center cursor-pointer group">
+                    <div className="action-button-icon bg-purple-50 group-hover:bg-purple-100">
+                      <Calendar className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Entrevista</span>
+                  </div>
                 </Link>
-                <Link href="/health-questionnaire">
-                  <Button variant="outline" className="flex flex-col items-center space-y-2 h-auto py-4">
-                    <CheckCircle className="w-6 h-6" />
-                    <span className="text-sm">Questionário de Saúde</span>
-                  </Button>
+                <Link href="/health-questionnaire" className="block">
+                  <div className="action-button border border-gray-200 rounded-lg p-6 h-full flex flex-col items-center justify-center cursor-pointer group">
+                    <div className="action-button-icon bg-red-50 group-hover:bg-red-100">
+                      <CheckCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center leading-tight max-w-[80px]">Questionário de Saúde</span>
+                  </div>
                 </Link>
               </div>
             </Card>
@@ -100,8 +107,8 @@ export default function DashboardPage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Stats */}
-            <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Estatísticas de Hoje</h3>
+            <Card className="card-modern p-6">
+              <h3 className="section-title mb-5">Estatísticas de Hoje</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -135,10 +142,10 @@ export default function DashboardPage() {
 
             {/* Recent Achievements */}
             {recentBadges.length > 0 && (
-              <Card className="p-6">
-                <h3 className="font-semibold text-lg mb-4">Conquistas Recentes</h3>
+              <Card className="card-modern p-6">
+                <h3 className="section-title mb-5">Conquistas Recentes</h3>
                 <div className="space-y-3">
-                  {recentBadges.map((badge, index) => (
+                  {recentBadges.map((badge: { color: string; icon: string; name: string; earned_at: string }, index: number) => (
                     <div key={index} className="flex items-center space-x-3">
                       <div 
                         className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -159,8 +166,8 @@ export default function DashboardPage() {
             )}
 
             {/* Next Steps */}
-            <Card className="p-6">
-              <h3 className="font-semibold text-lg mb-4">Próximos Passos</h3>
+            <Card className="card-modern p-6">
+              <h3 className="section-title mb-5">Próximos Passos</h3>
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
@@ -197,10 +204,14 @@ export default function DashboardPage() {
         {/* Bottom Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Badges */}
-          <BadgeDisplay maxVisible={8} />
+          <div className="card-modern p-6">
+            <BadgeDisplay maxVisible={8} />
+          </div>
           
           {/* Leaderboard */}
-          <Leaderboard limit={8} />
+          <div className="card-modern p-6">
+            <Leaderboard limit={8} />
+          </div>
         </div>
       </div>
     </div>

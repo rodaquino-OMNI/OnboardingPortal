@@ -45,7 +45,7 @@ export function RegisterForm() {
       // Add gamification points
       setTimeout(() => {
         addPoints(100);
-        router.push('/dashboard');
+        router.push('/home');
       }, 2000);
     } catch (error) {
       console.error('Registration error:', error);
@@ -78,10 +78,11 @@ export function RegisterForm() {
 
   return (
     <div className="w-full max-w-2xl">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Criar Conta</h1>
-        <p className="text-gray-600">Complete o formulário abaixo para começar</p>
-      </div>
+      <div className="card-modern p-8 animate-fade-in">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">Criar Conta</h1>
+          <p className="text-gray-600">Complete o formulário abaixo para começar</p>
+        </div>
 
       {/* Progress Steps */}
       <div className="mb-8">
@@ -96,8 +97,8 @@ export function RegisterForm() {
                 <div className="relative">
                   <div
                     className={cn(
-                      'w-12 h-12 rounded-full flex items-center justify-center transition-all',
-                      isActive && 'bg-blue-600 text-white',
+                      'w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300',
+                      isActive && 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg',
                       isCompleted && 'bg-green-600 text-white',
                       !isActive && !isCompleted && 'bg-gray-200 text-gray-400'
                     )}
@@ -370,8 +371,8 @@ export function RegisterForm() {
         )}
 
         {authError && (
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-600">{authError}</p>
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-3 animate-fade-in">
+            <p className="text-sm text-red-600 font-medium">{authError}</p>
           </div>
         )}
 
@@ -415,11 +416,12 @@ export function RegisterForm() {
           )}
         </div>
       </form>
+      </div>
 
       {/* Success Animation */}
       {showSuccess && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white rounded-xl p-8 shadow-2xl animate-bounce-in">
+          <div className="card-modern p-8 shadow-2xl animate-bounce-in">
             <div className="text-center">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-12 h-12 text-green-600" />

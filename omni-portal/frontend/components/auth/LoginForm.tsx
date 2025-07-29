@@ -57,15 +57,16 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Bem-vindo de volta!</h1>
-        <p className="text-gray-600">Entre com suas credenciais para acessar sua conta</p>
-      </div>
+      <div className="card-modern p-8 animate-fade-in">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">Bem-vindo de volta!</h1>
+          <p className="text-gray-600">Entre com suas credenciais para acessar sua conta</p>
+        </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div>
           <label htmlFor="login" className="block text-sm font-medium text-gray-700 mb-2">
-            CPF ou Email
+            E-mail
           </label>
           <Input
             id="login"
@@ -92,9 +93,9 @@ export function LoginForm() {
         </div>
 
         {authError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2 animate-fade-in">
             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-            <p className="text-sm text-red-600">{authError}</p>
+            <p className="text-sm text-red-600 font-medium">{authError}</p>
           </div>
         )}
 
@@ -148,22 +149,23 @@ export function LoginForm() {
         />
       </div>
 
-      <div className="text-center mt-6">
-        <p className="text-sm text-gray-600">
-          Não tem uma conta?{' '}
-          <Link
-            href="/register"
-            className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
-          >
-            Cadastre-se
-          </Link>
-        </p>
+        <div className="text-center mt-6">
+          <p className="text-sm text-gray-600">
+            Não tem uma conta?{' '}
+            <Link
+              href="/register"
+              className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
+              Cadastre-se
+            </Link>
+          </p>
+        </div>
       </div>
 
       {/* Success Animation */}
       {showSuccess && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white rounded-xl p-8 shadow-2xl animate-bounce-in">
+          <div className="card-modern p-8 shadow-2xl animate-bounce-in">
             <div className="text-center">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg

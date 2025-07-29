@@ -11,22 +11,26 @@ class QuestionnaireTemplate extends Model
 
     protected $fillable = [
         'name',
-        'slug',
+        'code',
         'description',
-        'category_id',
-        'questions',
+        'type',
+        'health_category_id',
+        'sections',
         'scoring_rules',
+        'risk_assessment_rules',
         'is_active',
         'version',
-        'created_by',
-        'approved_by',
-        'approved_at',
+        'estimated_minutes',
+        'required_for',
+        'languages',
     ];
 
     protected $casts = [
-        'questions' => 'array',
+        'sections' => 'array',
         'scoring_rules' => 'array',
+        'risk_assessment_rules' => 'array',
+        'required_for' => 'array',
+        'languages' => 'array',
         'is_active' => 'boolean',
-        'approved_at' => 'datetime',
     ];
 }

@@ -16,47 +16,42 @@ class Beneficiary extends Model
     protected $fillable = [
         'user_id',
         'company_id',
+        'cpf',
         'full_name',
-        'email',
-        'phone',
-        'document_number',
-        'date_of_birth',
+        'birth_date',
         'gender',
-        'marital_status',
-        'address_street',
-        'address_number',
-        'address_complement',
-        'address_neighborhood',
-        'address_city',
-        'address_state',
-        'address_zip_code',
+        'phone',
+        'mobile_phone',
+        'address',
+        'number',
+        'complement',
+        'neighborhood',
+        'city',
+        'state',
+        'zip_code',
+        'country',
         'emergency_contact_name',
         'emergency_contact_phone',
         'emergency_contact_relationship',
-        'profile_picture',
-        'status',
+        'marital_status',
+        'occupation',
+        'monthly_income',
+        'has_health_insurance',
+        'health_insurance_provider',
+        'health_insurance_number',
+        'onboarding_status',
         'onboarding_step',
         'onboarding_completed_at',
-        'health_plan_type',
-        'health_plan_number',
-        'health_plan_start_date',
-        'notes',
-        'dependents_count',
-        'preferred_language',
-        'communication_preferences',
-        'is_vip',
-        'company_department',
-        'employee_id',
-        'manager_name',
+        'custom_fields',
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
-        'health_plan_start_date' => 'date',
+        'birth_date' => 'date',
         'onboarding_completed_at' => 'datetime',
-        'communication_preferences' => 'array',
-        'is_vip' => 'boolean',
-        'dependents_count' => 'integer',
+        'custom_fields' => 'array',
+        'has_health_insurance' => 'boolean',
+        'monthly_income' => 'decimal:2',
+        'onboarding_step' => 'integer',
     ];
 
     /**
@@ -89,7 +84,7 @@ class Beneficiary extends Model
     public function badges(): BelongsToMany
     {
         return $this->belongsToMany(GamificationBadge::class, 'beneficiary_badges')
-            ->withPivot('earned_at', 'notified_at')
+            ->withPivot('earned_at')
             ->withTimestamps();
     }
 

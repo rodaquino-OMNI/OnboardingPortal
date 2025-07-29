@@ -47,7 +47,7 @@ class DocumentControllerTest extends TestCase
                     'data' => [
                         '*' => [
                             'id',
-                            'type',
+                            'document_type',
                             'file_path',
                             'status',
                             'created_at'
@@ -65,7 +65,7 @@ class DocumentControllerTest extends TestCase
 
         $response = $this->postJson('/api/documents/upload', [
             'file' => $file,
-            'type' => 'rg',
+            'document_type' => 'rg',
             'description' => 'Documento de identidade'
         ]);
 
@@ -82,7 +82,7 @@ class DocumentControllerTest extends TestCase
 
         $this->assertDatabaseHas('documents', [
             'beneficiary_id' => $this->beneficiary->id,
-            'type' => 'rg',
+            'document_type' => 'rg',
             'status' => 'processing'
         ]);
 
@@ -99,7 +99,7 @@ class DocumentControllerTest extends TestCase
 
         $response = $this->postJson('/api/documents/upload', [
             'file' => $largefile,
-            'type' => 'rg'
+            'document_type' => 'rg'
         ]);
 
         $response->assertStatus(422)
@@ -110,7 +110,7 @@ class DocumentControllerTest extends TestCase
 
         $response = $this->postJson('/api/documents/upload', [
             'file' => $invalidFile,
-            'type' => 'rg'
+            'document_type' => 'rg'
         ]);
 
         $response->assertStatus(422)
@@ -245,7 +245,7 @@ class DocumentControllerTest extends TestCase
 
         $document = Document::factory()->create([
             'beneficiary_id' => $this->beneficiary->id,
-            'type' => 'rg',
+            'document_type' => 'rg',
             'ocr_data' => [
                 'name' => 'JOÃO SILVA',
                 'rg_number' => '12.345.678-9'
@@ -290,13 +290,13 @@ class DocumentControllerTest extends TestCase
         // Create documents with various statuses
         Document::factory()->create([
             'beneficiary_id' => $this->beneficiary->id,
-            'type' => 'rg',
+            'document_type' => 'rg',
             'status' => 'approved'
         ]);
 
         Document::factory()->create([
             'beneficiary_id' => $this->beneficiary->id,
-            'type' => 'cpf',
+            'document_type' => 'cpf',
             'status' => 'processing'
         ]);
 
@@ -355,7 +355,7 @@ class DocumentControllerTest extends TestCase
 
         $response = $this->postJson('/api/documents/upload', [
             'file' => $file,
-            'type' => 'rg'
+            'document_type' => 'rg'
         ]);
 
         $response->assertStatus(500)
@@ -371,7 +371,7 @@ class DocumentControllerTest extends TestCase
 
         $endpoints = [
             ['GET', '/api/documents', []],
-            ['POST', '/api/documents/upload', ['file' => $file, 'type' => 'rg']],
+            ['POST', '/api/documents/upload', ['file' => $file, 'document_type' => 'rg']],
             ['GET', '/api/documents/validation-progress', []],
             ['GET', '/api/documents/1', []],
             ['GET', '/api/documents/1/download', []],

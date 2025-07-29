@@ -104,6 +104,50 @@ class HealthAIService
     }
 
     /**
+     * Analyze questionnaire responses (method required by HealthQuestionnaireController)
+     */
+    public function analyzeResponses(array $responses, string $templateCode): array
+    {
+        try {
+            // Build comprehensive analysis prompt
+            $systemPrompt = $this->buildAnalysisSystemPrompt();
+            $userPrompt = $this->buildAnalysisPrompt($responses, $templateCode);
+
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-api-key' => $this->apiKey,
+                    'anthropic-version' => '2023-06-01'
+                ])
+                ->post($this->apiUrl, [
+                    'model' => $this->model,
+                    'max_tokens' => 2000,
+                    'temperature' => 0.3,
+                    'system' => $systemPrompt,
+                    'messages' => [
+                        [
+                            'role' => 'user',
+                            'content' => $userPrompt
+                        ]
+                    ]
+                ]);
+
+            if ($response->successful()) {
+                $result = $response->json();
+                $content = $result['content'][0]['text'] ?? '';
+                
+                return $this->parseAnalysisResponse($content, $responses);
+            } else {
+                Log::error('Claude API error in analyzeResponses: ' . $response->body());
+                return $this->getFallbackAnalysis($responses);
+            }
+        } catch (\Exception $e) {
+            Log::error('HealthAI analyzeResponses error: ' . $e->getMessage());
+            return $this->getFallbackAnalysis($responses);
+        }
+    }
+
+    /**
      * Detect pre-existing conditions from conversational input
      */
     public function detectPreExistingConditions(string $conversationText): array
@@ -411,5 +455,230 @@ Return analysis in JSON format:
         }
 
         return $baseRecommendations;
+    }
+
+    /**
+     * Build system prompt for comprehensive analysis
+     */
+    protected function buildAnalysisSystemPrompt(): string
+    {
+        return "You are a comprehensive health assessment AI for a Brazilian health insurance platform.
+
+Your role is to analyze complete health questionnaire responses and provide structured insights including:
+1. Risk assessment and scoring
+2. Clinical recommendations 
+3. Detected health patterns and conditions
+4. Next steps for care
+5. Emergency indicators
+
+Guidelines:
+- Provide thorough but concise analysis
+- Focus on actionable insights
+- Consider Brazilian healthcare context
+- Always recommend professional consultation for serious concerns
+- Be culturally sensitive and appropriate
+
+Return analysis in JSON format:
+{
+  \"risk_scores\": {
+    \"overall_risk\": 0-100,
+    \"mental_health_risk\": 0-100,
+    \"physical_health_risk\": 0-100,
+    \"lifestyle_risk\": 0-100
+  },
+  \"recommendations\": [\"recommendation1\", \"recommendation2\"],
+  \"detected_conditions\": [\"condition1\", \"condition2\"],
+  \"next_steps\": [\"step1\", \"step2\"],
+  \"emergency_indicators\": [],
+  \"confidence_score\": 0.0-1.0,
+  \"analysis_summary\": \"Brief summary in Portuguese\"
+}";
+    }
+
+    /**
+     * Build analysis prompt for questionnaire responses
+     */
+    protected function buildAnalysisPrompt(array $responses, string $templateCode): string
+    {
+        $prompt = "Template Code: {$templateCode}\n\n";
+        $prompt .= "Complete Health Questionnaire Responses:\n";
+        
+        foreach ($responses as $key => $value) {
+            if (is_array($value)) {
+                $prompt .= "- {$key}: " . implode(', ', $value) . "\n";
+            } else {
+                $prompt .= "- {$key}: {$value}\n";
+            }
+        }
+        
+        $prompt .= "\nProvide comprehensive health analysis with risk scoring, recommendations, and next steps.";
+        
+        return $prompt;
+    }
+
+    /**
+     * Parse comprehensive analysis response
+     */
+    protected function parseAnalysisResponse(string $content, array $responses): array
+    {
+        // Try to extract JSON from the response
+        if (preg_match('/\{.*\}/s', $content, $matches)) {
+            $json = json_decode($matches[0], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $json;
+            }
+        }
+
+        // Fallback analysis
+        return $this->getFallbackAnalysis($responses);
+    }
+
+    /**
+     * Generate fallback analysis when AI service fails
+     */
+    protected function getFallbackAnalysis(array $responses): array
+    {
+        // Basic risk calculation based on response patterns
+        $riskScore = $this->calculateBasicRiskScore($responses);
+        
+        return [
+            'risk_scores' => [
+                'overall_risk' => $riskScore,
+                'mental_health_risk' => $this->extractMentalHealthRisk($responses),
+                'physical_health_risk' => $this->extractPhysicalHealthRisk($responses),
+                'lifestyle_risk' => $this->extractLifestyleRisk($responses)
+            ],
+            'recommendations' => $this->getBasicRecommendations($riskScore),
+            'detected_conditions' => [],
+            'next_steps' => [
+                'Complete your onboarding process',
+                'Schedule a health consultation if needed',
+                'Continue with document upload'
+            ],
+            'emergency_indicators' => [],
+            'confidence_score' => 0.6,
+            'analysis_summary' => 'Análise básica concluída. Recomendamos consulta médica para avaliação completa.'
+        ];
+    }
+
+    /**
+     * Calculate basic risk score from responses
+     */
+    protected function calculateBasicRiskScore(array $responses): int
+    {
+        $riskFactors = 0;
+        $totalQuestions = count($responses);
+        
+        // Look for common risk indicators
+        foreach ($responses as $key => $value) {
+            if (is_string($value)) {
+                $value = strtolower($value);
+                if (in_array($value, ['yes', 'sim', 'true', '1', 'high', 'alto'])) {
+                    $riskFactors++;
+                }
+            } elseif (is_numeric($value) && $value > 2) {
+                $riskFactors++;
+            }
+        }
+        
+        return $totalQuestions > 0 ? min(100, round(($riskFactors / $totalQuestions) * 100)) : 0;
+    }
+
+    /**
+     * Extract mental health risk score
+     */
+    protected function extractMentalHealthRisk(array $responses): int
+    {
+        $mentalHealthKeys = ['phq', 'gad', 'depression', 'anxiety', 'stress', 'mental'];
+        $mentalRisk = 0;
+        $count = 0;
+        
+        foreach ($responses as $key => $value) {
+            foreach ($mentalHealthKeys as $mentalKey) {
+                if (stripos($key, $mentalKey) !== false) {
+                    if (is_numeric($value)) {
+                        $mentalRisk += (int) $value;
+                        $count++;
+                    }
+                }
+            }
+        }
+        
+        return $count > 0 ? min(100, round(($mentalRisk / $count) * 10)) : 0;
+    }
+
+    /**
+     * Extract physical health risk score
+     */
+    protected function extractPhysicalHealthRisk(array $responses): int
+    {
+        $physicalKeys = ['pain', 'chronic', 'medication', 'surgery', 'condition'];
+        $physicalRisk = 0;
+        $count = 0;
+        
+        foreach ($responses as $key => $value) {
+            foreach ($physicalKeys as $physicalKey) {
+                if (stripos($key, $physicalKey) !== false) {
+                    if ($value === 'yes' || $value === 'sim' || $value === true) {
+                        $physicalRisk += 20;
+                        $count++;
+                    }
+                }
+            }
+        }
+        
+        return min(100, $physicalRisk);
+    }
+
+    /**
+     * Extract lifestyle risk score
+     */
+    protected function extractLifestyleRisk(array $responses): int
+    {
+        $lifestyleKeys = ['smoking', 'alcohol', 'exercise', 'diet', 'sleep'];
+        $lifestyleRisk = 0;
+        $count = 0;
+        
+        foreach ($responses as $key => $value) {
+            foreach ($lifestyleKeys as $lifestyleKey) {
+                if (stripos($key, $lifestyleKey) !== false) {
+                    if (is_numeric($value)) {
+                        $lifestyleRisk += (int) $value;
+                        $count++;
+                    }
+                }
+            }
+        }
+        
+        return $count > 0 ? min(100, round(($lifestyleRisk / $count) * 15)) : 0;
+    }
+
+    /**
+     * Get basic recommendations based on risk score
+     */
+    protected function getBasicRecommendations(int $riskScore): array
+    {
+        if ($riskScore > 70) {
+            return [
+                'Agendar consulta médica urgente',
+                'Monitorar sintomas de perto',
+                'Seguir recomendações médicas existentes',
+                'Considerar suporte especializado'
+            ];
+        } elseif ($riskScore > 40) {
+            return [
+                'Agendar consulta médica preventiva',
+                'Implementar mudanças no estilo de vida',
+                'Aumentar atividade física',
+                'Melhorar hábitos alimentares'
+            ];
+        } else {
+            return [
+                'Manter hábitos saudáveis atuais',
+                'Realizar check-ups anuais',
+                'Continuar monitoramento regular',
+                'Focar em prevenção'
+            ];
+        }
     }
 }

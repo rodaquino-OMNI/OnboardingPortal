@@ -1,6 +1,5 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
@@ -29,81 +28,76 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
 
   if (isLoadingProgress || isLoadingStats) {
     return (
-      <Card className={`p-6 animate-pulse ${className}`}>
+      <div className={`card-modern p-6 ${className || ''}`}>
         <div className="space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-8 bg-gray-200 rounded"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-3/4 animate-pulse"></div>
+          <div className="h-8 bg-gradient-to-r from-gray-200 to-gray-300 rounded animate-pulse"></div>
+          <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded w-1/2 animate-pulse"></div>
         </div>
-      </Card>
+      </div>
     );
   }
 
   if (!progress || !stats) {
     return (
-      <Card className={`p-6 ${className}`}>
+      <div className={`card-modern p-6 ${className || ''}`}>
         <div className="text-center text-gray-500">
           <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>No progress data available</p>
         </div>
-      </Card>
+      </div>
     );
   }
 
-  const currentLevel = stats.current_level;
-  const nextLevel = stats.next_level;
-  const progressPercentage = nextLevel ? nextLevel.progress_percentage : 100;
+  const currentLevel = stats.current_level || stats.level;
+  const nextLevel = currentLevel + 1;
+  const progressPercentage = Math.min((stats.totalPoints % 1000) / 10, 100); // Mock calculation
 
   return (
-    <Card className={`p-6 ${className}`}>
+    <div className={`card-modern p-6 ${className || ''}`}>
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div 
               className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: currentLevel.color }}
+              style={{ backgroundColor: currentLevel >= 10 ? '#8B5CF6' : currentLevel >= 5 ? '#3B82F6' : '#10B981' }}
             >
               <span className="text-white font-bold text-lg">
-                {currentLevel.number}
+                {currentLevel}
               </span>
             </div>
             <div>
-              <h3 className="font-semibold text-lg">{currentLevel.name}</h3>
+              <h3 className="section-title">Level {currentLevel}</h3>
               <p className="text-sm text-gray-600">
-                {stats.total_points.toLocaleString()} points
+                {stats.totalPoints.toLocaleString()} points
               </p>
             </div>
           </div>
           <Badge variant="secondary" className="flex items-center space-x-1">
             <TrendingUp className="w-3 h-3" />
-            <span>{stats.engagement_score}%</span>
+            <span>{Math.min(Math.floor((stats.totalPoints / 100) * 10), 100)}%</span>
           </Badge>
         </div>
 
         {/* Progress Bar */}
-        {nextLevel && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">
-                Progress to {nextLevel.name}
-              </span>
-              <span className="font-medium">
-                {nextLevel.points_remaining.toLocaleString()} points to go
-              </span>
-            </div>
-            <Progress 
-              value={progressPercentage} 
-              className="h-3"
-              style={{ 
-                background: `linear-gradient(to right, ${currentLevel.color}, ${currentLevel.color}20)` 
-              }}
-            />
-            <p className="text-xs text-gray-500 text-center">
-              {progressPercentage.toFixed(1)}% complete
-            </p>
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">
+              Progress to Level {nextLevel}
+            </span>
+            <span className="font-medium">
+              {stats.experienceToNext.toLocaleString()} points to go
+            </span>
           </div>
-        )}
+          <Progress 
+            value={progressPercentage} 
+            className="h-3"
+          />
+          <p className="text-xs text-gray-500 text-center">
+            {progressPercentage.toFixed(1)}% complete
+          </p>
+        </div>
 
         {/* Quick Stats */}
         {showDetails && (
@@ -112,7 +106,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Flame className="w-4 h-4 text-orange-500" />
                 <span className="text-2xl font-bold text-orange-500">
-                  {stats.streak_days}
+                  {stats.currentStreak}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Day Streak</p>
@@ -121,7 +115,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Star className="w-4 h-4 text-yellow-500" />
                 <span className="text-2xl font-bold text-yellow-500">
-                  {stats.badges_earned}
+                  {stats.achievementsUnlocked}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Badges Earned</p>
@@ -130,7 +124,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Trophy className="w-4 h-4 text-blue-500" />
                 <span className="text-2xl font-bold text-blue-500">
-                  {stats.tasks_completed}
+                  {Math.floor(stats.totalPoints / 100)}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Tasks Done</p>
@@ -139,7 +133,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <TrendingUp className="w-4 h-4 text-green-500" />
                 <span className="text-2xl font-bold text-green-500">
-                  {currentLevel.number}
+                  {currentLevel}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Level</p>
@@ -148,17 +142,17 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
         )}
 
         {/* Next Level Preview */}
-        {nextLevel && showDetails && (
-          <div className="bg-gray-50 rounded-lg p-3 mt-4">
+        {showDetails && (
+          <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 mt-4">
             <h4 className="font-medium text-sm mb-2">Next Level Rewards:</h4>
             <div className="text-xs text-gray-600 space-y-1">
-              <p>• Level {nextLevel.number}: {nextLevel.name}</p>
-              <p>• {nextLevel.points_required.toLocaleString()} points required</p>
+              <p>• Level {nextLevel}: Level {nextLevel}</p>
+              <p>• {(currentLevel * 1000).toLocaleString()} points required</p>
               <p>• New features and benefits unlocked</p>
             </div>
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }

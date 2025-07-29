@@ -40,7 +40,7 @@ export default function CompletionPage() {
   const handleGoToDashboard = () => {
     // Clear registration data since process is complete
     reset();
-    router.push('/dashboard');
+    router.push('/home');
   };
   
   const handleRestartOnboarding = () => {

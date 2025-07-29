@@ -23,6 +23,7 @@ class EnsureRegistrationCompleted
             'api/auth/logout',
             'api/auth/user',
             'api/health',
+            'api/gamification/*', // Allow gamification endpoints during registration
         ];
         
         foreach ($allowedRoutes as $pattern) {

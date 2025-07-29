@@ -73,29 +73,29 @@ export function AchievementNotification({
         showNotification({
           id: `badge-${newBadgeEarned.id}`,
           type: 'badge',
-          title: 'New Badge Earned!',
-          description: `You earned the "${newBadgeEarned.name}" badge!`,
-          icon: newBadgeEarned.icon_name,
-          color: newBadgeEarned.icon_color,
-          points: newBadgeEarned.points_value,
+          title: 'Nova Conquista Desbloqueada!',
+          description: `Você conquistou o emblema "${newBadgeEarned.name}"!`,
+          icon: newBadgeEarned.icon,
+          color: '#4F46E5', // Default color since icon_color doesn't exist in type
+          points: newBadgeEarned.pointsRequired,
           badge: newBadgeEarned,
           timestamp: new Date()
         });
       }
 
       // Check for level up
-      if (stats?.current_level && stats.current_level.number > 1) {
+      if (stats?.current_level && stats.current_level > 1) {
         const lastLevelUp = localStorage.getItem('lastLevelUp');
-        const currentLevel = stats.current_level.number;
+        const currentLevel = stats.current_level;
         
         if (!lastLevelUp || parseInt(lastLevelUp) < currentLevel) {
           showNotification({
             id: `level-${currentLevel}`,
             type: 'level_up',
-            title: 'Level Up!',
-            description: `You reached ${stats.current_level.name}!`,
-            icon: stats.current_level.icon,
-            color: stats.current_level.color,
+            title: 'Subiu de Nível!',
+            description: `Você alcançou o nível ${currentLevel}!`,
+            icon: '🎉', // Default level up icon since current_level is just a number
+            color: '#10B981', // Default level up color
             level: currentLevel,
             timestamp: new Date()
           });
@@ -104,16 +104,16 @@ export function AchievementNotification({
       }
 
       // Check for streak milestones
-      if (stats?.streak_days && stats.streak_days > 0 && stats.streak_days % 7 === 0) {
+      if (stats?.currentStreak && stats.currentStreak > 0 && stats.currentStreak % 7 === 0) {
         const lastStreakNotification = localStorage.getItem('lastStreakNotification');
-        const currentStreak = stats.streak_days;
+        const currentStreak = stats.currentStreak;
         
         if (!lastStreakNotification || parseInt(lastStreakNotification) < currentStreak) {
           showNotification({
             id: `streak-${currentStreak}`,
             type: 'streak',
-            title: 'Streak Milestone!',
-            description: `${currentStreak} days in a row! Keep it up!`,
+            title: 'Marco de Sequência!',
+            description: `${currentStreak} dias consecutivos! Continue assim!`,
             icon: '🔥',
             color: '#FF6B35',
             timestamp: new Date()
@@ -199,7 +199,7 @@ export function AchievementNotification({
                 <h4 className="font-semibold text-sm">{notification.title}</h4>
                 {notification.points && (
                   <Badge variant="secondary" className="text-xs">
-                    +{notification.points} pts
+                    +{notification.points} pontos
                   </Badge>
                 )}
               </div>
@@ -224,7 +224,7 @@ export function AchievementNotification({
               {notification.level && (
                 <div className="mt-2">
                   <Badge variant="outline" className="text-xs">
-                    Level {notification.level}
+                    Nível {notification.level}
                   </Badge>
                 </div>
               )}
@@ -252,8 +252,8 @@ export function useAchievementNotification() {
       detail: {
         id: data.id || Date.now().toString(),
         type: data.type || 'badge',
-        title: data.title || 'Achievement Unlocked!',
-        description: data.description || 'You earned a new achievement!',
+        title: data.title || 'Conquista Desbloqueada!',
+        description: data.description || 'Você conquistou uma nova conquista!',
         ...data,
         timestamp: new Date()
       }

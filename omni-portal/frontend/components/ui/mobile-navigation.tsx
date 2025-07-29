@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navigationItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/home', label: 'Dashboard', icon: Home },
   { href: '/profile', label: 'Profile', icon: User },
   { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/interview', label: 'Interview', icon: Calendar },
@@ -52,9 +52,9 @@ export function MobileNavigation() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'fixed bottom-4 right-4 z-50 p-3 bg-primary-500 text-white rounded-full shadow-lg',
+          'fixed bottom-4 right-4 z-50 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg',
           a11y.focusVisible,
-          'transition-transform active:scale-95'
+          'transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95'
         )}
         aria-label={isOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={isOpen}
@@ -75,7 +75,7 @@ export function MobileNavigation() {
       <nav
         ref={gestureRef}
         className={cn(
-          'fixed right-0 top-0 h-full w-72 bg-white shadow-xl z-40',
+          'fixed right-0 top-0 h-full w-72 bg-gradient-to-br from-gray-50 to-gray-100 shadow-xl z-40',
           'transform transition-transform duration-300 ease-in-out',
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
@@ -83,8 +83,8 @@ export function MobileNavigation() {
         role="navigation"
         data-testid="mobile-header"
       >
-        <div className="p-4">
-          <h2 className="text-lg font-semibold mb-6">Menu</h2>
+        <div className="p-6">
+          <h2 className="text-lg font-semibold text-gray-900 tracking-tight mb-6">Menu</h2>
           
           <ul className="space-y-2">
             {navigationItems.map((item) => {
@@ -96,10 +96,10 @@ export function MobileNavigation() {
                   <Link
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-3 px-4 py-3 rounded-md transition-colors',
-                      'hover:bg-neutral-100 active:bg-neutral-200',
+                      'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200',
+                      'hover:bg-white hover:shadow-md hover:translate-x-1',
                       a11y.focusVisible,
-                      isActive && 'bg-primary-50 text-primary-600 font-medium'
+                      isActive && 'bg-white shadow-md text-blue-600 font-medium'
                     )}
                     aria-current={isActive ? 'page' : undefined}
                   >
@@ -125,7 +125,7 @@ export function MobileTabBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-30"
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30"
       aria-label="Tab navigation"
     >
       <ul className="flex justify-around">
@@ -139,9 +139,10 @@ export function MobileTabBar() {
                 href={item.href}
                 className={cn(
                   'flex flex-col items-center gap-1 py-2 px-3',
-                  'transition-colors',
+                  'transition-all duration-200',
                   a11y.focusVisible,
-                  isActive ? 'text-primary-600' : 'text-neutral-600'
+                  isActive ? 'text-blue-600' : 'text-gray-600',
+                  'hover:text-blue-600'
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >

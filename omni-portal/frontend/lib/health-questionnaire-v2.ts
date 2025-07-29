@@ -1,12 +1,19 @@
 // Advanced Health Questionnaire System V2
 // Implements evidence-based screening tools with fraud detection
 
+import type { QuestionValue } from '@/types';
+
 export interface HealthQuestion {
   id: string;
   text: string;
   type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'scale' | 'date';
   category: 'screening' | 'medical_history' | 'lifestyle' | 'mental_health' | 'validation';
   required: boolean;
+  options?: Array<{
+    value: string | number;
+    label: string;
+    description?: string;
+  }>;
   validation?: {
     min?: number;
     max?: number;
@@ -15,13 +22,14 @@ export interface HealthQuestion {
   };
   conditionalOn?: {
     questionId: string;
-    values: any[];
+    values: QuestionValue[];
   };
   riskWeight?: number; // For ML risk scoring
   validationPair?: string; // ID of paired question for consistency check
   metadata?: {
     clinicalCode?: string; // ICD-10, SNOMED codes
     validatedTool?: string; // PHQ-9, GAD-7, etc.
+    sensitiveInfo?: boolean; // For handling sensitive medical data
   };
 }
 
@@ -99,7 +107,7 @@ export const VALIDATION_PAIRS: HealthQuestion[] = [
     required: true,
     validation: { min: 120, max: 250 },
     validationPair: 'height_1',
-    conditionalOn: { questionId: 'bmi_category', values: ['overweight', 'obese'] }
+    conditionalOn: { questionId: 'height_1', values: ['*'] } // Show if height_1 has any value
   },
   {
     id: 'smoking_status',
@@ -107,7 +115,12 @@ export const VALIDATION_PAIRS: HealthQuestion[] = [
     type: 'select',
     category: 'lifestyle',
     required: true,
-    validationPair: 'smoking_validation'
+    validationPair: 'smoking_validation',
+    options: [
+      { value: 'never', label: 'Nunca fumei' },
+      { value: 'former', label: 'Ex-fumante' },
+      { value: 'current', label: 'Fumante atual' }
+    ]
   },
   {
     id: 'smoking_validation',
@@ -116,7 +129,7 @@ export const VALIDATION_PAIRS: HealthQuestion[] = [
     category: 'validation',
     required: false,
     validationPair: 'smoking_status',
-    conditionalOn: { questionId: 'chronic_conditions', values: ['respiratory_disease', 'heart_disease'] }
+    conditionalOn: { questionId: 'smoking_status', values: ['current', 'former'] }
   }
 ];
 
@@ -138,11 +151,20 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
         validation: { min: 18, max: 120 }
       },
       {
-        id: 'gender',
-        text: 'Com qual gênero você se identifica?',
+        id: 'biological_sex',
+        text: 'Qual é seu sexo biológico ao nascer? (Esta informação é importante para avaliações médicas e cálculos de risco à saúde)',
         type: 'select',
         category: 'screening',
-        required: true
+        required: true,
+        options: [
+          { value: 'male', label: 'Masculino' },
+          { value: 'female', label: 'Feminino' },
+          { value: 'intersex', label: 'Intersexo' }
+        ],
+        metadata: { 
+          clinicalCode: 'Z00.00',
+          sensitiveInfo: true 
+        }
       },
       {
         id: 'emergency_conditions',
@@ -150,7 +172,16 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
         type: 'multiselect',
         category: 'screening',
         required: true,
-        riskWeight: 8
+        riskWeight: 8,
+        options: [
+          { value: 'pregnancy', label: 'Gravidez' },
+          { value: 'recent_surgery', label: 'Cirurgia recente (últimos 30 dias)' },
+          { value: 'active_cancer_treatment', label: 'Tratamento ativo de câncer' },
+          { value: 'immunosuppressed', label: 'Sistema imunológico comprometido' },
+          { value: 'chest_pain', label: 'Dor no peito atual' },
+          { value: 'breathing_difficulty', label: 'Dificuldade respiratória atual' },
+          { value: 'none', label: 'Nenhuma das acima' }
+        ]
       }
     ]
   },
@@ -167,7 +198,20 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
         type: 'multiselect',
         category: 'medical_history',
         required: true,
-        riskWeight: 5
+        riskWeight: 5,
+        options: [
+          { value: 'diabetes', label: 'Diabetes' },
+          { value: 'hypertension', label: 'Hipertensão (Pressão Alta)' },
+          { value: 'heart_disease', label: 'Doença Cardíaca' },
+          { value: 'respiratory_disease', label: 'Doença Respiratória (Asma, DPOC)' },
+          { value: 'cancer', label: 'Câncer' },
+          { value: 'kidney_disease', label: 'Doença Renal' },
+          { value: 'liver_disease', label: 'Doença Hepática' },
+          { value: 'thyroid', label: 'Problemas de Tireoide' },
+          { value: 'arthritis', label: 'Artrite/Artrose' },
+          { value: 'mental_health', label: 'Condições de Saúde Mental' },
+          { value: 'none', label: 'Nenhuma das acima' }
+        ]
       },
       {
         id: 'condition_details',
@@ -219,7 +263,17 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
         type: 'multiselect',
         category: 'medical_history',
         required: true,
-        riskWeight: 3
+        riskWeight: 3,
+        options: [
+          { value: 'diabetes', label: 'Diabetes' },
+          { value: 'hypertension', label: 'Hipertensão' },
+          { value: 'heart_disease', label: 'Doença Cardíaca' },
+          { value: 'stroke', label: 'AVC (Derrame)' },
+          { value: 'cancer', label: 'Câncer' },
+          { value: 'mental_health', label: 'Transtornos Mentais' },
+          { value: 'alzheimer', label: 'Alzheimer/Demência' },
+          { value: 'none', label: 'Nenhuma das acima' }
+        ]
       },
       {
         id: 'family_early_death',
@@ -373,7 +427,11 @@ export function calculateRiskScore(responses: Record<string, any>): RiskScore {
     score.flags.push('moderate_depression');
   }
   
-  if (responses.phq9_9 > 0) {
+  // Validate PHQ-9 question 9 response before flagging suicide risk
+  if (responses.phq9_9 !== undefined && 
+      responses.phq9_9 !== null && 
+      typeof responses.phq9_9 === 'number' && 
+      responses.phq9_9 > 0) {
     score.flags.push('suicide_risk');
     score.recommendations.push('Encaminhamento urgente para profissional de saúde mental');
   }

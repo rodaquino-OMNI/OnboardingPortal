@@ -19,7 +19,7 @@ export const ROUTES = {
   register: '/register',
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
-  dashboard: '/dashboard',
+  dashboard: '/home',
   onboarding: '/onboarding',
   profile: '/profile',
   documents: '/documents',

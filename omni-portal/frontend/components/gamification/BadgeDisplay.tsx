@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
 import { useEffect, useState } from 'react';
-import { Trophy, Award, Star, Crown, Diamond } from 'lucide-react';
+import { Trophy, Star, Crown, Diamond } from 'lucide-react';
 import type { GamificationBadge } from '@/types';
 
 interface BadgeDisplayProps {
@@ -49,7 +49,6 @@ export function BadgeDisplay({
   const getRarityIcon = (rarity: GamificationBadge['rarity']) => {
     switch (rarity) {
       case 'common': return <Trophy className="w-4 h-4" />;
-      case 'uncommon': return <Award className="w-4 h-4" />;
       case 'rare': return <Star className="w-4 h-4" />;
       case 'epic': return <Crown className="w-4 h-4" />;
       case 'legendary': return <Diamond className="w-4 h-4" />;
@@ -60,7 +59,6 @@ export function BadgeDisplay({
   const getRarityColor = (rarity: GamificationBadge['rarity']) => {
     switch (rarity) {
       case 'common': return 'bg-gray-100 text-gray-600 border-gray-300';
-      case 'uncommon': return 'bg-green-100 text-green-600 border-green-300';
       case 'rare': return 'bg-blue-100 text-blue-600 border-blue-300';
       case 'epic': return 'bg-purple-100 text-purple-600 border-purple-300';
       case 'legendary': return 'bg-yellow-100 text-yellow-600 border-yellow-300';
@@ -76,9 +74,9 @@ export function BadgeDisplay({
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-lg">Achievements</h3>
+          <h3 className="font-semibold text-lg">Conquistas</h3>
           <Badge variant="secondary">
-            {badges.earned.length} earned
+            {badges.earned.length} conquistadas
           </Badge>
         </div>
 
@@ -93,7 +91,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Earned ({badges.earned.length})
+              Conquistadas ({badges.earned.length})
             </button>
             <button
               onClick={() => setActiveTab('available')}
@@ -103,7 +101,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Available ({badges.available.length})
+              Disponíveis ({badges.available.length})
             </button>
           </div>
         )}
@@ -123,10 +121,10 @@ export function BadgeDisplay({
               <div className="text-center mb-2">
                 <div 
                   className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-2"
-                  style={{ backgroundColor: badge.icon_color }}
+                  style={{ backgroundColor: '#4F46E5' }}
                 >
                   <span className="text-white text-lg">
-                    {badge.icon_name || '🏆'}
+                    {badge.icon || '🏆'}
                   </span>
                 </div>
                 <div className="flex items-center justify-center space-x-1 mb-1">
@@ -142,9 +140,9 @@ export function BadgeDisplay({
                 <h4 className="font-medium text-sm mb-1">{badge.name}</h4>
                 <p className="text-xs opacity-75 mb-2">{badge.description}</p>
                 
-                {badge.points_value > 0 && (
+                {badge.pointsRequired > 0 && (
                   <Badge variant="outline" className="text-xs">
-                    {badge.points_value} pts
+                    {badge.pointsRequired} pontos
                   </Badge>
                 )}
               </div>
@@ -156,13 +154,7 @@ export function BadgeDisplay({
                 </div>
               )}
 
-              {/* Criteria for available badges */}
-              {activeTab === 'available' && badge.criteria && (
-                <div className="mt-2 p-2 bg-white/50 rounded text-xs">
-                  <p className="font-medium">How to earn:</p>
-                  <p className="opacity-75">{badge.criteria}</p>
-                </div>
-              )}
+              {/* Criteria for available badges - removed as criteria not in interface */}
             </div>
           ))}
         </div>
@@ -171,7 +163,7 @@ export function BadgeDisplay({
         {displayBadges.length > maxVisible && (
           <div className="text-center">
             <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
-              Show {displayBadges.length - maxVisible} more
+              Mostrar mais {displayBadges.length - maxVisible}
             </button>
           </div>
         )}
@@ -182,14 +174,14 @@ export function BadgeDisplay({
             <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>
               {activeTab === 'earned' 
-                ? 'No badges earned yet' 
-                : 'No badges available'
+                ? 'Nenhuma conquista ainda' 
+                : 'Nenhuma conquista disponível'
               }
             </p>
             <p className="text-sm mt-1">
               {activeTab === 'earned' 
-                ? 'Complete tasks and milestones to earn your first badge!'
-                : 'Check back later for new challenges!'
+                ? 'Complete tarefas e marcos para ganhar sua primeira conquista!'
+                : 'Volte mais tarde para novos desafios!'
               }
             </p>
           </div>

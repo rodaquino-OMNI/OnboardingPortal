@@ -1,28 +1,47 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { ApiResponse } from '@/types';
+import { ApiResponse, GamificationStats, GamificationBadge, LeaderboardEntry } from '@/types';
+import { LGPDPrivacySettings, LGPDConsentHistoryEntry, LGPDDataProcessingActivity, LGPDConsentWithdrawal, LGPDAccountDeletionRequest } from '@/types/lgpd';
 
 class ApiService {
   private client: AxiosInstance;
+  private csrfInitialized = false;
 
   constructor() {
+    const baseURL = process.env.NEXT_PUBLIC_API_VERSION 
+      ? `${process.env.NEXT_PUBLIC_API_URL}/${process.env.NEXT_PUBLIC_API_VERSION}`
+      : process.env.NEXT_PUBLIC_API_URL;
+    
+    if (!baseURL) {
+      throw new Error('API base URL is not configured');
+    }
+    
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_API_VERSION 
-        ? `${process.env.NEXT_PUBLIC_API_URL}/${process.env.NEXT_PUBLIC_API_VERSION}`
-        : process.env.NEXT_PUBLIC_API_URL,
+      baseURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
+      withCredentials: true, // Enable cookies for CSRF
     });
 
     // Request interceptor
     this.client.interceptors.request.use(
-      (config) => {
-        // Add auth token if available
-        const token = this.getAuthToken();
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+      async (config) => {
+        // Ensure CSRF cookie is set before first request
+        if (!this.csrfInitialized) {
+          await this.initializeCsrf();
         }
+
+        // Auth is now handled via httpOnly cookies by CookieAuth middleware
+        // No need to manually add Authorization header
+
+        // Add CSRF token from cookie
+        const csrfToken = this.getCsrfToken();
+        if (csrfToken) {
+          config.headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+
         return config;
       },
       (error) => {
@@ -34,6 +53,18 @@ class ApiService {
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
+        // Handle CSRF token mismatch
+        if (error.response?.status === 419) {
+          // Reset CSRF and retry once
+          this.csrfInitialized = false;
+          await this.initializeCsrf();
+          
+          // Retry the original request
+          const originalRequest = error.config;
+          originalRequest.headers['X-CSRF-TOKEN'] = this.getCsrfToken();
+          return this.client.request(originalRequest);
+        }
+
         if (error.response?.status === 401) {
           // Handle unauthorized access
           this.clearAuthToken();
@@ -44,24 +75,42 @@ class ApiService {
     );
   }
 
-  // Auth token management
-  private getAuthToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken');
+  // Initialize CSRF cookie
+  private async initializeCsrf(): Promise<void> {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+      await axios.get(`${baseUrl}/sanctum/csrf-cookie`, { withCredentials: true });
+      this.csrfInitialized = true;
+    } catch (error) {
+      console.error('Failed to initialize CSRF cookie:', error);
+    }
+  }
+
+  // Get CSRF token from cookie
+  private getCsrfToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; XSRF-TOKEN=`);
+    if (parts.length === 2) {
+      const cookieValue = parts.pop()?.split(';').shift() || null;
+      return cookieValue ? decodeURIComponent(cookieValue) : null;
     }
     return null;
   }
 
+  // Auth token management - now handled via httpOnly cookies
+  private getAuthToken(): string | null {
+    // Token is now in httpOnly cookie, no need to get from localStorage
+    return null;
+  }
+
   private setAuthToken(token: string): void {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('authToken', token);
-    }
+    // Token is now in httpOnly cookie, no need to store in localStorage
   }
 
   private clearAuthToken(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
-    }
+    // Token is now in httpOnly cookie, cleared by backend
   }
 
   // Generic request methods
@@ -74,7 +123,7 @@ class ApiService {
     }
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+  async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<ApiResponse<T>> = await this.client.post(url, data, config);
       return response.data;
@@ -83,7 +132,7 @@ class ApiService {
     }
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
+  async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<ApiResponse<T>> = await this.client.put(url, data, config);
       return response.data;
@@ -102,7 +151,7 @@ class ApiService {
   }
 
   // File upload
-  async uploadFile(url: string, file: File, onProgress?: (progress: number) => void): Promise<ApiResponse<any>> {
+  async uploadFile(url: string, file: File, onProgress?: (progress: number) => void): Promise<ApiResponse<{ url: string; filename: string }>> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -125,7 +174,7 @@ class ApiService {
   }
 
   // Error handling
-  private handleError(error: any): ApiResponse<any> {
+  private handleError(error: unknown): ApiResponse<never> {
     if (axios.isAxiosError(error)) {
       return {
         success: false,
@@ -154,32 +203,32 @@ class ApiService {
     this.clearAuthToken();
   }
 
-  // Gamification API methods
-  async getGamificationProgress(): Promise<ApiResponse<any>> {
+  // Gamification API methods with proper typing
+  async getGamificationProgress(): Promise<ApiResponse<GamificationProgress>> {
     return this.get('/gamification/progress');
   }
 
-  async getGamificationStats(): Promise<ApiResponse<any>> {
+  async getGamificationStats(): Promise<ApiResponse<GamificationStats>> {
     return this.get('/gamification/stats');
   }
 
-  async getAchievements(): Promise<ApiResponse<any>> {
+  async getAchievements(): Promise<ApiResponse<GamificationBadge[]>> {
     return this.get('/gamification/badges');
   }
 
-  async getLeaderboard(limit: number = 10): Promise<ApiResponse<any>> {
+  async getLeaderboard(limit: number = 10): Promise<ApiResponse<LeaderboardEntry[]>> {
     return this.get(`/gamification/leaderboard?limit=${limit}`);
   }
 
-  async getActivityFeed(limit: number = 20): Promise<ApiResponse<any>> {
+  async getActivityFeed(limit: number = 20): Promise<ApiResponse<Activity[]>> {
     return this.get(`/gamification/activity-feed?limit=${limit}`);
   }
 
-  async getDashboardSummary(): Promise<ApiResponse<any>> {
+  async getDashboardSummary(): Promise<ApiResponse<DashboardSummary>> {
     return this.get('/gamification/dashboard');
   }
 
-  async getGamificationLevels(): Promise<ApiResponse<any>> {
+  async getGamificationLevels(): Promise<ApiResponse<GamificationLevel[]>> {
     return this.get('/gamification/levels');
   }
 
@@ -206,7 +255,7 @@ class ApiService {
 
   // Profile methods
   async getProfile(): Promise<ApiResponse<UserProfile>> {
-    return this.get('/profile');
+    return this.get('/auth/user');
   }
 
   async updateProfile(data: Partial<UserProfile>): Promise<ApiResponse<UserProfile>> {
@@ -217,36 +266,36 @@ class ApiService {
     return this.uploadFile('/profile/photo', file);
   }
 
-  // LGPD methods
-  async getLGPDPrivacySettings(): Promise<ApiResponse<any>> {
+  // LGPD methods with proper typing
+  async getLGPDPrivacySettings(): Promise<ApiResponse<LGPDPrivacySettings>> {
     return this.get('/lgpd/privacy-settings');
   }
 
-  async updateLGPDPrivacySettings(settings: any): Promise<ApiResponse<any>> {
+  async updateLGPDPrivacySettings(settings: LGPDPrivacySettings): Promise<ApiResponse<LGPDPrivacySettings>> {
     return this.put('/lgpd/privacy-settings', { preferences: settings });
   }
 
-  async getLGPDConsentHistory(): Promise<ApiResponse<any>> {
+  async getLGPDConsentHistory(): Promise<ApiResponse<LGPDConsentHistoryEntry[]>> {
     return this.get('/lgpd/consent-history');
   }
 
-  async getLGPDDataProcessingActivities(): Promise<ApiResponse<any>> {
+  async getLGPDDataProcessingActivities(): Promise<ApiResponse<LGPDDataProcessingActivity[]>> {
     return this.get('/lgpd/data-processing-activities');
   }
 
-  async exportLGPDUserData(): Promise<ApiResponse<any>> {
+  async exportLGPDUserData(): Promise<ApiResponse<{ download_url: string; expires_at: string }>> {
     return this.get('/lgpd/export-data');
   }
 
-  async exportLGPDUserDataPdf(): Promise<ApiResponse<any>> {
+  async exportLGPDUserDataPdf(): Promise<ApiResponse<{ download_url: string; expires_at: string }>> {
     return this.get('/lgpd/export-data-pdf');
   }
 
-  async withdrawLGPDConsent(data: any): Promise<ApiResponse<any>> {
+  async withdrawLGPDConsent(data: LGPDConsentWithdrawal): Promise<ApiResponse<{ message: string }>> {
     return this.post('/lgpd/withdraw-consent', data);
   }
 
-  async deleteLGPDAccount(data: any): Promise<ApiResponse<any>> {
+  async deleteLGPDAccount(data: LGPDAccountDeletionRequest): Promise<ApiResponse<{ message: string }>> {
     return this.delete('/lgpd/delete-account', { data });
   }
 }

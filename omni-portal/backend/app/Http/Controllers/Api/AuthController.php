@@ -87,12 +87,28 @@ class AuthController extends Controller
         // Load relationships
         $user->load(['roles', 'beneficiary', 'gamificationProgress']);
         
-        return response()->json([
+        // Set token as httpOnly cookie for enhanced security
+        $response = response()->json([
             'message' => 'Login realizado com sucesso',
             'user' => $user,
-            'token' => $token,
-            'token_type' => 'Bearer',
+            'success' => true,
         ]);
+        
+        // Add httpOnly, secure, SameSite cookie with the token
+        // Note: Laravel will automatically encrypt this cookie
+        $response->cookie(
+            'auth_token',
+            $token,
+            config('sanctum.expiration', 525600), // 1 year default
+            '/',
+            null,
+            config('session.secure', false), // Use config for secure flag
+            true, // httpOnly
+            false, // raw (don't encode)
+            'Lax' // SameSite=Lax for better compatibility
+        );
+        
+        return $response;
     }
     
     /**
@@ -103,9 +119,24 @@ class AuthController extends Controller
         // Revoke current token
         $request->user()->currentAccessToken()->delete();
         
-        return response()->json([
+        // Clear the httpOnly auth cookie
+        $response = response()->json([
             'message' => 'Logout realizado com sucesso',
         ]);
+        
+        $response->cookie(
+            'auth_token',
+            '',
+            -1, // Expire immediately
+            '/',
+            null,
+            config('session.secure', false), // Use same config as login
+            true, // httpOnly
+            false,
+            'Lax' // SameSite=Lax - same as login
+        );
+        
+        return $response;
     }
     
     /**
@@ -116,9 +147,24 @@ class AuthController extends Controller
         // Revoke all tokens
         $request->user()->tokens()->delete();
         
-        return response()->json([
+        // Clear the httpOnly auth cookie
+        $response = response()->json([
             'message' => 'Logout realizado em todos os dispositivos',
         ]);
+        
+        $response->cookie(
+            'auth_token',
+            '',
+            -1, // Expire immediately
+            '/',
+            null,
+            config('session.secure', false), // Use same config as login
+            true, // httpOnly
+            false,
+            'Lax' // SameSite=Lax - same as login
+        );
+        
+        return $response;
     }
     
     /**

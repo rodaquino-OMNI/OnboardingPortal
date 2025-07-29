@@ -72,12 +72,6 @@ export function Leaderboard({
     }
   };
 
-  const getLevelBadgeColor = (level: number) => {
-    if (level >= 10) return 'bg-purple-100 text-purple-800';
-    if (level >= 5) return 'bg-blue-100 text-blue-800';
-    if (level >= 3) return 'bg-green-100 text-green-800';
-    return 'bg-gray-100 text-gray-800';
-  };
 
   return (
     <Card className={`p-6 ${className}`}>
@@ -86,7 +80,7 @@ export function Leaderboard({
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Trophy className="w-5 h-5 text-yellow-500" />
-            <h3 className="font-semibold text-lg">Leaderboard</h3>
+            <h3 className="font-semibold text-lg">Ranking</h3>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -94,7 +88,7 @@ export function Leaderboard({
               disabled={refreshing}
               className="text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50"
             >
-              {refreshing ? 'Refreshing...' : 'Refresh'}
+              {refreshing ? 'Atualizando...' : 'Atualizar'}
             </button>
           </div>
         </div>
@@ -106,7 +100,7 @@ export function Leaderboard({
             
             return (
               <div
-                key={`${entry.beneficiary_id}-${index}`}
+                key={`${entry.userId}-${index}`}
                 className={`
                   flex items-center space-x-4 p-4 rounded-lg border transition-all
                   ${getRankBackground(rank)}
@@ -122,8 +116,8 @@ export function Leaderboard({
                 <div className="flex-shrink-0">
                   {entry.avatar ? (
                     <Image
-                      src={entry.avatar}
-                      alt={entry.name}
+                      src={entry.avatar || '/default-avatar.png'}
+                      alt={entry.username}
                       width={40}
                       height={40}
                       className="w-10 h-10 rounded-full object-cover"
@@ -131,7 +125,7 @@ export function Leaderboard({
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                       <span className="text-white font-bold text-sm">
-                        {entry.name.charAt(0).toUpperCase()}
+                        {entry.username.charAt(0).toUpperCase()}
                       </span>
                     </div>
                   )}
@@ -140,23 +134,23 @@ export function Leaderboard({
                 {/* User Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-1">
-                    <h4 className="font-medium text-sm truncate">{entry.name}</h4>
+                    <h4 className="font-medium text-sm truncate">{entry.username}</h4>
                     <Badge 
                       variant="outline" 
-                      className={`text-xs ${getLevelBadgeColor(entry.current_level)}`}
+                      className="text-xs bg-gray-100 text-gray-600"
                     >
-                      L{entry.current_level}
+                      Rank #{entry.rank}
                     </Badge>
                   </div>
                   <div className="flex items-center space-x-3 text-xs text-gray-600">
-                    <span>{entry.level_name}</span>
+                    <span>Position #{entry.rank}</span>
                     <div className="flex items-center space-x-1">
                       <Star className="w-3 h-3 text-yellow-500" />
-                      <span>{entry.badges_count}</span>
+                      <span>{entry.achievements?.length || 0} badges</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <TrendingUp className="w-3 h-3 text-green-500" />
-                      <span>{entry.engagement_score}%</span>
+                      <span>{entry.points} pts</span>
                     </div>
                   </div>
                 </div>
@@ -164,9 +158,9 @@ export function Leaderboard({
                 {/* Points */}
                 <div className="flex-shrink-0 text-right" data-testid="points-display">
                   <div className="font-bold text-lg" data-testid="points-counter">
-                    {entry.total_points.toLocaleString()}
+                    {entry.points.toLocaleString()}
                   </div>
-                  <div className="text-xs text-gray-500">points</div>
+                  <div className="text-xs text-gray-500">pontos</div>
                 </div>
               </div>
             );
@@ -177,9 +171,9 @@ export function Leaderboard({
         {leaderboard.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No leaderboard data available</p>
+            <p>Nenhum dado de ranking disponível</p>
             <p className="text-sm mt-1">
-              Complete your onboarding to join the leaderboard!
+              Complete seu onboarding para entrar no ranking!
             </p>
           </div>
         )}
@@ -188,7 +182,7 @@ export function Leaderboard({
         {leaderboard.length > 0 && (
           <div className="pt-4 border-t text-center">
             <p className="text-xs text-gray-500">
-              Updated in real-time • Company leaderboard
+              Atualizado em tempo real • Ranking da empresa
             </p>
           </div>
         )}

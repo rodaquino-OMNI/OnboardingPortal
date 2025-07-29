@@ -132,7 +132,7 @@ const config: Config = {
     },
   },
   plugins: [
-    function({ addUtilities }) {
+    function({ addUtilities }: { addUtilities: (utilities: Record<string, Record<string, string>>) => void }) {
       addUtilities({
         '.touch-target-44': {
           minHeight: '44px',

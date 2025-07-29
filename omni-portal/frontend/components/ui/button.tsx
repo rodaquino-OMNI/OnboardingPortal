@@ -3,22 +3,22 @@ import { cn } from "@/lib/utils"
 import { VariantProps, cva } from "class-variance-authority"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none",
+  "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none transform",
   {
     variants: {
       variant: {
         primary:
-          "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500",
+          "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 focus:ring-blue-500 shadow-md hover:shadow-lg hover:-translate-y-0.5",
         secondary:
-          "bg-purple-600 text-white hover:bg-purple-700 focus:ring-purple-500",
+          "bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 focus:ring-purple-500 shadow-md hover:shadow-lg hover:-translate-y-0.5",
         achievement:
           "bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 shadow-lg transform transition-transform hover:scale-105",
         outline:
-          "border border-gray-300 bg-transparent hover:bg-gray-100 text-gray-700",
+          "border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 hover:border-gray-300 shadow-sm hover:shadow-md hover:-translate-y-0.5",
         ghost:
           "hover:bg-gray-100 hover:text-gray-900",
         destructive:
-          "bg-red-500 text-white hover:bg-red-600 focus:ring-red-500",
+          "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 focus:ring-red-500 shadow-md hover:shadow-lg hover:-translate-y-0.5",
       },
       size: {
         default: "h-10 py-2 px-4",
