@@ -167,3 +167,125 @@ omni-portal/backend/storage/app/documents/
 
 # Test output files
 *.test_cookies.txt
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Shell scripts (testing/utility)
+test-login.sh
+debug-integration.sh
+security-audit.sh
+security-tools.sh
+setup-enhanced-upload.sh
+nextjs-safe-upgrade.sh
+
+# PHP test and integration files
+performance-test.php
+enhanced-performance-test.php
+integration_test_validation.php
+integration_tests.php
+qa_integration_test.php
+qa_test_results.json
+
+# JSON result files
+integration_test_results.json
+integration_validation_results.json
+performance-results.json
+security_scan_report.json
+qa_test_results.json
+tester_memory.json
+validation-results.json
+lighthouse-performance.json
+api_routes.json
+
+# Report files
+performance-report.md
+health-performance-optimization-report.md
+build-quality-tests.md
+*_REPORT.md
+*_ANALYSIS.md
+
+# JavaScript test files
+integration-test.js
+healthcheck.js
+
+# ESLint config variations
+.eslintrc.practical.json
+.eslintrc.strict.json
+
+# Lint staged config
+.lintstagedrc.js
+
+# Lighthouse configuration
+lighthouse.config.js
+lighthouserc.js
+
+# Documentation generated files
+BUILD_STANDARDS.md
+FIX_*.md
+SAFETY_TEST_*.md
+SUICIDE_RISK_*.md
+QUALITY_MIGRATION_*.md
+
+# Roo and Claude artifacts
+.roo/
+.roomodes
+
+# Commit linting
+commitlint.config.js
+
+# Docker override files
+docker-compose.monitoring.yml
+docker-compose.production.yml
+
+# CI/CD specific files
+.github/docker-compose.ci.yml
+
+# Scripts directories
+.github/scripts/
+omni-portal/scripts/
+omni-portal/frontend/scripts/
+
+# Test credentials (NEVER commit these)
+TEST_CREDENTIALS.md
+*_CREDENTIALS.md
+
+# Monitoring directories
+omni-portal/monitoring/
+
+# Additional test directories
+omni-portal/backend/tests/Security/
+
+# Frontend test cache
+omni-portal/frontend/.jest-cache/
+
+# Husky git hooks (local configuration)
+omni-portal/frontend/.husky/
+
+# Test cookie files (all patterns)
+cookies.txt
+*cookies.txt
+cookies_*.txt
+test_cookies.txt
+*.test_cookies.txt
+
+# Migration and architecture docs (if generated)
+ADMIN_DASHBOARD_*.md
+DEBUGGING_GUIDE.md
+FEATURE_IMPLEMENTATION_*.md
+HYBRID_OCR_*.md
+IMPLEMENTATION_*.md
+INTERVIEW_SCHEDULING_*.md
+TECHNICAL_EXCELLENCE_*.md
+VIDEO_CONFERENCING_*.md
+DEPLOYMENT_GUIDE.md
+PERFORMANCE_OPTIMIZATION.md
+PRODUCTION_READINESS.md
+QA_MANUAL_TEST_*.md
+AWS_TEXTRACT_*.md
+ENHANCED_FILE_UPLOAD_*.md
+HEALTHCARE_QUESTIONNAIRE_*.md
+README_OCR_*.md
+MIGRATION_GUIDE.md
