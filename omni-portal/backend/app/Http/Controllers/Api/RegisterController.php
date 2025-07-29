@@ -19,6 +19,79 @@ use Illuminate\Validation\ValidationException;
 class RegisterController extends Controller
 {
     /**
+     * Handle single-step registration
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'cpf' => 'required|string|size:11|unique:users',
+        ]);
+
+        try {
+            DB::beginTransaction();
+            
+            // Create user
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'cpf' => $request->cpf,
+                'password' => Hash::make($request->password),
+                'registration_step' => 'completed',
+                'lgpd_consent' => true,
+                'lgpd_consent_at' => now(),
+                'lgpd_consent_ip' => $request->ip(),
+                'role' => 'beneficiary',
+                'is_active' => true,
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ]);
+            
+            // Create beneficiary record
+            $beneficiary = Beneficiary::create([
+                'user_id' => $user->id,
+                'cpf' => $user->cpf,
+                'onboarding_status' => 'documents',
+                'onboarding_completed_at' => null,
+            ]);
+            
+            // Initialize gamification progress
+            $gamification = GamificationProgress::create([
+                'beneficiary_id' => $beneficiary->id,
+                'total_points' => 100,
+                'current_level' => 1,
+                'last_activity_at' => now(),
+            ]);
+            
+            DB::commit();
+            
+            // Create token
+            $token = $user->createToken('web')->plainTextToken;
+            
+            // Load relationships
+            $user->load(['beneficiary', 'beneficiary.gamificationProgress']);
+            
+            return response()->json([
+                'message' => 'Registration successful',
+                'user' => $user,
+                'token' => $token,
+                'token_type' => 'Bearer',
+            ], 201);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Registration error: ' . $e->getMessage());
+            
+            return response()->json([
+                'message' => 'Registration failed',
+                'error' => 'An error occurred during registration. Please try again.',
+            ], 500);
+        }
+    }
+
+    /**
      * Handle step 1 of registration (personal info + LGPD)
      */
     public function step1(RegisterStep1Request $request): JsonResponse
@@ -51,9 +124,8 @@ class RegisterController extends Controller
             // Initialize gamification progress
             $gamification = GamificationProgress::create([
                 'beneficiary_id' => $beneficiary->id,
-                'points' => 0,
-                'level' => 1,
-                'badges_earned' => 0,
+                'total_points' => 0,
+                'current_level' => 1,
                 'last_activity_at' => now(),
             ]);
             
@@ -170,7 +242,11 @@ class RegisterController extends Controller
             
             // Award registration points (gamification)
             $gamification = $user->beneficiary->gamificationProgress;
-            $gamification->addPoints(100, 'registration_completed');
+            if ($gamification) {
+                $gamification->update([
+                    'total_points' => $gamification->total_points + 100,
+                ]);
+            }
             
             // Assign default role
             $user->assignRole('beneficiary');
