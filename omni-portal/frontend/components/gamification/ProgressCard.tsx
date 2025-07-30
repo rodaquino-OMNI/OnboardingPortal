@@ -21,12 +21,32 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
     fetchStats 
   } = useGamification();
 
+  // Debug logging
+  console.log('[ProgressCard] Render state:', {
+    stats,
+    isLoadingStats,
+    progress,
+    isLoadingProgress
+  });
+
   useEffect(() => {
-    if (!progress) fetchProgress();
-    if (!stats) fetchStats();
+    console.log('[ProgressCard] Effect triggered');
+    try {
+      if (!progress) {
+        console.log('[ProgressCard] Fetching progress...');
+        fetchProgress().catch(err => console.error('[ProgressCard] Progress fetch error:', err));
+      }
+      if (!stats) {
+        console.log('[ProgressCard] Fetching stats...');
+        fetchStats().catch(err => console.error('[ProgressCard] Stats fetch error:', err));
+      }
+    } catch (error) {
+      console.error('[ProgressCard] Error in effect:', error);
+    }
   }, [progress, stats, fetchProgress, fetchStats]);
 
   if (isLoadingProgress || isLoadingStats) {
+    console.log('[ProgressCard] Showing loading state');
     return (
       <div className={`card-modern p-6 ${className || ''}`}>
         <div className="space-y-4">
@@ -39,6 +59,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
   }
 
   if (!progress || !stats) {
+    console.log('[ProgressCard] No data available', { progress, stats });
     return (
       <div className={`card-modern p-6 ${className || ''}`}>
         <div className="text-center text-gray-500">
@@ -49,9 +70,60 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
     );
   }
 
-  const currentLevel = stats.current_level || stats.level;
+  // Safe value extraction with detailed logging
+  console.log('[ProgressCard] Extracting values from stats:', stats);
+  
+  const currentLevel = (() => {
+    const level = stats.current_level || stats.level || 1;
+    console.log('[ProgressCard] currentLevel:', level);
+    return level;
+  })();
+  
   const nextLevel = currentLevel + 1;
-  const progressPercentage = Math.min((stats.totalPoints % 1000) / 10, 100); // Mock calculation
+  
+  const totalPoints = (() => {
+    const points = stats.totalPoints || 0;
+    console.log('[ProgressCard] totalPoints:', points, 'type:', typeof points);
+    return points;
+  })();
+  
+  const experienceToNext = (() => {
+    const exp = stats.experienceToNext || (1000 - (totalPoints % 1000));
+    console.log('[ProgressCard] experienceToNext:', exp);
+    return exp;
+  })();
+  
+  const progressPercentage = (() => {
+    const percentage = Math.min(((totalPoints % 1000) / 1000) * 100, 100);
+    console.log('[ProgressCard] progressPercentage:', percentage);
+    return percentage;
+  })();
+
+  // Check for NaN or Infinity
+  if (isNaN(currentLevel) || !isFinite(currentLevel)) {
+    console.error('[ProgressCard] Invalid currentLevel:', currentLevel);
+    return <div>Error: Invalid level data</div>;
+  }
+  if (isNaN(totalPoints) || !isFinite(totalPoints)) {
+    console.error('[ProgressCard] Invalid totalPoints:', totalPoints);
+    return <div>Error: Invalid points data</div>;
+  }
+  if (isNaN(experienceToNext) || !isFinite(experienceToNext)) {
+    console.error('[ProgressCard] Invalid experienceToNext:', experienceToNext);
+    return <div>Error: Invalid experience data</div>;
+  }
+  if (isNaN(progressPercentage) || !isFinite(progressPercentage)) {
+    console.error('[ProgressCard] Invalid progressPercentage:', progressPercentage);
+    return <div>Error: Invalid progress data</div>;
+  }
+
+  console.log('[ProgressCard] Rendering with values:', {
+    currentLevel,
+    nextLevel,
+    totalPoints,
+    experienceToNext,
+    progressPercentage
+  });
 
   return (
     <div className={`card-modern p-6 ${className || ''}`}>
@@ -64,19 +136,19 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               style={{ backgroundColor: currentLevel >= 10 ? '#8B5CF6' : currentLevel >= 5 ? '#3B82F6' : '#10B981' }}
             >
               <span className="text-white font-bold text-lg">
-                {currentLevel}
+                {String(currentLevel)}
               </span>
             </div>
             <div>
               <h3 className="section-title">Level {currentLevel}</h3>
               <p className="text-sm text-gray-600">
-                {stats.totalPoints.toLocaleString()} points
+                {String(totalPoints.toLocaleString())} points
               </p>
             </div>
           </div>
           <Badge variant="secondary" className="flex items-center space-x-1">
             <TrendingUp className="w-3 h-3" />
-            <span>{Math.min(Math.floor((stats.totalPoints / 100) * 10), 100)}%</span>
+            <span>{String(Math.min(Math.floor((totalPoints / 100) * 10), 100))}%</span>
           </Badge>
         </div>
 
@@ -87,7 +159,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               Progress to Level {nextLevel}
             </span>
             <span className="font-medium">
-              {stats.experienceToNext.toLocaleString()} points to go
+              {String(experienceToNext.toLocaleString())} points to go
             </span>
           </div>
           <Progress 
@@ -95,7 +167,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
             className="h-3"
           />
           <p className="text-xs text-gray-500 text-center">
-            {progressPercentage.toFixed(1)}% complete
+            {String(progressPercentage.toFixed(1))}% complete
           </p>
         </div>
 
@@ -106,7 +178,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Flame className="w-4 h-4 text-orange-500" />
                 <span className="text-2xl font-bold text-orange-500">
-                  {stats.currentStreak}
+                  {String(stats.currentStreak || 0)}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Day Streak</p>
@@ -115,7 +187,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Star className="w-4 h-4 text-yellow-500" />
                 <span className="text-2xl font-bold text-yellow-500">
-                  {stats.achievementsUnlocked}
+                  {String(stats.achievementsUnlocked || 0)}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Badges Earned</p>
@@ -124,7 +196,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <Trophy className="w-4 h-4 text-blue-500" />
                 <span className="text-2xl font-bold text-blue-500">
-                  {Math.floor(stats.totalPoints / 100)}
+                  {String(Math.floor(totalPoints / 100))}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Tasks Done</p>
@@ -133,7 +205,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               <div className="flex items-center justify-center space-x-1 mb-1">
                 <TrendingUp className="w-4 h-4 text-green-500" />
                 <span className="text-2xl font-bold text-green-500">
-                  {currentLevel}
+                  {String(currentLevel)}
                 </span>
               </div>
               <p className="text-xs text-gray-600">Level</p>
@@ -147,7 +219,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
             <h4 className="font-medium text-sm mb-2">Next Level Rewards:</h4>
             <div className="text-xs text-gray-600 space-y-1">
               <p>• Level {nextLevel}: Level {nextLevel}</p>
-              <p>• {(currentLevel * 1000).toLocaleString()} points required</p>
+              <p>• {String((currentLevel * 1000).toLocaleString())} points required</p>
               <p>• New features and benefits unlocked</p>
             </div>
           </div>
