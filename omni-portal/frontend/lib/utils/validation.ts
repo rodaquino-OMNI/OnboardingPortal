@@ -100,7 +100,7 @@ export function validatePhone(phone: string): boolean {
     }
     
     // For landline (10 digits), first digit cannot be 0, 1, or 9
-    if (cleanPhone.length === 10 && ['0', '1', '9'].includes(number[0])) {
+    if (cleanPhone.length === 10 && number[0] && ['0', '1', '9'].includes(number[0])) {
       return false;
     }
     

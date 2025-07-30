@@ -262,7 +262,6 @@ npm run test:performance
 - [ ] WhatsApp Business API integration
 - [ ] Advanced ML risk scoring
 - [ ] Multi-language support (EN/ES)
-- [ ] Blockchain document verification
 - [ ] Advanced analytics dashboard
 
 ## 🤝 Contributing

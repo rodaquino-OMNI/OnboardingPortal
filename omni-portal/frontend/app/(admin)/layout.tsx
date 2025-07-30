@@ -14,7 +14,7 @@ export default function AdminLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && (!user || !user.roles?.some(role => 
+    if (!isLoading && (!user || !user.roles?.some((role: { name: string }) => 
       ['admin', 'super-admin', 'moderator', 'hr'].includes(role.name)
     ))) {
       router.push('/home');
@@ -29,7 +29,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || !user.roles?.some(role => 
+  if (!user || !user.roles?.some((role: { name: string }) => 
     ['admin', 'super-admin', 'moderator', 'hr'].includes(role.name)
   )) {
     return null;

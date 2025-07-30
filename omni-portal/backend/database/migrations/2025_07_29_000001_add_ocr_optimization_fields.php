@@ -27,9 +27,13 @@ return new class extends Migration
                     $table->json('metadata')->nullable();
                 }
                 
-                // Add indexes for performance
-                $table->index(['provider', 'created_at']);
-                $table->index('cost');
+                // Add indexes for performance (check if they don't exist)
+                if (!collect(Schema::getIndexes('ocr_usage_logs'))->pluck('name')->contains('ocr_usage_logs_provider_created_at_index')) {
+                    $table->index(['provider', 'created_at']);
+                }
+                if (!collect(Schema::getIndexes('ocr_usage_logs'))->pluck('name')->contains('ocr_usage_logs_cost_index')) {
+                    $table->index('cost');
+                }
             });
         }
 

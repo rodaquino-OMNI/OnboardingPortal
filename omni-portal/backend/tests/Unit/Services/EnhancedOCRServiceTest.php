@@ -29,6 +29,7 @@ class EnhancedOCRServiceTest extends TestCase
         // Mock dependencies
         $this->mockTesseractService = Mockery::mock(TesseractOCRService::class);
         $this->mockUsageTracker = Mockery::mock(OCRUsageTracker::class);
+        $this->mockTextractClient = Mockery::mock(TextractClient::class);
 
         // Set test configuration
         Config::set('ocr', [
@@ -83,6 +84,11 @@ class EnhancedOCRServiceTest extends TestCase
         $usageTrackerProperty = $reflection->getProperty('usageTracker');
         $usageTrackerProperty->setAccessible(true);
         $usageTrackerProperty->setValue($this->ocrService, $this->mockUsageTracker);
+        
+        // Replace the textract client with mock
+        $textractClientProperty = $reflection->getProperty('textractClient');
+        $textractClientProperty->setAccessible(true);
+        $textractClientProperty->setValue($this->ocrService, $this->mockTextractClient);
     }
 
     protected function tearDown(): void

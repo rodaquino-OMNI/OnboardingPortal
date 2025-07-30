@@ -49,11 +49,20 @@ class RegisterController extends Controller
                 'email_verified_at' => now(),
             ]);
             
-            // Create beneficiary record
+            // Create beneficiary record with minimal required fields
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
-                'onboarding_status' => 'documents',
+                'full_name' => $user->name,
+                'birth_date' => '2000-01-01', // Placeholder, will be updated in profile
+                'phone' => '11999999999', // Placeholder, will be updated in profile
+                'address' => 'To be updated', // Placeholder
+                'number' => '0', // Placeholder
+                'neighborhood' => 'To be updated', // Placeholder
+                'city' => 'To be updated', // Placeholder
+                'state' => 'SP', // Default to SP
+                'zip_code' => '00000-000', // Placeholder
+                'onboarding_status' => 'in_progress',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -62,7 +71,7 @@ class RegisterController extends Controller
                 'beneficiary_id' => $beneficiary->id,
                 'total_points' => 100,
                 'current_level' => 1,
-                'last_activity_at' => now(),
+                'last_activity_date' => now()->toDateString(),
             ]);
             
             DB::commit();
@@ -113,11 +122,20 @@ class RegisterController extends Controller
                 'is_active' => false, // Will be activated after completion
             ]);
             
-            // Create beneficiary record
+            // Create beneficiary record with minimal required fields
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
-                'onboarding_status' => 'registration',
+                'full_name' => $user->name,
+                'birth_date' => '2000-01-01', // Placeholder
+                'phone' => '11999999999', // Placeholder
+                'address' => 'To be updated',
+                'number' => '0',
+                'neighborhood' => 'To be updated',
+                'city' => 'To be updated',
+                'state' => 'SP',
+                'zip_code' => '00000-000',
+                'onboarding_status' => 'pending',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -126,7 +144,7 @@ class RegisterController extends Controller
                 'beneficiary_id' => $beneficiary->id,
                 'total_points' => 0,
                 'current_level' => 1,
-                'last_activity_at' => now(),
+                'last_activity_date' => now()->toDateString(),
             ]);
             
             DB::commit();
@@ -237,7 +255,7 @@ class RegisterController extends Controller
             
             // Update beneficiary onboarding status
             $user->beneficiary->update([
-                'onboarding_status' => 'documents',
+                'onboarding_status' => 'in_progress',
             ]);
             
             // Award registration points (gamification)

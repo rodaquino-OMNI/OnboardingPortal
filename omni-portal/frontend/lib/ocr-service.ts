@@ -24,7 +24,7 @@ export class OCRService {
   }
 
   private async createWorker(onProgress?: (progress: OCRProgress) => void): Promise<void> {
-    this.worker = await createWorker({
+    this.worker = await createWorker('por+eng', 1, {
       logger: (m: { status: string; progress: number }) => {
         if (onProgress) {
           onProgress({
@@ -42,8 +42,7 @@ export class OCRService {
       throw new Error('Failed to create OCR worker');
     }
 
-    await this.worker.loadLanguage('por+eng');
-    await this.worker.initialize('por+eng');
+    // Language loading and initialization is now handled in createWorker
     await this.worker.setParameters({
       tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ .,/-:',
     });

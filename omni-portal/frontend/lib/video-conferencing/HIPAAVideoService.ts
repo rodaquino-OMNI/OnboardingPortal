@@ -66,8 +66,8 @@ export class HIPAAVideoService extends EventEmitter {
         },
         {
           urls: this.config.turnServers,
-          username: this.config.turnUsername,
-          credential: this.config.turnCredential,
+          username: this.config.turnUsername || '',
+          credential: this.config.turnCredential || '',
         },
       ],
       iceCandidatePoolSize: 10,
@@ -178,7 +178,7 @@ export class HIPAAVideoService extends EventEmitter {
     // Handle remote stream
     this.peer.ontrack = (event) => {
       const [remoteStream] = event.streams;
-      this.remoteStream = remoteStream;
+      this.remoteStream = remoteStream || null;
       this.emit('remoteStream', remoteStream);
     };
 
@@ -321,7 +321,7 @@ export class HIPAAVideoService extends EventEmitter {
     );
 
     return {
-      iv: this.arrayBufferToBase64(iv),
+      iv: this.arrayBufferToBase64(iv.buffer),
       data: this.arrayBufferToBase64(encrypted),
       timestamp: Date.now(),
     };

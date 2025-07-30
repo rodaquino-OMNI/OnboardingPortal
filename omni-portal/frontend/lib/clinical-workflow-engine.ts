@@ -1025,11 +1025,61 @@ export class ClinicalWorkflowEngine {
 
     return outcomes;
   }
+
+  async recordPathwayPerformance(performanceData: {
+    pathwayTaken: string;
+    intelligentInsights: {
+      userEngagement: number;
+      clinicalAccuracy: number;
+      optimalPathwayUsed: boolean;
+      riskEscalation: boolean;
+      fraudLikelihood: number;
+      reasonsForPathway: string[];
+    };
+    questionnairData: any;
+    nextRecommendedPathway: {
+      nextAssessmentDate: Date;
+      recommendedType: string;
+      preferredPathway: string;
+      urgencyLevel: string;
+    };
+  }): Promise<void> {
+    // Record pathway performance for optimization
+    const pathwayId = performanceData.pathwayTaken;
+    const activePathway = this.activePathways.get(pathwayId);
+    
+    if (activePathway) {
+      // Update pathway metrics
+      activePathway.performanceMetrics = {
+        ...activePathway.performanceMetrics,
+        lastRecorded: new Date(),
+        engagementRate: performanceData.intelligentInsights.userEngagement,
+        accuracy: performanceData.intelligentInsights.clinicalAccuracy,
+        optimalPathwayUsage: performanceData.intelligentInsights.optimalPathwayUsed,
+      };
+      
+      // Track outcomes for future optimization
+      await this.outcomeTracker.recordPerformance(pathwayId, performanceData);
+    }
+  }
 }
 
 // Supporting Classes
 class OutcomeTracker {
-  // Implementation for tracking and analyzing outcomes
+  private performanceRecords: Map<string, any[]> = new Map();
+
+  async recordPerformance(pathwayId: string, performanceData: any): Promise<void> {
+    const records = this.performanceRecords.get(pathwayId) || [];
+    records.push({
+      timestamp: new Date(),
+      data: performanceData
+    });
+    this.performanceRecords.set(pathwayId, records);
+  }
+
+  getPerformanceHistory(pathwayId: string): any[] {
+    return this.performanceRecords.get(pathwayId) || [];
+  }
 }
 
 class EscalationManager {

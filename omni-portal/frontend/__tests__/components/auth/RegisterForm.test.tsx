@@ -8,7 +8,22 @@ import { useLGPD } from '@/hooks/useLGPD';
 
 // Mock dependencies
 jest.mock('next/navigation');
-jest.mock('@/hooks/useRegistration');
+// Mock zustand stores
+jest.mock('@/hooks/useRegistration', () => ({
+  useRegistration: jest.fn(() => ({
+    currentStep: 'step1',
+    registrationToken: null,
+    userId: null,
+    step1Data: {},
+    step2Data: {},
+    step3Data: {},
+    register: jest.fn(),
+    completeStep1: jest.fn(),
+    completeStep2: jest.fn(),
+    completeStep3: jest.fn(),
+    reset: jest.fn(),
+  })),
+}));
 jest.mock('@/hooks/useLGPD');
 jest.mock('@/hooks/useAuth');
 jest.mock('@/lib/schemas/auth', () => ({
@@ -29,7 +44,20 @@ describe('RegisterForm', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
-    (useRegistration as jest.Mock).mockReturnValue({ register: mockRegister });
+    const useRegistrationMock = require('@/hooks/useRegistration').useRegistration as jest.Mock;
+    useRegistrationMock.mockReturnValue({ 
+      currentStep: 'step1',
+      registrationToken: null,
+      userId: null,
+      step1Data: {},
+      step2Data: {},
+      step3Data: {},
+      register: mockRegister,
+      completeStep1: jest.fn(),
+      completeStep2: jest.fn(),
+      completeStep3: jest.fn(),
+      reset: jest.fn(),
+    });
     (useLGPD as jest.Mock).mockReturnValue({ acceptTerms: mockAcceptTerms });
     (require('@/hooks/useAuth').useAuth as jest.Mock).mockReturnValue({
       register: mockRegisterUser,

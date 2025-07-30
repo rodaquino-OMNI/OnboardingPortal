@@ -410,13 +410,5 @@ export interface Activity {
   created_at: string;
 }
 
-export interface LeaderboardEntry {
-  user_id: string;
-  name: string;
-  points: number;
-  level: number;
-  rank: number;
-  avatar_url?: string;
-}
 
 export default new ApiService();

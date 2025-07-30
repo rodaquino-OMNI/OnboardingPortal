@@ -76,5 +76,6 @@ class Kernel extends HttpKernel
         'video.security' => \App\Http\Middleware\VideoSecurityMiddleware::class,
         'admin' => \App\Http\Middleware\AdminMiddleware::class,
         'admin.access' => \App\Http\Middleware\AdminAccess::class,
+        'lgpd.audit' => \App\Http\Middleware\LGPDAuditLogger::class,
     ];
 }

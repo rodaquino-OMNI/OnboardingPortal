@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Video, VideoOff, Mic, MicOff, Phone, PhoneOff, 
   Monitor, MonitorOff, MessageCircle, Settings, 
-  Users, Record, Square, Download, Camera,
+  Users, Circle, Square, Download, Camera,
   AlertTriangle, Shield, Clock, Wifi, Lock
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -457,7 +457,7 @@ export function VideoConferencing({
             </Badge>
             {isRecording && (
               <Badge variant="destructive" className="bg-red-600 text-white animate-pulse">
-                <Record className="w-4 h-4 mr-1" />
+                <Circle className="w-4 h-4 mr-1" />
                 Recording (Encrypted)
               </Badge>
             )}
@@ -577,7 +577,7 @@ export function VideoConferencing({
               onClick={isRecording ? stopRecording : startRecording}
               className="rounded-full w-12 h-12"
             >
-              {isRecording ? <Square className="w-6 h-6" /> : <Record className="w-6 h-6" />}
+              {isRecording ? <Square className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
             </Button>
           )}
 

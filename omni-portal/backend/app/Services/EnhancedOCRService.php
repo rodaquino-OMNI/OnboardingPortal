@@ -25,7 +25,21 @@ class EnhancedOCRService
         $this->tesseractService = $tesseractService;
         $this->usageTracker = new OCRUsageTracker();
         
-        $this->initializeTextractClient();
+        // Check if in test environment and allow mock injection
+        if (app()->environment('testing')) {
+            // In test environment, textractClient can be injected via setTextractClient method
+            Log::info('EnhancedOCRService initialized in test environment');
+        } else {
+            $this->initializeTextractClient();
+        }
+    }
+    
+    /**
+     * Set TextractClient for testing purposes
+     */
+    public function setTextractClient($client): void
+    {
+        $this->textractClient = $client;
     }
 
     /**
@@ -33,6 +47,12 @@ class EnhancedOCRService
      */
     protected function initializeTextractClient(): void
     {
+        // Skip AWS client initialization in test environment
+        if (app()->environment('testing') && empty($this->config['drivers']['textract']['credentials']['key'])) {
+            Log::info('Skipping AWS Textract client initialization in test environment');
+            return;
+        }
+
         try {
             $textractConfig = $this->config['drivers']['textract'];
             
@@ -176,6 +196,11 @@ class EnhancedOCRService
      */
     protected function processWithTextract(string $filePath, array $options = []): array
     {
+        // Check if TextractClient is available
+        if (!$this->textractClient) {
+            throw new \Exception('AWS Textract client not initialized');
+        }
+        
         $bucket = $this->config['drivers']['textract']['bucket'];
         $features = $options['features'] ?? $this->config['drivers']['textract']['features'];
         

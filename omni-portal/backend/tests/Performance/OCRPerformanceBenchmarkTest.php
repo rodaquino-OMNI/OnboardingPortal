@@ -135,7 +135,7 @@ class OCRPerformanceBenchmarkTest extends TestCase
             // Log the winner for each document type
             $winner = $result['speed_advantage'] > 0 ? 'Textract' : 'Tesseract';
             $advantage = abs($result['speed_advantage']);
-            Log::info("$docName speed winner: $winner (${advantage}x faster)");
+            Log::info("$docName speed winner: $winner ({$advantage}x faster)");
         }
 
         // Overall performance should meet minimum standards
@@ -267,8 +267,8 @@ class OCRPerformanceBenchmarkTest extends TestCase
                 $mockData = $this->createMockDataWithPattern($pattern, $value);
                 
                 // Test pattern detection with both services
-                $textractResult = $this->benchmarkTextractProcessing("${pattern}_test", $mockData);
-                $tesseractResult = $this->benchmarkTesseractProcessing("${pattern}_test", $mockData);
+                $textractResult = $this->benchmarkTextractProcessing("{$pattern}_test", $mockData);
+                $tesseractResult = $this->benchmarkTesseractProcessing("{$pattern}_test", $mockData);
                 
                 $textractDetected = $this->isPatternDetected($textractResult, $pattern, $value);
                 $tesseractDetected = $this->isPatternDetected($tesseractResult, $pattern, $value);
@@ -364,7 +364,7 @@ class OCRPerformanceBenchmarkTest extends TestCase
         $monthlyTesseractCost = $monthlyDocuments * $avgTesseractCost;
         $monthlySavings = $monthlyTextractCost - $monthlyTesseractCost;
         
-        Log::info("Monthly cost projection - Textract: $${monthlyTextractCost}, Tesseract: $${monthlyTesseractCost}, Savings: $${monthlySavings}");
+        Log::info("Monthly cost projection - Textract: \${$monthlyTextractCost}, Tesseract: \${$monthlyTesseractCost}, Savings: \${$monthlySavings}");
         
         $costResults['monthly_projection'] = [
             'textract_cost' => $monthlyTextractCost,

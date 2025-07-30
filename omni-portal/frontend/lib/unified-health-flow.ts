@@ -830,7 +830,7 @@ export class UnifiedHealthFlow {
       // All triggered domains complete, always end with validation
       if (!this.completedDomains.has('validation')) {
         this.currentDomain = VALIDATION_DOMAIN;
-        this.currentLayer = VALIDATION_DOMAIN.layers[0];
+        this.currentLayer = VALIDATION_DOMAIN.layers[0] || null;
         return this.processNextQuestion();
       }
       
@@ -839,7 +839,7 @@ export class UnifiedHealthFlow {
     }
 
     this.currentDomain = nextDomain;
-    this.currentLayer = nextDomain.layers[0];
+    this.currentLayer = nextDomain.layers[0] || null;
     
     return {
       type: 'domain_transition',
@@ -847,7 +847,7 @@ export class UnifiedHealthFlow {
       message: `Agora vamos falar sobre ${nextDomain.name.toLowerCase()}. ${nextDomain.description}`,
       progress: this.calculateProgress(),
       currentDomain: nextDomain.name,
-      currentLayer: this.currentLayer.name,
+      currentLayer: this.currentLayer?.name || 'unknown',
       estimatedTimeRemaining: this.calculateTimeRemaining()
     };
   }
@@ -929,15 +929,15 @@ export class UnifiedHealthFlow {
   private generateRecommendations(): string[] {
     const recommendations: string[] = [];
     
-    if (this.riskScores.pain >= 5) {
+    if ((this.riskScores.pain || 0) >= 5) {
       recommendations.push('Considere consultar um especialista em manejo da dor');
     }
     
-    if (this.riskScores.mental_health >= 5) {
+    if ((this.riskScores.mental_health || 0) >= 5) {
       recommendations.push('Recomendamos conversar com um profissional de saúde mental');
     }
     
-    if (this.riskScores.lifestyle >= 8) {
+    if ((this.riskScores.lifestyle || 0) >= 8) {
       recommendations.push('Mudanças no estilo de vida podem melhorar significativamente sua saúde');
     }
     

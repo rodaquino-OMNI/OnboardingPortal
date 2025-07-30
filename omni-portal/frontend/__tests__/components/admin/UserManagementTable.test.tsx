@@ -214,8 +214,9 @@ describe('UserManagementTable Component', () => {
     const user = userEvent.setup();
     render(<UserManagementTable />);
 
-    const editButton = screen.getAllByRole('button', { name: /edit/i })[0];
-    await user.click(editButton);
+    const editButtons = screen.getAllByRole('button', { name: /edit/i });
+    expect(editButtons.length).toBeGreaterThan(0);
+    await user.click(editButtons[0]);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText('Edit User')).toBeInTheDocument();
@@ -225,8 +226,9 @@ describe('UserManagementTable Component', () => {
     const user = userEvent.setup();
     render(<UserManagementTable />);
 
-    const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0];
-    await user.click(deleteButton);
+    const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+    expect(deleteButtons.length).toBeGreaterThan(0);
+    await user.click(deleteButtons[0]);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
@@ -236,8 +238,9 @@ describe('UserManagementTable Component', () => {
     const user = userEvent.setup();
     render(<UserManagementTable />);
 
-    const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0];
-    await user.click(deleteButton);
+    const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+    expect(deleteButtons.length).toBeGreaterThan(0);
+    await user.click(deleteButtons[0]);
 
     const confirmButton = screen.getByRole('button', { name: /confirm/i });
     await user.click(confirmButton);
@@ -250,8 +253,9 @@ describe('UserManagementTable Component', () => {
     render(<UserManagementTable />);
 
     // Select first user
-    const checkbox = screen.getAllByRole('checkbox')[1]; // First is select all
-    await user.click(checkbox);
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThan(1);
+    await user.click(checkboxes[1]); // First is select all
 
     expect(screen.getByText(/1 user selected/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /bulk assign role/i })).toBeInTheDocument();
@@ -262,8 +266,9 @@ describe('UserManagementTable Component', () => {
     const user = userEvent.setup();
     render(<UserManagementTable />);
 
-    const selectAllCheckbox = screen.getAllByRole('checkbox')[0];
-    await user.click(selectAllCheckbox);
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThan(0);
+    await user.click(checkboxes[0]);
 
     expect(screen.getByText(/3 users selected/i)).toBeInTheDocument();
   });
@@ -273,8 +278,9 @@ describe('UserManagementTable Component', () => {
     render(<UserManagementTable />);
 
     // Select users
-    const selectAllCheckbox = screen.getAllByRole('checkbox')[0];
-    await user.click(selectAllCheckbox);
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThan(0);
+    await user.click(checkboxes[0]);
 
     // Click bulk assign role
     const bulkAssignButton = screen.getByRole('button', { name: /bulk assign role/i });
@@ -289,8 +295,9 @@ describe('UserManagementTable Component', () => {
     render(<UserManagementTable />);
 
     // Select users and open bulk assign modal
-    const selectAllCheckbox = screen.getAllByRole('checkbox')[0];
-    await user.click(selectAllCheckbox);
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThan(0);
+    await user.click(checkboxes[0]);
 
     const bulkAssignButton = screen.getByRole('button', { name: /bulk assign role/i });
     await user.click(bulkAssignButton);
@@ -354,8 +361,9 @@ describe('UserManagementTable Component', () => {
     render(<UserManagementTable />);
 
     // Click expand button for first user
-    const expandButton = screen.getAllByRole('button', { name: /expand/i })[0];
-    await user.click(expandButton);
+    const expandButtons = screen.getAllByRole('button', { name: /expand/i });
+    expect(expandButtons.length).toBeGreaterThan(0);
+    await user.click(expandButtons[0]);
 
     expect(screen.getByText('Registration Step:')).toBeInTheDocument();
     expect(screen.getByText('Last Login:')).toBeInTheDocument();
