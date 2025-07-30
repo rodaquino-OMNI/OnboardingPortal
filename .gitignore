@@ -267,6 +267,7 @@ README_OCR_*.md
 MIGRATION_GUIDE.md
 
 # Claude Flow generated files
+CLAUDE.md
 .claude/settings.local.json
 .mcp.json
 claude-flow.config.json
