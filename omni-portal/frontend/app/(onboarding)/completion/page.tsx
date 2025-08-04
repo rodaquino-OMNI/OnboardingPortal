@@ -3,16 +3,19 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, Trophy, Star, Award, Target, TrendingUp } from 'lucide-react';
+import { CheckCircle, Trophy, Star, Award, Target, TrendingUp, Video, Calendar } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRegistration } from '@/hooks/useRegistration';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import apiService, { GamificationProgress } from '@/services/api';
 
 export default function CompletionPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { reset } = useRegistration();
+  const searchParams = useSearchParams();
+  const isTelemedicineCompletion = searchParams.get('telemedicine') === 'true';
   const [gamificationData, setGamificationData] = useState<GamificationProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -54,21 +57,29 @@ export default function CompletionPage() {
   const progressPercentage = gamificationData?.progress_percentage || 0;
   
   return (
-    <div className="max-w-2xl mx-auto text-center">
-      <div className="mb-8">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-12 h-12 text-green-600" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+      <div className="mb-8 animate-fade-in">
+        <div className={`w-20 h-20 ${isTelemedicineCompletion ? 'bg-purple-100' : 'bg-green-100'} rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg`}>
+          {isTelemedicineCompletion ? (
+            <Video className="w-12 h-12 text-purple-600" />
+          ) : (
+            <CheckCircle className="w-12 h-12 text-green-600" />
+          )}
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          Parabéns, {user?.fullName?.split(' ')[0] || 'Candidato'}!
+        <h1 className="dashboard-title mb-4 text-2xl sm:text-3xl">
+          {isTelemedicineCompletion ? '🎉 Consulta Agendada!' : 'Parabéns,'} {user?.fullName?.split(' ')[0] || 'Candidato'}!
         </h1>
-        <p className="text-lg text-gray-600">
-          Você completou todos os passos do processo de onboarding com sucesso!
+        <p className="text-base sm:text-lg text-gray-600">
+          {isTelemedicineCompletion 
+            ? 'Sua consulta de telemedicina foi agendada com sucesso! Você desbloqueou uma recompensa especial.'
+            : 'Você completou todos os passos do processo de onboarding com sucesso!'
+          }
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <Card className="p-6">
+        <Card className="card-modern p-6">
           <div className="flex items-center justify-center mb-4">
             <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
             <h2 className="text-xl font-semibold text-gray-900">
@@ -85,7 +96,7 @@ export default function CompletionPage() {
           </p>
         </Card>
         
-        <Card className="p-6">
+        <Card className="card-modern p-6">
           <div className="flex items-center justify-center mb-4">
             <Target className="w-8 h-8 text-blue-500 mr-2" />
             <h2 className="text-xl font-semibold text-gray-900">
@@ -111,7 +122,7 @@ export default function CompletionPage() {
       </div>
       
       {badgesEarned > 0 && (
-        <Card className="p-6 mb-8">
+        <Card className="card-modern p-6 mb-8">
           <div className="flex items-center justify-center mb-4">
             <Award className="w-8 h-8 text-purple-500 mr-2" />
             <h2 className="text-xl font-semibold text-gray-900">
@@ -125,7 +136,7 @@ export default function CompletionPage() {
       )}
       
       {!isLoading && gamificationData?.recent_activities && gamificationData.recent_activities.length > 0 && (
-        <Card className="p-6 mb-8">
+        <Card className="card-modern p-6 mb-8">
           <div className="flex items-center justify-center mb-4">
             <TrendingUp className="w-6 h-6 text-green-500 mr-2" />
             <h3 className="text-lg font-semibold text-gray-900">
@@ -143,12 +154,47 @@ export default function CompletionPage() {
         </Card>
       )}
 
-      <div className="bg-blue-50 rounded-lg p-6 mb-8">
-        <h3 className="font-semibold text-blue-900 mb-2">Próximos Passos</h3>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Aguarde a confirmação da sua entrevista por email</li>
-          <li>• Verifique seu dashboard para acompanhar o progresso</li>
-          <li>• Continue ganhando pontos completando tarefas</li>
+      {isTelemedicineCompletion && (
+        <Card className="card-modern p-6 mb-8 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+          <div className="flex items-center gap-3 mb-4">
+            <Calendar className="w-6 h-6 text-purple-600" />
+            <h3 className="text-lg font-semibold text-purple-900">Detalhes da Consulta</h3>
+          </div>
+          <div className="bg-white rounded-lg p-4 mb-4">
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Tipo:</span>
+                <div className="text-gray-600">Consulta com Concierge de Saúde</div>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Modalidade:</span>
+                <div className="text-gray-600">Telemedicina (Vídeo)</div>
+              </div>
+            </div>
+          </div>
+          <p className="text-purple-800 text-sm">
+            📧 Você receberá um email com os detalhes completos da consulta e instruções para se preparar.
+          </p>
+        </Card>
+      )}
+
+      <div className={`card-modern ${isTelemedicineCompletion ? 'bg-purple-50 border-purple-200' : 'bg-blue-50 border-blue-200'} p-6 mb-8`}>
+        <h3 className={`font-semibold ${isTelemedicineCompletion ? 'text-purple-900' : 'text-blue-900'} mb-2`}>Próximos Passos</h3>
+        <ul className={`text-sm ${isTelemedicineCompletion ? 'text-purple-800' : 'text-blue-800'} space-y-1`}>
+          {isTelemedicineCompletion ? (
+            <>
+              <li>• Complete o checklist de preparação técnica</li>
+              <li>• Teste sua câmera e microfone antes da consulta</li>
+              <li>• Tenha seus documentos de saúde em mãos</li>
+              <li>• Entre na sala virtual 10 minutos antes do horário</li>
+            </>
+          ) : (
+            <>
+              <li>• Acesse sua área exclusiva de telemedicina</li>
+              <li>• Verifique seu dashboard para acompanhar o progresso</li>
+              <li>• Continue ganhando pontos completando tarefas</li>
+            </>
+          )}
         </ul>
       </div>
 
@@ -169,6 +215,7 @@ export default function CompletionPage() {
         >
           Refazer Onboarding
         </Button>
+      </div>
       </div>
     </div>
   );

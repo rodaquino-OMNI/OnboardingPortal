@@ -137,16 +137,7 @@ export function ProgressiveScreeningFeatureComponent({ config }: { config?: Prog
         </div>
       )}
 
-      {/* Time Estimation */}
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2 text-gray-600">
-          <Layers className="w-4 h-4" />
-          <span>Tempo estimado restante</span>
-        </div>
-        <Badge variant="outline">
-          ~{getRemainingScreeningTime()} min
-        </Badge>
-      </div>
+      {/* Time estimation removed - unnecessary information that clutters clinical questionnaire */}
 
       {/* Adaptive Insights */}
       {config?.pathOptimization && (

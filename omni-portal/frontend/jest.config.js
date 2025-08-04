@@ -9,7 +9,11 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jest-environment-jsdom',
+  testEnvironmentOptions: {
+    customExportConditions: [''], // Fix MSW v2 node import issues
+  },
   moduleDirectories: ['node_modules', '<rootDir>/'],
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   
   // Performance optimizations
   testTimeout: 15000, // 15 seconds max per test (was unlimited)

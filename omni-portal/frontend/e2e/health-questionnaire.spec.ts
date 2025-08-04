@@ -189,7 +189,7 @@ test.describe('Health Questionnaire Features', () => {
 
   test('should integrate AI assistant correctly', async ({ page }) => {
     // Open AI assistant
-    await page.click('button:has-text("Assistente IA")');
+    // AI Assistant button removed for clean clinical UX
     
     await expect(page.locator('[data-testid="ai-chat"]')).toBeVisible();
     await expect(page.locator('text=💡 Dica do Assistente')).toBeVisible();
@@ -225,7 +225,7 @@ test.describe('Health Questionnaire Features', () => {
   });
 
   test('should handle AI service failures gracefully', async ({ page }) => {
-    await page.click('button:has-text("Assistente IA")');
+    // AI Assistant button removed for clean clinical UX
 
     // Mock AI service failure
     await page.route('**/api/health-questionnaires/*/ai-insights', async route => {
@@ -272,7 +272,7 @@ test.describe('Health Questionnaire Features', () => {
     });
 
     // Trigger auto-save by blurring field
-    await page.blur('input[type="number"]:first-of-type');
+    await page.locator('input[type="number"]:first-of-type').blur();
 
     // Refresh page to simulate returning
     await page.reload();
@@ -333,23 +333,23 @@ test.describe('Health Questionnaire Features', () => {
     await page.selectOption('select', 'A+');
 
     // AI assistant should work on mobile
-    await page.click('button:has-text("Assistente IA")');
+    // AI Assistant button removed for clean clinical UX
     await expect(page.locator('[data-testid="ai-chat"]')).toBeVisible();
   });
 
   test('should validate field constraints', async ({ page }) => {
     // Test height validation
     await page.fill('input[type="number"]:first-of-type', '300'); // Above max
-    await page.blur('input[type="number"]:first-of-type');
+    await page.locator('input[type="number"]:first-of-type').blur();
     await expect(page.locator('text=Valor máximo: 250')).toBeVisible();
 
     await page.fill('input[type="number"]:first-of-type', '30'); // Below min
-    await page.blur('input[type="number"]:first-of-type');
+    await page.locator('input[type="number"]:first-of-type').blur();
     await expect(page.locator('text=Valor mínimo: 50')).toBeVisible();
 
     // Test weight validation
     await page.fill('input[type="number"]:last', '400'); // Above max
-    await page.blur('input[type="number"]:last');
+    await page.locator('input[type="number"]:last').blur();
     await expect(page.locator('text=Valor máximo: 300')).toBeVisible();
   });
 });

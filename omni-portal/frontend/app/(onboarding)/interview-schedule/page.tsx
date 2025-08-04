@@ -4,10 +4,151 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
-import { Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, ChevronLeft, ChevronRight, Video, Award, Star, X, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import apiService from '@/services/api';
+
+interface OnboardingStatus {
+  profileComplete: boolean;
+  documentsUploaded: boolean;
+  healthQuestionnaireCompleted: boolean;
+  onboardingComplete: boolean;
+  completionPercentage: number;
+  missingSteps: string[];
+}
 
 export default function InterviewSchedulePage() {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
+  
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [countdown, setCountdown] = useState(5);
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+
+  // Check onboarding status on component mount
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+    
+    checkOnboardingStatus();
+  }, [isAuthenticated, router]);
+
+  const checkOnboardingStatus = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Check various completion statuses with fallbacks
+      const [profileResponse, documentsResponse, healthResponse] = await Promise.allSettled([
+        apiService.get('/api/profile/status').catch(() => ({ data: { profile_complete: false } })),
+        apiService.get('/api/documents/status').catch(() => ({ data: { required_documents_uploaded: false } })), 
+        apiService.get('/api/health-questionnaire/status').catch(() => ({ data: { questionnaire_completed: false } }))
+      ]);
+
+      // Fallback logic - check localStorage for partial progress
+      const partialProgress = localStorage.getItem('onboarding_partial_progress');
+      const localData = partialProgress ? JSON.parse(partialProgress) : null;
+
+      const profileComplete = (profileResponse.status === 'fulfilled' && 
+        profileResponse.value?.data?.profile_complete === true) || 
+        (user?.name && user?.email); // Basic profile exists
+      
+      const documentsUploaded = (documentsResponse.status === 'fulfilled' && 
+        documentsResponse.value?.data?.required_documents_uploaded === true) ||
+        (localData?.documentUploads && Object.keys(localData.documentUploads).length > 0);
+      
+      const healthQuestionnaireCompleted = (healthResponse.status === 'fulfilled' && 
+        healthResponse.value?.data?.questionnaire_completed === true) ||
+        (localStorage.getItem('health_questionnaire_completed') === 'true');
+
+      const onboardingComplete = profileComplete && documentsUploaded && healthQuestionnaireCompleted;
+      
+      // Calculate completion percentage
+      const completedSteps = [profileComplete, documentsUploaded, healthQuestionnaireCompleted].filter(Boolean).length;
+      const completionPercentage = Math.round((completedSteps / 3) * 100);
+      
+      // Identify missing steps
+      const missingSteps = [];
+      if (!profileComplete) missingSteps.push('Completar perfil');
+      if (!documentsUploaded) missingSteps.push('Enviar documentos obrigatórios');
+      if (!healthQuestionnaireCompleted) missingSteps.push('Completar questionário de saúde');
+
+      setOnboardingStatus({
+        profileComplete,
+        documentsUploaded,
+        healthQuestionnaireCompleted,
+        onboardingComplete,
+        completionPercentage,
+        missingSteps
+      });
+
+      // Only enable countdown if onboarding is complete
+      if (onboardingComplete) {
+        setIsCountdownActive(true);
+      }
+      
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      // Default to incomplete status on error
+      setOnboardingStatus({
+        profileComplete: false,
+        documentsUploaded: false,
+        healthQuestionnaireCompleted: false,
+        onboardingComplete: false,
+        completionPercentage: 0,
+        missingSteps: ['Erro ao verificar status - tente novamente']
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isCountdownActive) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          setIsCountdownActive(false);
+          router.push('/telemedicine-schedule');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCountdownActive, router]);
+
+  const handleProceedNow = () => {
+    if (onboardingStatus?.onboardingComplete) {
+      setIsCountdownActive(false);
+      router.push('/telemedicine-schedule');
+    }
+  };
+
+  const handleCancelCountdown = () => {
+    setIsCountdownActive(false);
+  };
+
+  const handleCompleteStep = (step: string) => {
+    switch (step) {
+      case 'profile':
+        router.push('/welcome'); // Start from welcome to complete profile
+        break;
+      case 'documents':
+        router.push('/document-upload');
+        break;
+      case 'health':
+        router.push('/health-questionnaire');
+        break;
+      default:
+        router.push('/welcome');
+    }
+  };
 
   const timeSlots = [
     { time: '09:00', available: true },
@@ -18,84 +159,275 @@ export default function InterviewSchedulePage() {
     { time: '16:00', available: true },
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando seu progresso...</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!onboardingStatus) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+          <p className="text-gray-600 mb-4">Erro ao verificar seu progresso</p>
+          <Button onClick={() => checkOnboardingStatus()}>Tentar Novamente</Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-            <Calendar className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Agendamento de Entrevista</h1>
-            <p className="text-gray-600">Passo 4 de 4</p>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
+      <div className="mb-8 animate-fade-in text-center">
+        <div className={`w-20 h-20 ${onboardingStatus.onboardingComplete ? 'bg-gradient-to-r from-green-100 to-emerald-100' : 'bg-gradient-to-r from-yellow-100 to-orange-100'} rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg`}>
+          {onboardingStatus.onboardingComplete ? (
+            <CheckCircle className="w-10 h-10 text-green-600" />
+          ) : (
+            <AlertTriangle className="w-10 h-10 text-yellow-600" />
+          )}
         </div>
-        <Progress value={100} className="h-2" />
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {onboardingStatus.onboardingComplete 
+              ? 'Consulta de Telemedicina Desbloqueada!' 
+              : 'Complete seu Onboarding'
+            }
+          </h1>
+          <p className="text-gray-600">
+            {onboardingStatus.onboardingComplete 
+              ? 'Parabéns! Você desbloqueou sua recompensa de conclusão' 
+              : 'Você precisa completar algumas etapas antes de agendar sua consulta'
+            }
+          </p>
+        </div>
+        <Progress value={onboardingStatus.completionPercentage} className="h-3 bg-gray-200 mb-4" />
+        <div className="text-sm text-gray-600">
+          <span className={`font-semibold ${onboardingStatus.onboardingComplete ? 'text-green-600' : 'text-yellow-600'}`}>
+            {onboardingStatus.completionPercentage}%
+          </span> concluído • {onboardingStatus.onboardingComplete ? 'Recompensa disponível!' : 'Continue para desbloquear'}
+        </div>
       </div>
 
-      <Card className="p-6">
-        <div className="space-y-6">
-          <div>
-            <h3 className="font-medium text-gray-900 mb-4">Escolha a data</h3>
-            <div className="grid grid-cols-7 gap-2">
-              {Array.from({ length: 7 }, (_, i) => {
-                const date = new Date();
-                date.setDate(date.getDate() + i + 1);
-                return (
-                  <button
-                    key={i}
-                    className="p-2 text-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+      <Card className="card-modern p-6 sm:p-8 text-center">
+        {onboardingStatus.onboardingComplete ? (
+          // COMPLETED ONBOARDING - Show reward unlock
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-gradient-to-r from-green-100 to-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Award className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">🎉 Recompensa Especial Desbloqueada!</h2>
+            <p className="text-gray-600 mb-6">
+              Como você completou todos os passos do onboarding com excelência, 
+              ganhou acesso exclusivo à nossa <strong>Consulta de Telemedicina</strong> 
+              com nosso concierge de saúde!
+            </p>
+          </div>
+        ) : (
+          // INCOMPLETE ONBOARDING - Show missing steps
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Etapas Pendentes</h2>
+            <p className="text-gray-600 mb-6">
+              Complete as etapas abaixo para desbloquear sua consulta de telemedicina:
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              {!onboardingStatus.profileComplete && (
+                <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <X className="w-5 h-5 text-yellow-600" />
+                    <span className="text-sm text-yellow-800">Completar perfil pessoal</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleCompleteStep('profile')}
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
                   >
-                    <div className="text-xs text-gray-500">
-                      {date.toLocaleDateString('pt-BR', { weekday: 'short' })}
-                    </div>
-                    <div className="text-sm font-medium">
-                      {date.getDate()}
-                    </div>
-                  </button>
-                );
-              })}
+                    Completar
+                  </Button>
+                </div>
+              )}
+              
+              {!onboardingStatus.documentsUploaded && (
+                <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <X className="w-5 h-5 text-yellow-600" />
+                    <span className="text-sm text-yellow-800">Enviar documentos obrigatórios</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleCompleteStep('documents')}
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    Enviar
+                  </Button>
+                </div>
+              )}
+              
+              {!onboardingStatus.healthQuestionnaireCompleted && (
+                <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <X className="w-5 h-5 text-yellow-600" />
+                    <span className="text-sm text-yellow-800">Completar questionário de saúde</span>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => handleCompleteStep('health')}
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    Responder
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          <div>
-            <h3 className="font-medium text-gray-900 mb-4">Horários disponíveis</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {timeSlots.map((slot, index) => (
+        {onboardingStatus.onboardingComplete && (
+          <>
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 mb-6">
+              <h3 className="font-semibold text-blue-900 mb-4 flex items-center justify-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" />
+                Benefícios Exclusivos
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div className="bg-white p-3 rounded-lg">
+                  <div className="font-medium text-gray-900">Consulta Prioritária</div>
+                  <div className="text-gray-600">Agendamento com prioridade especial</div>
+                </div>
+                <div className="bg-white p-3 rounded-lg">
+                  <div className="font-medium text-gray-900">Pontos Extras</div>
+                  <div className="text-gray-600">Bonificação dobrada de gamificação</div>
+                </div>
+                <div className="bg-white p-3 rounded-lg">
+                  <div className="font-medium text-gray-900">Concierge de Saúde</div>
+                  <div className="text-gray-600">Profissional especializado exclusivo</div>
+                </div>
+                <div className="bg-white p-3 rounded-lg">
+                  <div className="font-medium text-gray-900">Sem Custo</div>
+                  <div className="text-gray-600">Totalmente gratuito como recompensa</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-amber-900 mb-2">✨ Recursos Inclusos</h4>
+              <ul className="text-sm text-amber-800 space-y-1">
+                <li>• Consulta por vídeo em alta qualidade</li>
+                <li>• Avaliação completa de saúde personalizada</li>
+                <li>• Plano de cuidados individualizados</li>
+                <li>• Acompanhamento contínuo opcional</li>
+              </ul>
+            </div>
+          </>
+        )}
+
+        {onboardingStatus.onboardingComplete ? (
+          // Show countdown and telemedicine buttons only if completed
+          isCountdownActive ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-blue-800 font-medium">
+                  Redirecionamento automático em {countdown} segundos...
+                </p>
                 <button
-                  key={index}
-                  disabled={!slot.available}
-                  className={`p-3 rounded-lg border text-center transition-colors ${
-                    slot.available
-                      ? 'border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                      : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                  }`}
+                  onClick={handleCancelCountdown}
+                  className="text-blue-600 hover:text-blue-800 p-1"
+                  title="Cancelar redirecionamento automático"
                 >
-                  <Clock className="w-4 h-4 mx-auto mb-1" />
-                  {slot.time}
+                  <X className="w-4 h-4" />
                 </button>
-              ))}
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleProceedNow}
+                  className="bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+                >
+                  <Video className="w-4 h-4 mr-2" />
+                  Ir Agora para Telemedicina
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleCancelCountdown}
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  Ficar nesta página
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6">
+              <Button
+                onClick={handleProceedNow}
+                className="bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 w-full sm:w-auto"
+              >
+                <Video className="w-4 h-4 mr-2" />
+                Agendar Consulta de Telemedicina
+              </Button>
+            </div>
+          )
+        ) : (
+          // Show helpful message for incomplete onboarding
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <p className="text-yellow-800 text-center">
+              Complete todas as etapas acima para desbloquear sua consulta de telemedicina
+            </p>
+          </div>
+        )}
+
+        {isCountdownActive && (
+          <div className="animate-pulse text-blue-600">
+            <div className="inline-flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
             </div>
           </div>
-        </div>
+        )}
       </Card>
 
-      <div className="flex justify-between mt-8">
+      <div className="flex flex-col sm:flex-row justify-between gap-4 mt-10">
         <Button
           variant="outline"
-          onClick={() => router.push('/document-upload')}
-          className="flex items-center gap-2"
+          onClick={() => router.push('/home')}
+          className="flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl border-2 hover:bg-gray-50 transition-all group order-2 sm:order-1"
         >
-          <ChevronLeft className="w-4 h-4" />
-          Voltar
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          Voltar ao Dashboard
         </Button>
-        <Button
-          onClick={() => router.push('/completion')}
-          className="flex items-center gap-2"
-        >
-          Finalizar
-          <ChevronRight className="w-4 h-4" />
-        </Button>
+        
+        {onboardingStatus.onboardingComplete ? (
+          <Button
+            onClick={handleProceedNow}
+            className="flex items-center gap-2 px-6 py-3 min-h-[44px] bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 group order-1 sm:order-2"
+          >
+            <Video className="w-4 h-4" />
+            {isCountdownActive ? 'Prosseguir para Telemedicina' : 'Agendar Consulta de Telemedicina'}
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Button>
+        ) : (
+          <Button
+            onClick={() => handleCompleteStep('profile')}
+            className="flex items-center gap-2 px-6 py-3 min-h-[44px] bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 group order-1 sm:order-2"
+          >
+            <CheckCircle className="w-4 h-4" />
+            Completar Onboarding
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Button>
+        )}
+      </div>
       </div>
     </div>
   );

@@ -31,8 +31,8 @@ export function AdminNavigation() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
 
-  const userPermissions = user?.permissions?.map(p => p.name) || [];
-  const userRoles = user?.roles?.map(r => r.name) || [];
+  const userPermissions = user?.permissions?.map((p: { name: string }) => p.name) || [];
+  const userRoles = user?.roles?.map((r: { name: string }) => r.name) || [];
 
   const hasPermission = (permission: string) => {
     return userRoles.includes('super-admin') || userPermissions.includes(permission);

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useQuestionnaire, QuestionnaireFeature, FeatureHooks } from '../BaseHealthQuestionnaire';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ErrorBoundary, useErrorHandler } from '../../ErrorBoundary';
 
 interface Achievement {
   id: string;
@@ -36,7 +37,7 @@ interface GamificationConfig {
   motivationalMessages: boolean;
 }
 
-export function GamificationFeature({ config }: { config?: GamificationConfig }) {
+function GamificationFeatureInner({ config }: { config?: GamificationConfig }) {
   const { state, calculateProgress } = useQuestionnaire();
   const [gamificationState, setGamificationState] = useState<GamificationState>({
     points: 0,
@@ -47,6 +48,7 @@ export function GamificationFeature({ config }: { config?: GamificationConfig })
     perfectAnswers: 0
   });
   const [showAchievement, setShowAchievement] = useState<Achievement | null>(null);
+  const { captureError } = useErrorHandler();
 
   const progress = calculateProgress();
   const showAnimations = config?.animations !== false;
@@ -71,29 +73,30 @@ export function GamificationFeature({ config }: { config?: GamificationConfig })
 
   // Check and unlock achievements
   const checkAchievements = (responseCount: number, points: number) => {
-    const achievements = [...gamificationState.achievements];
-    let newUnlock: Achievement | null = null;
+    try {
+      const achievements = [...gamificationState.achievements];
+      let newUnlock: Achievement | null = null;
 
-    // First Response Achievement
-    if (responseCount >= 1 && !achievements[0].unlocked) {
-      achievements[0].unlocked = true;
-      achievements[0].unlockedAt = new Date();
-      newUnlock = achievements[0];
-    }
+      // First Response Achievement
+      if (responseCount >= 1 && !achievements[0].unlocked) {
+        achievements[0].unlocked = true;
+        achievements[0].unlockedAt = new Date();
+        newUnlock = achievements[0];
+      }
 
-    // Quick Starter (5 responses in first section)
-    if (responseCount >= 5 && state.currentSectionIndex === 0 && !achievements[1].unlocked) {
-      achievements[1].unlocked = true;
-      achievements[1].unlockedAt = new Date();
-      newUnlock = achievements[1];
-    }
+      // Quick Starter (5 responses total, regardless of section) - Fixed logic
+      if (responseCount >= 5 && !achievements[1].unlocked) {
+        achievements[1].unlocked = true;
+        achievements[1].unlockedAt = new Date();
+        newUnlock = achievements[1];
+      }
 
-    // Half Way There
-    if (progress >= 50 && !achievements[2].unlocked) {
-      achievements[2].unlocked = true;
-      achievements[2].unlockedAt = new Date();
-      newUnlock = achievements[2];
-    }
+      // Half Way There
+      if (progress >= 50 && !achievements[2].unlocked) {
+        achievements[2].unlocked = true;
+        achievements[2].unlockedAt = new Date();
+        newUnlock = achievements[2];
+      }
 
     // Level Up
     if (gamificationState.level >= 3 && !achievements[3].unlocked) {
@@ -102,12 +105,16 @@ export function GamificationFeature({ config }: { config?: GamificationConfig })
       newUnlock = achievements[3];
     }
 
-    setGamificationState(prev => ({ ...prev, achievements }));
+      setGamificationState(prev => ({ ...prev, achievements }));
 
-    // Show achievement notification
-    if (newUnlock && showAnimations) {
-      setShowAchievement(newUnlock);
-      setTimeout(() => setShowAchievement(null), 3000);
+      // Show achievement notification
+      if (newUnlock && showAnimations) {
+        setShowAchievement(newUnlock);
+        setTimeout(() => setShowAchievement(null), 3000);
+      }
+    } catch (error) {
+      console.error('Error checking achievements:', error);
+      captureError(error as Error);
     }
   };
 
@@ -318,6 +325,29 @@ export const gamificationHooks: FeatureHooks = {
     console.log('[Gamification] Questionnaire completed!');
   }
 };
+
+// Main component with error boundary wrapper
+export function GamificationFeature(props: { config?: GamificationConfig }) {
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Gamification Feature error:', error, errorInfo);
+        // Could send to error tracking service here
+      }}
+      resetKeys={[props.config]}
+      fallback={
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+          <Trophy className="mx-auto h-8 w-8 text-yellow-500 mb-2" />
+          <p className="text-sm text-yellow-700">
+            Sistema de gamificação temporariamente indisponível
+          </p>
+        </div>
+      }
+    >
+      <GamificationFeatureInner {...props} />
+    </ErrorBoundary>
+  );
+}
 
 // Export feature definition
 export const GamificationFeatureDefinition: QuestionnaireFeature = {

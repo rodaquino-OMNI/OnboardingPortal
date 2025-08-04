@@ -500,6 +500,121 @@ class InterviewNotificationService
     }
 
     /**
+     * Send telemedicine appointment scheduled notification (special completion reward notification)
+     */
+    public function sendTelemedicineAppointmentScheduledNotification(Interview $appointment, array $context = []): void
+    {
+        try {
+            $beneficiary = $appointment->beneficiary;
+            $channels = $this->getUserPreferredChannels($beneficiary);
+
+            // Create a specialized telemedicine notification
+            $isCompletionReward = $context['is_completion_reward'] ?? true;
+            $preparationChecklist = $context['preparation_checklist'] ?? [];
+            $videoSessionId = $context['video_session_id'] ?? null;
+
+            // Notify beneficiary with special telemedicine context
+            if ($beneficiary && $beneficiary->user) {
+                $beneficiary->user->notify(new InterviewScheduledNotification($appointment, 'beneficiary', [
+                    'is_telemedicine' => true,
+                    'is_completion_reward' => $isCompletionReward,
+                    'reward_title' => 'Parabéns! Sua Recompensa de Telemedicina Foi Agendada',
+                    'special_message' => 'Como você completou todo o onboarding, ganhou acesso à consulta exclusiva com nosso concierge de saúde.',
+                    'preparation_checklist' => $preparationChecklist,
+                    'video_session_id' => $videoSessionId,
+                    'gamification_bonus' => [
+                        'points_earned' => 300,
+                        'badge_unlocked' => 'Pioneiro da Telemedicina',
+                        'special_benefits' => [
+                            'Pontos extras por ser recompensa de conclusão',
+                            'Acesso prioritário a recursos exclusivos',
+                            'Emblema especial de pioneiro'
+                        ]
+                    ],
+                    'technical_requirements' => [
+                        '✓ Câmera e microfone funcionais',
+                        '✓ Conexão estável de internet',
+                        '✓ Ambiente silencioso e privado',
+                        '✓ Documentos de identificação em mãos',
+                        '✓ Lista de medicações atuais (se aplicável)'
+                    ]
+                ]));
+            }
+
+            // Notify healthcare professional with telemedicine context
+            $healthcareProfessional = $appointment->healthcareProfessional;
+            if ($healthcareProfessional) {
+                $healthcareProfessional->notify(new InterviewScheduledNotification($appointment, 'healthcare_professional', [
+                    'is_telemedicine' => true,
+                    'is_completion_reward' => $isCompletionReward,
+                    'patient_status' => 'completion_reward_recipient',
+                    'special_notes' => 'Este paciente completou todo o processo de onboarding e esta é sua consulta de recompensa.',
+                    'video_session_id' => $videoSessionId,
+                    'patient_preparation' => $preparationChecklist
+                ]));
+            }
+
+            // Send specialized multi-channel notifications
+            if (in_array('whatsapp', $channels)) {
+                $this->whatsappService->sendTelemedicineScheduledNotification($appointment, $context);
+            }
+            
+            if (in_array('sms', $channels)) {
+                $this->smsService->sendTelemedicineScheduledSMS($appointment, $context);
+            }
+
+            // Schedule specialized telemedicine reminders
+            $this->scheduleTelemedicineReminders($appointment);
+
+            Log::info('Telemedicine appointment scheduled notifications sent', [
+                'appointment_id' => $appointment->id,
+                'booking_reference' => $appointment->booking_reference,
+                'is_completion_reward' => $isCompletionReward,
+                'channels' => $channels,
+                'video_session_id' => $videoSessionId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send telemedicine appointment scheduled notifications', [
+                'appointment_id' => $appointment->id,
+                'error' => $e->getMessage(),
+                'context' => $context
+            ]);
+        }
+    }
+
+    /**
+     * Schedule specialized telemedicine reminders with technical preparation focus
+     */
+    private function scheduleTelemedicineReminders(Interview $appointment): void
+    {
+        $reminders = [
+            ['hours' => 72, 'channels' => ['email'], 'type' => 'preparation_guide'],
+            ['hours' => 24, 'channels' => ['email', 'sms'], 'type' => 'technical_setup'],
+            ['hours' => 2, 'channels' => ['sms', 'whatsapp'], 'type' => 'final_reminder'],
+            ['hours' => 0.25, 'channels' => ['push'], 'type' => 'join_now'], // 15 minutes before
+        ];
+
+        foreach ($reminders as $reminder) {
+            $reminderTime = $appointment->scheduled_at->subHours($reminder['hours']);
+            
+            if ($reminderTime->isFuture()) {
+                Log::info('Telemedicine reminder scheduled', [
+                    'appointment_id' => $appointment->id,
+                    'reminder_time' => $reminderTime->toDateTimeString(),
+                    'hours_before' => $reminder['hours'],
+                    'reminder_type' => $reminder['type'],
+                    'channels' => $reminder['channels']
+                ]);
+                
+                // TODO: Implement actual job scheduling for telemedicine-specific reminders
+                // dispatch(new SendTelemedicineReminderJob($appointment, $reminder))
+                //     ->delay($reminderTime);
+            }
+        }
+    }
+
+    /**
      * Check if channel is available for user
      */
     private function isChannelAvailable(string $channel, $beneficiary): bool

@@ -11,7 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('gamification_badges', function (Blueprint $table) {
+        if (!Schema::hasTable('gamification_badges')) {
+            Schema::create('gamification_badges', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('slug')->unique();
@@ -36,6 +37,7 @@ return new class extends Migration
             $table->index('is_active');
             $table->index('rarity');
         });
+        }
     }
 
     /**

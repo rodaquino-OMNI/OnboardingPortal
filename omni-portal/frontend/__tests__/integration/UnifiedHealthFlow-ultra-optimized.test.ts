@@ -36,7 +36,8 @@ class MockUnifiedHealthFlow {
     const currentIndex = steps.indexOf(questionId);
     
     if (currentIndex >= 0 && currentIndex < steps.length - 1) {
-      return this.createQuestionResult(steps[currentIndex + 1], `Question ${steps[currentIndex + 1]}`);
+      const nextStep = steps[currentIndex + 1];
+      return this.createQuestionResult(nextStep || '', `Question ${nextStep || ''}`);
     }
     
     if (this.currentStep <= 7 && steps.includes(questionId)) {
@@ -58,7 +59,8 @@ class MockUnifiedHealthFlow {
     const currentIndex = steps.indexOf(questionId);
     
     if (currentIndex >= 0 && currentIndex < steps.length - 1) {
-      return this.createQuestionResult(steps[currentIndex + 1], `Question ${steps[currentIndex + 1]}`);
+      const nextStep = steps[currentIndex + 1];
+      return this.createQuestionResult(nextStep || '', `Question ${nextStep || ''}`);
     }
     
     if (this.currentStep <= 7 && steps.includes(questionId)) {
@@ -293,7 +295,12 @@ describe('UnifiedHealthFlow Ultra-Optimized Tests', () => {
       
       // Should show next question in the flow
       expect(result.type).toBe('question');
-      expect(result.question).toBeDefined();
+      expect(result.question).toEqual(expect.objectContaining({
+        id: expect.any(String),
+        text: expect.any(String),
+        type: expect.stringMatching(/^(text|number|select|multiselect|boolean)$/),
+        required: expect.any(Boolean)
+      }));
     });
 
     test.concurrent('should skip conditional questions when criteria not met', async () => {
@@ -304,7 +311,12 @@ describe('UnifiedHealthFlow Ultra-Optimized Tests', () => {
       
       // Should show next question (different from conditional)
       expect(result.type).toBe('question');
-      expect(result.question).toBeDefined();
+      expect(result.question).toEqual(expect.objectContaining({
+        id: expect.any(String),
+        text: expect.any(String),
+        type: expect.stringMatching(/^(text|number|select|multiselect|boolean)$/),
+        required: expect.any(Boolean)
+      }));
     });
   });
 

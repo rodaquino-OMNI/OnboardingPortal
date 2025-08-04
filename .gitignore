@@ -268,6 +268,7 @@ MIGRATION_GUIDE.md
 
 # Claude Flow generated files
 CLAUDE.md
+.claude-flow/
 .claude/settings.local.json
 .mcp.json
 claude-flow.config.json
@@ -291,3 +292,79 @@ claude-flow
 claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
+
+# Process ID and port management files
+*.pid
+*_pid.txt
+laravel_pid.txt
+port-kill-log.txt
+
+# Documentation files (generated/temporary)
+ALL_CRITICAL_FIXES_COMPLETE.md
+BUILD_SUCCESS.md
+CLINICAL_STANDARDS_RESEARCH.md
+CRITICAL_FIXES_APPLIED.md
+DEMO_USER_GUIDE.md
+FILE_UPLOAD_IMPLEMENTATION_GUIDE.md
+FINAL_STALE_CLOSURE_FIX.md
+HIVE_MIND_ULTRA_THINK_SOLUTION.md
+INSTALLED_PACKAGES_LOG.md
+REAL_CRITICAL_FIX_APPLIED.md
+TELEMEDICINE_ARCHITECTURE_DESIGN.md
+TELEMEDICINE_SCHEDULING_SYSTEM.md
+TESTING_VALIDATION_CHECKLIST.md
+ULTRA_THINK_TECHNICAL_EXCELLENCE.md
+TEST_REPORT_UPDATE_*.md
+ESLINT_PRIORITY_FIXES.md
+HEALTH_QUESTIONNAIRE_TECHNICAL_DOCUMENTATION.md
+MIGRATION_EXECUTION_GUIDE.md
+STRUCTURED_CHRONIC_CONDITIONS_SOLUTION.md
+TELEMEDICINE_E2E_TESTING_GUIDE.md
+TELEMEDICINE_UX_IMPROVEMENTS.md
+ULTRA_THINK_VERIFICATION_COMPLETE.md
+VERIFICATION_REPORT_STRUCTURED_COMPONENTS.md
+ZERO_RISK_MIGRATION_STRATEGY.md
+NAVIGATION_STANDARDS.md
+
+# Test artifacts and screenshots
+*.png
+home-page-state.png
+login-filled.png
+login-page.png
+login-result-final.png
+telemedicine-page-direct.png
+telemedicine-page.png
+
+# Test and development HTML files
+test-registration.html
+test-interview-schedule-fix.html
+
+# PHP test configuration and results
+phpunit.integration.xml
+test_results.txt
+*-deps-before.txt
+
+# Shell script files (testing/debugging)
+run-gamification-tests.sh
+run-integration-tests.sh  
+run-video-interview-integration-tests.sh
+create-test-account.sh
+create-test-account2.sh
+
+# Development configuration variations
+.eslintrc.deprecation-rules.json
+next.config.migration.mjs
+package.json.example-scripts
+
+# Special marker files
+.tesseract-setup-complete
+
+# Laravel testing environment
+.env.testing
+
+# Development JavaScript files
+start-dev.js
+
+# TypeScript declaration files (project-specific)
+jest-axe.d.ts
+test-types.d.ts

@@ -37,8 +37,9 @@ return new class extends Migration
             });
         }
 
-        // Create ocr_processing_metrics table for detailed monitoring
-        Schema::create('ocr_processing_metrics', function (Blueprint $table) {
+        // Create ocr_processing_metrics table for detailed monitoring (only if it doesn't exist)
+        if (!Schema::hasTable('ocr_processing_metrics')) {
+            Schema::create('ocr_processing_metrics', function (Blueprint $table) {
             $table->id();
             $table->string('document_id')->nullable();
             $table->string('file_path');
@@ -64,9 +65,11 @@ return new class extends Migration
             $table->index('confidence_score');
             $table->index('processing_time');
         });
+        }
 
-        // Create ocr_cost_predictions table
-        Schema::create('ocr_cost_predictions', function (Blueprint $table) {
+        // Create ocr_cost_predictions table (only if it doesn't exist)
+        if (!Schema::hasTable('ocr_cost_predictions')) {
+            Schema::create('ocr_cost_predictions', function (Blueprint $table) {
             $table->id();
             $table->string('document_type', 50);
             $table->json('features');
@@ -78,9 +81,11 @@ return new class extends Migration
 
             $table->index(['document_type', 'created_at']);
         });
+        }
 
-        // Create ocr_alerts table
-        Schema::create('ocr_alerts', function (Blueprint $table) {
+        // Create ocr_alerts table (only if it doesn't exist)
+        if (!Schema::hasTable('ocr_alerts')) {
+            Schema::create('ocr_alerts', function (Blueprint $table) {
             $table->id();
             $table->string('type', 50); // budget_alert, performance_alert, error_alert
             $table->string('severity', 20); // info, warning, critical
@@ -96,6 +101,7 @@ return new class extends Migration
             $table->index(['type', 'created_at']);
             $table->index(['severity', 'resolved']);
         });
+        }
     }
 
     /**

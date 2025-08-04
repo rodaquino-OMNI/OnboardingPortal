@@ -16,6 +16,8 @@ class Interview extends Model
         'beneficiary_id',
         'interview_slot_id',
         'healthcare_professional_id',
+        'appointment_type_id',
+        'recurring_appointment_id',
         'booking_reference',
         'status',
         'scheduled_at',
@@ -49,6 +51,21 @@ class Interview extends Model
         'timezone',
         'beneficiary_timezone',
         'professional_timezone',
+        'is_telemedicine',
+        'telemedicine_setup_checklist',
+        'setup_checklist_completed',
+        'setup_completed_at',
+        'vital_signs_data',
+        'prescription_reviewed',
+        'prescription_changes',
+        'requires_in_person_followup',
+        'suggested_followup_date',
+        'consultation_outcome',
+        'patient_satisfaction_score',
+        'patient_satisfaction_feedback',
+        'consultation_cost',
+        'insurance_covered',
+        'insurance_claim_id',
     ];
 
     protected $casts = [
@@ -61,9 +78,20 @@ class Interview extends Model
         'booked_at' => 'datetime',
         'confirmed_at' => 'datetime',
         'confirmation_sent_at' => 'datetime',
+        'setup_completed_at' => 'datetime',
+        'suggested_followup_date' => 'date',
         'follow_up_required' => 'boolean',
         'preparation_confirmed' => 'boolean',
+        'is_telemedicine' => 'boolean',
+        'setup_checklist_completed' => 'boolean',
+        'prescription_reviewed' => 'boolean',
+        'requires_in_person_followup' => 'boolean',
+        'insurance_covered' => 'boolean',
         'emergency_contact' => 'array',
+        'telemedicine_setup_checklist' => 'array',
+        'vital_signs_data' => 'array',
+        'prescription_changes' => 'array',
+        'consultation_cost' => 'decimal:2',
     ];
 
     /**
@@ -122,6 +150,38 @@ class Interview extends Model
         return $this->belongsToMany(Document::class, 'interview_documents')
                     ->withTimestamps()
                     ->withPivot('notes');
+    }
+
+    /**
+     * Get the telemedicine appointment type.
+     */
+    public function appointmentType(): BelongsTo
+    {
+        return $this->belongsTo(TelemedicineAppointmentType::class, 'appointment_type_id');
+    }
+
+    /**
+     * Get the recurring appointment this interview belongs to.
+     */
+    public function recurringAppointment(): BelongsTo
+    {
+        return $this->belongsTo(TelemedicineRecurringAppointment::class, 'recurring_appointment_id');
+    }
+
+    /**
+     * Get the telemedicine notifications for this interview.
+     */
+    public function telemedicineNotifications(): HasMany
+    {
+        return $this->hasMany(TelemedicineNotification::class);
+    }
+
+    /**
+     * Get the session metrics for this interview.
+     */
+    public function sessionMetrics(): HasMany
+    {
+        return $this->hasMany(TelemedicineSessionMetrics::class);
     }
 
     /**

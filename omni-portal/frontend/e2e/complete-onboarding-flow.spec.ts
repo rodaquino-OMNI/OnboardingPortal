@@ -299,7 +299,7 @@ test.describe('Complete Onboarding Flow', () => {
     
     // Fill invalid CPF
     await page.fill('input[placeholder*="CPF"]', '12345678900'); // Invalid CPF
-    await page.blur('input[placeholder*="CPF"]');
+    await page.locator('input[placeholder*="CPF"]').blur();
     
     await expect(page.locator('text=CPF inválido')).toBeVisible();
   });

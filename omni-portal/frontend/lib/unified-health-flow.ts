@@ -1,5 +1,14 @@
 // Unified Intelligent Health Assessment Flow
 // Uses progressive disclosure and adaptive routing for ALL health questions
+//
+// NOTE: This file handles flow orchestration, domain triggers, and UI state management.
+// For complete clinical questionnaires (PHQ-9, GAD-7, AUDIT-C, NIDA, etc.) and 
+// updated gamification logic, see health-questionnaire-v2.ts
+//
+// ARCHITECTURE:
+// - This file: Flow logic, domain triggers, state management, interfaces
+// - health-questionnaire-v2.ts: Clinical questions, scoring, gamification
+// - Components use both files for complete functionality
 
 export interface HealthDomain {
   id: string;
@@ -293,6 +302,38 @@ export const MENTAL_HEALTH_DOMAIN: HealthDomain = {
       description: 'Como você tem se sentido ultimamente',
       estimatedSeconds: 180,
       questions: [
+        // PHQ-9 Questions 1 and 2 (also PHQ-2)
+        {
+          id: 'phq9_1_interest',
+          text: 'Nas últimas 2 semanas: Pouco interesse ou prazer em fazer as coisas?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F32.9' }
+        },
+        {
+          id: 'phq9_2_depressed',
+          text: 'Nas últimas 2 semanas: Sentir-se deprimido, triste ou sem esperança?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F32.9' }
+        },
+        // WHO-5 Wellbeing Index
         {
           id: 'who5_1',
           text: 'Nas últimas 2 semanas: Eu me senti alegre e de bom humor',
@@ -326,18 +367,214 @@ export const MENTAL_HEALTH_DOMAIN: HealthDomain = {
           ]
         },
         {
-          id: 'anxiety_nervousness',
-          text: 'Nas últimas 2 semanas, você se sentiu nervoso, ansioso ou tenso?',
+          id: 'gad7_1_nervousness',
+          text: 'Nas últimas 2 semanas: Sentir-se nervoso, ansioso ou tenso?',
           type: 'select',
           domain: 'mental_health',
-          instrument: 'GAD-2',
+          instrument: 'GAD-7',
           riskWeight: 3,
           options: [
             { value: 0, label: 'Nunca', riskScore: 0 },
             { value: 1, label: 'Alguns dias', riskScore: 1 },
             { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
             { value: 3, label: 'Quase todos os dias', riskScore: 3 }
-          ]
+          ],
+          metadata: { clinicalCode: 'F41.1' }
+        },
+        {
+          id: 'gad7_2_worry_control',
+          text: 'Nas últimas 2 semanas: Não conseguir parar ou controlar as preocupações?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F41.1' }
+        },
+        {
+          id: 'gad7_3_excessive_worry',
+          text: 'Nas últimas 2 semanas: Preocupar-se demais com coisas diferentes?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F41.1' }
+        },
+        {
+          id: 'gad7_4_trouble_relaxing',
+          text: 'Nas últimas 2 semanas: Dificuldade para relaxar?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 2,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F41.1' }
+        },
+        {
+          id: 'gad7_5_restlessness',
+          text: 'Nas últimas 2 semanas: Ficar tão inquieto que é difícil permanecer parado?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'R45.1' }
+        },
+        {
+          id: 'gad7_6_irritability',
+          text: 'Nas últimas 2 semanas: Ficar facilmente irritado ou chateado?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 2,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'R45.4' }
+        },
+        {
+          id: 'gad7_7_fear_awful',
+          text: 'Nas últimas 2 semanas: Sentir medo como se algo terrível fosse acontecer?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 4,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F41.9' }
+        },
+        {
+          id: 'phq9_3_sleep',
+          text: 'Nas últimas 2 semanas: Dificuldade para adormecer, continuar dormindo ou dormir demais?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'G47.00' }
+        },
+        {
+          id: 'phq9_4_fatigue',
+          text: 'Nas últimas 2 semanas: Sentir-se cansado ou com pouca energia?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'R53.83' }
+        },
+        {
+          id: 'phq9_5_appetite',
+          text: 'Nas últimas 2 semanas: Falta de apetite ou comer demais?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 2,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'R63.0' }
+        },
+        {
+          id: 'phq9_6_self_worth',
+          text: 'Nas últimas 2 semanas: Sentir-se mal consigo mesmo ou que é um fracasso?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 4,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F32.9' }
+        },
+        {
+          id: 'phq9_7_concentration',
+          text: 'Nas últimas 2 semanas: Dificuldade para se concentrar (ler, assistir TV)?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'R41.840' }
+        },
+        {
+          id: 'phq9_8_psychomotor',
+          text: 'Nas últimas 2 semanas: Mover-se ou falar tão devagar que outros notaram? Ou o oposto - ficar agitado?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 1 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 2 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F32.9' }
+        },
+        {
+          id: 'phq9_9_suicidal_ideation',
+          text: 'Nas últimas 2 semanas, teve pensamentos de que seria melhor estar morto ou de se machucar?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 5,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Alguns dias', riskScore: 2 },
+            { value: 2, label: 'Mais da metade dos dias', riskScore: 4 },
+            { value: 3, label: 'Quase todos os dias', riskScore: 5 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'R45.851' }
         },
         {
           id: 'sleep_quality',
@@ -352,6 +589,58 @@ export const MENTAL_HEALTH_DOMAIN: HealthDomain = {
             { value: 'poor', label: 'Ruim', riskScore: 2 },
             { value: 'very_poor', label: 'Muito ruim', riskScore: 3 }
           ]
+        },
+        // PHQ-9 Functional Impact Question
+        {
+          id: 'phq9_functional_impact',
+          text: 'Se você marcou qualquer problema acima, o quanto esses problemas atrapalharam você a trabalhar, cuidar de casa ou se relacionar com outras pessoas?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'PHQ-9',
+          riskWeight: 2,
+          options: [
+            { value: 'not_difficult', label: 'Não atrapalhou', riskScore: 0 },
+            { value: 'somewhat_difficult', label: 'Atrapalhou um pouco', riskScore: 1 },
+            { value: 'very_difficult', label: 'Atrapalhou muito', riskScore: 2 },
+            { value: 'extremely_difficult', label: 'Atrapalhou extremamente', riskScore: 3 }
+          ],
+          conditionalOn: [
+            { questionId: 'phq9_1_interest', operator: '>', value: 0 },
+            { questionId: 'phq9_2_depressed', operator: '>', value: 0 },
+            { questionId: 'phq9_3_sleep', operator: '>', value: 0 },
+            { questionId: 'phq9_4_fatigue', operator: '>', value: 0 },
+            { questionId: 'phq9_5_appetite', operator: '>', value: 0 },
+            { questionId: 'phq9_6_self_worth', operator: '>', value: 0 },
+            { questionId: 'phq9_7_concentration', operator: '>', value: 0 },
+            { questionId: 'phq9_8_psychomotor', operator: '>', value: 0 },
+            { questionId: 'phq9_9_suicidal_ideation', operator: '>', value: 0 }
+          ],
+          metadata: { clinicalCode: 'Z73.6' }
+        },
+        // GAD-7 Functional Impact Question
+        {
+          id: 'gad7_functional_impact',
+          text: 'Se você marcou problemas de ansiedade acima, o quanto esses problemas dificultaram suas atividades diárias?',
+          type: 'select',
+          domain: 'mental_health',
+          instrument: 'GAD-7',
+          riskWeight: 2,
+          options: [
+            { value: 'not_difficult', label: 'Não dificultou', riskScore: 0 },
+            { value: 'somewhat_difficult', label: 'Dificultou um pouco', riskScore: 1 },
+            { value: 'very_difficult', label: 'Dificultou muito', riskScore: 2 },
+            { value: 'extremely_difficult', label: 'Dificultou extremamente', riskScore: 3 }
+          ],
+          conditionalOn: [
+            { questionId: 'gad7_1_nervousness', operator: '>', value: 0 },
+            { questionId: 'gad7_2_worry_control', operator: '>', value: 0 },
+            { questionId: 'gad7_3_excessive_worry', operator: '>', value: 0 },
+            { questionId: 'gad7_4_trouble_relaxing', operator: '>', value: 0 },
+            { questionId: 'gad7_5_restlessness', operator: '>', value: 0 },
+            { questionId: 'gad7_6_irritability', operator: '>', value: 0 },
+            { questionId: 'gad7_7_fear_awful', operator: '>', value: 0 }
+          ],
+          metadata: { clinicalCode: 'Z73.6' }
         }
       ],
       completionTriggers: [
@@ -363,9 +652,14 @@ export const MENTAL_HEALTH_DOMAIN: HealthDomain = {
       ],
       nextDomainTriggers: [
         {
-          condition: { questionId: 'anxiety_nervousness', operator: '>=', value: 2 },
+          condition: { questionId: 'gad7_1_nervousness', operator: '>=', value: 2 },
           action: 'enter_domain',
-          targetDomain: 'anxiety_assessment'
+          targetDomain: 'risk_behaviors'
+        },
+        {
+          condition: { questionId: 'gad7_7_fear_awful', operator: '>=', value: 2 },
+          action: 'prioritize_domain',
+          targetDomain: 'risk_behaviors'
         }
       ]
     }
@@ -412,6 +706,132 @@ export const CHRONIC_DISEASE_DOMAIN: HealthDomain = {
             { value: 'thyroid', label: 'Problemas de tireoide', riskScore: 1 },
             { value: 'none', label: 'Nenhuma das acima', riskScore: 0 }
           ]
+        },
+        // Comprehensive Allergy Screening
+        {
+          id: 'has_allergies',
+          text: 'Você tem alguma alergia conhecida?',
+          type: 'boolean',
+          domain: 'chronic_disease',
+          riskWeight: 2,
+          metadata: { clinicalCode: 'Z88' }
+        },
+        {
+          id: 'medication_allergies',
+          text: 'Selecione todas as alergias a medicamentos que você tem:',
+          type: 'multiselect',
+          domain: 'chronic_disease',
+          riskWeight: 3,
+          conditionalOn: [
+            { questionId: 'has_allergies', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'penicillin', label: 'Penicilina', riskScore: 3 },
+            { value: 'aspirin', label: 'Aspirina', riskScore: 2 },
+            { value: 'ibuprofen', label: 'Ibuprofeno', riskScore: 2 },
+            { value: 'sulfa', label: 'Sulfa', riskScore: 3 },
+            { value: 'contrast_dye', label: 'Contraste radiológico', riskScore: 3 },
+            { value: 'anesthesia', label: 'Anestesia', riskScore: 4 },
+            { value: 'codeine', label: 'Codeína', riskScore: 2 },
+            { value: 'antibiotics_other', label: 'Outros antibióticos', riskScore: 2 },
+            { value: 'none', label: 'Nenhuma alergia a medicamentos', riskScore: 0 },
+            { value: 'other', label: 'Outra (especificar)', riskScore: 2 }
+          ],
+          metadata: { clinicalCode: 'Z88.0' }
+        },
+        {
+          id: 'medication_allergy_reactions',
+          text: 'Que tipo de reação você teve aos medicamentos?',
+          type: 'multiselect',
+          domain: 'chronic_disease',
+          riskWeight: 3,
+          conditionalOn: [
+            { questionId: 'medication_allergies', operator: 'excludes', value: 'none' }
+          ],
+          options: [
+            { value: 'rash', label: 'Erupção cutânea/Urticária', riskScore: 2 },
+            { value: 'breathing_difficulty', label: 'Dificuldade para respirar', riskScore: 4 },
+            { value: 'swelling', label: 'Inchaço (face, lábios, língua)', riskScore: 4 },
+            { value: 'nausea', label: 'Náusea/Vômito', riskScore: 1 },
+            { value: 'diarrhea', label: 'Diarreia', riskScore: 1 },
+            { value: 'anaphylaxis', label: 'Anafilaxia (reação grave)', riskScore: 5 },
+            { value: 'other', label: 'Outra reação', riskScore: 1 }
+          ],
+          metadata: { clinicalCode: 'T88.6' }
+        },
+        {
+          id: 'food_allergies',
+          text: 'Você tem alergias alimentares?',
+          type: 'multiselect',
+          domain: 'chronic_disease',
+          riskWeight: 2,
+          conditionalOn: [
+            { questionId: 'has_allergies', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'peanuts', label: 'Amendoim', riskScore: 3 },
+            { value: 'tree_nuts', label: 'Castanhas/Nozes', riskScore: 3 },
+            { value: 'shellfish', label: 'Frutos do mar/Crustáceos', riskScore: 3 },
+            { value: 'fish', label: 'Peixes', riskScore: 2 },
+            { value: 'eggs', label: 'Ovos', riskScore: 2 },
+            { value: 'milk', label: 'Leite/Laticínios', riskScore: 2 },
+            { value: 'soy', label: 'Soja', riskScore: 1 },
+            { value: 'wheat', label: 'Trigo/Glúten', riskScore: 2 },
+            { value: 'none', label: 'Nenhuma alergia alimentar', riskScore: 0 },
+            { value: 'other', label: 'Outra (especificar)', riskScore: 1 }
+          ],
+          metadata: { clinicalCode: 'Z91.010' }
+        },
+        {
+          id: 'environmental_allergies',
+          text: 'Você tem alergias ambientais?',
+          type: 'multiselect',
+          domain: 'chronic_disease',
+          riskWeight: 1,
+          conditionalOn: [
+            { questionId: 'has_allergies', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'pollen', label: 'Pólen', riskScore: 1 },
+            { value: 'dust_mites', label: 'Ácaros', riskScore: 1 },
+            { value: 'pet_dander', label: 'Pelos de animais', riskScore: 1 },
+            { value: 'mold', label: 'Mofo/Fungos', riskScore: 1 },
+            { value: 'latex', label: 'Látex', riskScore: 2 },
+            { value: 'insects', label: 'Picadas de insetos', riskScore: 2 },
+            { value: 'perfumes', label: 'Perfumes/Químicos', riskScore: 1 },
+            { value: 'none', label: 'Nenhuma alergia ambiental', riskScore: 0 },
+            { value: 'other', label: 'Outra (especificar)', riskScore: 1 }
+          ],
+          metadata: { clinicalCode: 'J30.9' }
+        },
+        {
+          id: 'allergy_severity',
+          text: 'Em geral, como você classificaria a gravidade das suas alergias?',
+          type: 'select',
+          domain: 'chronic_disease',
+          riskWeight: 3,
+          conditionalOn: [
+            { questionId: 'has_allergies', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'mild', label: 'Leve (sintomas menores, controláveis)', riskScore: 1 },
+            { value: 'moderate', label: 'Moderada (requer medicação regularmente)', riskScore: 2 },
+            { value: 'severe', label: 'Grave (interfere nas atividades diárias)', riskScore: 3 },
+            { value: 'life_threatening', label: 'Risco de vida (anafilaxia/emergência)', riskScore: 5 }
+          ],
+          metadata: { clinicalCode: 'T78.4' }
+        },
+        {
+          id: 'carries_epinephrine',
+          text: 'Você carrega um auto-injetor de epinefrina (EpiPen)?',
+          type: 'boolean',
+          domain: 'chronic_disease',
+          riskWeight: 4,
+          conditionalOn: [
+            { questionId: 'allergy_severity', operator: '=', value: 'severe' },
+            { questionId: 'allergy_severity', operator: '=', value: 'life_threatening' }
+          ],
+          metadata: { clinicalCode: 'Z88.1' }
         },
         {
           id: 'current_medications',
@@ -617,6 +1037,267 @@ export const FAMILY_HISTORY_DOMAIN: HealthDomain = {
   ]
 };
 
+// RISK BEHAVIORS DOMAIN (Stage 7)
+export const RISK_BEHAVIORS_DOMAIN: HealthDomain = {
+  id: 'risk_behaviors',
+  name: 'Comportamentos de Risco',
+  description: 'Avaliação de comportamentos que podem afetar sua saúde',
+  priority: 6,
+  estimatedMinutes: 4,
+  triggerConditions: [
+    {
+      condition: { questionId: 'age', operator: '>=', value: 16 },
+      action: 'enter_domain',
+      targetDomain: 'risk_behaviors'
+    }
+  ],
+  layers: [
+    {
+      id: 'substance_risk_assessment',
+      name: 'Avaliação de Substâncias',
+      description: 'Uso de substâncias e comportamentos de risco',
+      estimatedSeconds: 240,
+      questions: [
+        // AUDIT-C (Alcohol Use Disorders Identification Test - Consumption)
+        {
+          id: 'audit_c_1_frequency',
+          text: 'Com que frequência você toma bebidas alcoólicas?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          instrument: 'AUDIT-C',
+          riskWeight: 3,
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Mensalmente ou menos', riskScore: 1 },
+            { value: 2, label: '2-4 vezes por mês', riskScore: 1 },
+            { value: 3, label: '2-3 vezes por semana', riskScore: 2 },
+            { value: 4, label: '4 ou mais vezes por semana', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'F10.10' }
+        },
+        {
+          id: 'audit_c_2_amount',
+          text: 'Quantas doses de álcool você toma em um dia típico quando está bebendo?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          instrument: 'AUDIT-C',
+          riskWeight: 3,
+          conditionalOn: [
+            { questionId: 'audit_c_1_frequency', operator: '>', value: 0 }
+          ],
+          options: [
+            { value: 0, label: '1 ou 2', riskScore: 0 },
+            { value: 1, label: '3 ou 4', riskScore: 1 },
+            { value: 2, label: '5 ou 6', riskScore: 2 },
+            { value: 3, label: '7-9', riskScore: 3 },
+            { value: 4, label: '10 ou mais', riskScore: 4 }
+          ],
+          metadata: { clinicalCode: 'F10.10' }
+        },
+        {
+          id: 'audit_c_3_binge',
+          text: 'Com que frequência você toma 6 ou mais doses de bebida em uma ocasião?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          instrument: 'AUDIT-C',
+          riskWeight: 4,
+          conditionalOn: [
+            { questionId: 'audit_c_1_frequency', operator: '>', value: 0 }
+          ],
+          options: [
+            { value: 0, label: 'Nunca', riskScore: 0 },
+            { value: 1, label: 'Menos que mensalmente', riskScore: 1 },
+            { value: 2, label: 'Mensalmente', riskScore: 2 },
+            { value: 3, label: 'Semanalmente', riskScore: 3 },
+            { value: 4, label: 'Diariamente ou quase', riskScore: 4 }
+          ],
+          metadata: { clinicalCode: 'F10.10' }
+        },
+        // NIDA Quick Screen
+        {
+          id: 'nida_quick_screen',
+          text: 'No último ano, você usou alguma dessas substâncias mais do que pretendia?',
+          type: 'multiselect',  // CRITICAL FIX 2: Change to multiselect to allow multiple substance selections
+          domain: 'risk_behaviors',
+          instrument: 'NIDA-Modified',
+          riskWeight: 4,
+          options: [
+            { value: 'no', label: 'Não', riskScore: 0 },
+            { value: 'yes_alcohol', label: 'Sim - Álcool', riskScore: 2 },
+            { value: 'yes_tobacco', label: 'Sim - Tabaco/Nicotina', riskScore: 1 },
+            { value: 'yes_prescription', label: 'Sim - Medicamentos controlados', riskScore: 3 },
+            { value: 'yes_illegal', label: 'Sim - Drogas ilícitas', riskScore: 4 }
+          ],
+          validation: {
+            // If 'no' is selected, don't allow other selections
+            exclusiveOptions: ['no']
+          },
+          metadata: { sensitiveInfo: true, clinicalCode: 'F19' }
+        },
+        {
+          id: 'substance_use_details',
+          text: 'Nos últimos 12 meses, você usou alguma dessas substâncias?',
+          type: 'multiselect',
+          domain: 'risk_behaviors',
+          instrument: 'ASSIST',
+          riskWeight: 4,
+          conditionalOn: [
+            { questionId: 'nida_quick_screen', operator: '!=', value: 'no' }
+          ],
+          options: [
+            { value: 'none', label: 'Nenhuma das listadas', riskScore: 0 },
+            { value: 'tobacco', label: 'Tabaco/Cigarro', riskScore: 1 },
+            { value: 'cannabis', label: 'Maconha/Cannabis', riskScore: 2 },
+            { value: 'cocaine', label: 'Cocaína', riskScore: 4 },
+            { value: 'stimulants', label: 'Estimulantes (anfetaminas)', riskScore: 3 },
+            { value: 'sedatives', label: 'Sedativos (sem prescrição)', riskScore: 3 },
+            { value: 'hallucinogens', label: 'Alucinógenos', riskScore: 3 },
+            { value: 'opioids', label: 'Opioides (sem prescrição)', riskScore: 4 },
+            { value: 'inhalants', label: 'Inalantes', riskScore: 3 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'F19' }
+        },
+        {
+          id: 'substance_interference',
+          text: 'O uso de substâncias tem interferido em suas responsabilidades ou relacionamentos?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          instrument: 'ASSIST',
+          riskWeight: 4,
+          conditionalOn: [
+            { questionId: 'substance_use_details', operator: 'excludes', value: 'none' }
+          ],
+          options: [
+            { value: 'never', label: 'Nunca', riskScore: 0 },
+            { value: 'rarely', label: 'Raramente', riskScore: 1 },
+            { value: 'sometimes', label: 'Às vezes', riskScore: 2 },
+            { value: 'often', label: 'Frequentemente', riskScore: 3 },
+            { value: 'always', label: 'Sempre', riskScore: 4 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'F19.9' }
+        },
+        // Smoking/Tobacco Assessment
+        {
+          id: 'tobacco_use',
+          text: 'Você fuma ou usa produtos de tabaco?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          riskWeight: 2,
+          options: [
+            { value: 'never', label: 'Nunca fumei', riskScore: 0 },
+            { value: 'former', label: 'Ex-fumante', riskScore: 1 },
+            { value: 'current_light', label: 'Fumante atual (menos de 1 maço/dia)', riskScore: 2 },
+            { value: 'current_heavy', label: 'Fumante atual (1 maço ou mais/dia)', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'Z87.891' }
+        },
+        {
+          id: 'risky_sexual_behavior',
+          text: 'Nos últimos 6 meses, você teve comportamentos sexuais de risco?',
+          type: 'multiselect',
+          domain: 'risk_behaviors',
+          riskWeight: 3,
+          options: [
+            { value: 'none', label: 'Nenhum comportamento de risco', riskScore: 0 },
+            { value: 'unprotected', label: 'Relações sem proteção com novos parceiros', riskScore: 3 },
+            { value: 'multiple_partners', label: 'Múltiplos parceiros sexuais', riskScore: 2 },
+            { value: 'substance_influence', label: 'Relações sob influência de substâncias', riskScore: 3 },
+            { value: 'commercial', label: 'Atividades sexuais comerciais', riskScore: 4 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'Z72.5' }
+        },
+        // Driving Safety Assessment
+        {
+          id: 'driving_habits',
+          text: 'Você dirige regularmente?',
+          type: 'boolean',
+          domain: 'risk_behaviors',
+          riskWeight: 1
+        },
+        {
+          id: 'driving_safety',
+          text: 'Nos últimos 12 meses, você já:',
+          type: 'multiselect',
+          domain: 'risk_behaviors',
+          riskWeight: 4,
+          conditionalOn: [
+            { questionId: 'driving_habits', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'none', label: 'Nenhuma das situações abaixo', riskScore: 0 },
+            { value: 'no_seatbelt', label: 'Dirigiu sem cinto de segurança', riskScore: 2 },
+            { value: 'drunk_driving', label: 'Dirigiu após beber álcool', riskScore: 4 },
+            { value: 'drug_driving', label: 'Dirigiu sob efeito de substâncias', riskScore: 4 },
+            { value: 'texting', label: 'Usou celular enquanto dirigia', riskScore: 2 },
+            { value: 'speeding', label: 'Dirigiu muito acima do limite de velocidade', riskScore: 3 },
+            { value: 'drowsy', label: 'Dirigiu com muito sono', riskScore: 3 }
+          ],
+          metadata: { clinicalCode: 'Z72.8' }
+        },
+        // Violence and Safety Screening
+        {
+          id: 'domestic_violence_screen',
+          text: 'Você já se sentiu ameaçado ou machucado por alguém próximo a você?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          riskWeight: 5,
+          options: [
+            { value: 'never', label: 'Nunca', riskScore: 0 },
+            { value: 'past', label: 'No passado, mas não atualmente', riskScore: 2 },
+            { value: 'current', label: 'Sim, atualmente', riskScore: 5 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'Z91.410' }
+        },
+        {
+          id: 'self_harm_risk',
+          text: 'Nos últimos 2 meses, você teve pensamentos de se machucar?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          instrument: 'Columbia Scale',
+          riskWeight: 5,
+          options: [
+            { value: 'never', label: 'Nunca', riskScore: 0 },
+            { value: 'passive', label: 'Pensamentos passivos (seria melhor estar morto)', riskScore: 2 },
+            { value: 'active_no_plan', label: 'Pensamentos ativos sem plano específico', riskScore: 4 },
+            { value: 'active_with_plan', label: 'Pensamentos com plano específico', riskScore: 5 },
+            { value: 'recent_attempt', label: 'Tentativa recente', riskScore: 5 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'R45.851' }
+        },
+        {
+          id: 'violence_exposure',
+          text: 'Você se sente seguro em casa e no trabalho?',
+          type: 'select',
+          domain: 'risk_behaviors',
+          riskWeight: 3,
+          options: [
+            { value: 'always_safe', label: 'Sempre me sinto seguro', riskScore: 0 },
+            { value: 'mostly_safe', label: 'Na maior parte do tempo', riskScore: 1 },
+            { value: 'sometimes_unsafe', label: 'Às vezes me sinto inseguro', riskScore: 2 },
+            { value: 'frequently_unsafe', label: 'Frequentemente inseguro', riskScore: 3 },
+            { value: 'never_safe', label: 'Nunca me sinto seguro', riskScore: 4 }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'Z91.82' }
+        }
+      ],
+      completionTriggers: [
+        {
+          conditions: [{ questionId: 'substance_use_screening', operator: '>', value: -1 }],
+          operator: 'AND',
+          action: 'complete_layer'
+        }
+      ],
+      nextDomainTriggers: [
+        {
+          condition: { questionId: 'self_harm_risk', operator: '>=', value: 2 },
+          action: 'prioritize_domain',
+          targetDomain: 'mental_health_crisis'
+        }
+      ]
+    }
+  ]
+};
+
 // VALIDATION DOMAIN (Final step)
 export const VALIDATION_DOMAIN: HealthDomain = {
   id: 'validation',
@@ -674,8 +1355,177 @@ export const VALIDATION_DOMAIN: HealthDomain = {
   ]
 };
 
+// CRISIS INTERVENTION DOMAIN (Emergency Response)
+export const CRISIS_INTERVENTION_DOMAIN: HealthDomain = {
+  id: 'crisis_intervention',
+  name: 'Intervenção de Crise',
+  description: 'Protocolo de resposta a emergências e crises',
+  priority: 10, // Highest priority
+  estimatedMinutes: 5,
+  triggerConditions: [
+    {
+      condition: { questionId: 'emergency_check', operator: 'excludes', value: 'none' },
+      action: 'enter_domain',
+      targetDomain: 'crisis_intervention'
+    },
+    {
+      condition: { questionId: 'phq9_9_suicidal_ideation', operator: '>', value: 0 },
+      action: 'enter_domain',
+      targetDomain: 'crisis_intervention'
+    },
+    {
+      condition: { questionId: 'self_harm_risk', operator: '>=', value: 2 },
+      action: 'enter_domain',
+      targetDomain: 'crisis_intervention'
+    }
+  ],
+  layers: [
+    {
+      id: 'crisis_assessment',
+      name: 'Avaliação de Crise',
+      description: 'Protocolo de segurança imediata',
+      estimatedSeconds: 120,
+      questions: [
+        {
+          id: 'crisis_type',
+          text: 'Qual situação de emergência você está enfrentando?',
+          type: 'select',
+          domain: 'crisis_intervention',
+          riskWeight: 10,
+          options: [
+            { value: 'suicidal_thoughts', label: 'Pensamentos suicidas', riskScore: 10 },
+            { value: 'self_harm_urge', label: 'Vontade de se machucar', riskScore: 9 },
+            { value: 'panic_attack', label: 'Ataque de pânico', riskScore: 7 },
+            { value: 'severe_depression', label: 'Depressão severa', riskScore: 8 },
+            { value: 'violence_threat', label: 'Ameaça de violência', riskScore: 10 },
+            { value: 'substance_crisis', label: 'Crise relacionada a substâncias', riskScore: 8 }
+          ],
+          metadata: { criticalPath: true, clinicalCode: 'Z91.5' }
+        },
+        {
+          id: 'immediate_safety',
+          text: 'Você está em segurança neste momento?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 10,
+          metadata: { criticalPath: true }
+        },
+        {
+          id: 'support_available',
+          text: 'Há alguém com você ou que você possa contatar agora?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 8,
+          metadata: { criticalPath: true }
+        },
+        {
+          id: 'emergency_contact_permission',
+          text: 'Podemos entrar em contato com seu contato de emergência?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 5,
+          conditionalOn: [
+            { questionId: 'immediate_safety', operator: '=', value: false }
+          ]
+        },
+        {
+          id: 'suicide_plan',
+          text: 'Você tem um plano específico para se machucar?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 10,
+          conditionalOn: [
+            { questionId: 'crisis_type', operator: '=', value: 'suicidal_thoughts' },
+            { questionId: 'crisis_type', operator: '=', value: 'self_harm_urge' }
+          ],
+          metadata: { criticalPath: true, clinicalCode: 'R45.851' }
+        },
+        {
+          id: 'suicide_means',
+          text: 'Você tem acesso aos meios para executar esse plano?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 10,
+          conditionalOn: [
+            { questionId: 'suicide_plan', operator: '=', value: true }
+          ],
+          metadata: { criticalPath: true }
+        },
+        {
+          id: 'suicide_timeline',
+          text: 'Quando você estava planejando fazer isso?',
+          type: 'select',
+          domain: 'crisis_intervention',
+          riskWeight: 10,
+          conditionalOn: [
+            { questionId: 'suicide_plan', operator: '=', value: true }
+          ],
+          options: [
+            { value: 'immediately', label: 'Imediatamente/Hoje', riskScore: 10 },
+            { value: 'within_days', label: 'Nos próximos dias', riskScore: 8 },
+            { value: 'within_weeks', label: 'Nas próximas semanas', riskScore: 6 },
+            { value: 'no_timeline', label: 'Não tenho data específica', riskScore: 4 }
+          ],
+          metadata: { criticalPath: true }
+        },
+        {
+          id: 'protective_factors',
+          text: 'O que tem impedido você de agir sobre esses pensamentos?',
+          type: 'multiselect',
+          domain: 'crisis_intervention',
+          riskWeight: -2, // Negative weight for protective factors
+          conditionalOn: [
+            { questionId: 'crisis_type', operator: '=', value: 'suicidal_thoughts' },
+            { questionId: 'crisis_type', operator: '=', value: 'self_harm_urge' }
+          ],
+          options: [
+            { value: 'family', label: 'Família/Amigos', riskScore: -2 },
+            { value: 'children', label: 'Filhos', riskScore: -3 },
+            { value: 'pets', label: 'Animais de estimação', riskScore: -1 },
+            { value: 'religion', label: 'Crenças religiosas/espirituais', riskScore: -2 },
+            { value: 'hope', label: 'Esperança de melhora', riskScore: -2 },
+            { value: 'fear', label: 'Medo da dor', riskScore: -1 },
+            { value: 'none', label: 'Nada específico', riskScore: 2 }
+          ]
+        },
+        {
+          id: 'previous_attempts',
+          text: 'Você já tentou se machucar antes?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: 8,
+          conditionalOn: [
+            { questionId: 'crisis_type', operator: '=', value: 'suicidal_thoughts' },
+            { questionId: 'crisis_type', operator: '=', value: 'self_harm_urge' }
+          ],
+          metadata: { sensitiveInfo: true, clinicalCode: 'Z91.5' }
+        },
+        {
+          id: 'safety_plan_agreement',
+          text: 'Você está disposto a criar um plano de segurança conosco agora?',
+          type: 'boolean',
+          domain: 'crisis_intervention',
+          riskWeight: -3, // Negative weight for willingness to engage
+          metadata: { criticalPath: true }
+        }
+      ],
+      completionTriggers: [
+        {
+          conditions: [{ questionId: 'safety_plan_agreement', operator: '!=', value: null }],
+          operator: 'AND',
+          action: 'complete_domain'
+        }
+      ],
+      nextDomainTriggers: []
+    }
+  ]
+};
+
 // UNIFIED FLOW MANAGER
 export class UnifiedHealthFlow {
+  // Total possible domains: pain_management, mental_health, chronic_disease, lifestyle, family_history, risk_behaviors, crisis_intervention, validation
+  private static readonly TOTAL_POSSIBLE_DOMAINS = 8;
+  
   private currentDomain: HealthDomain | null = null;
   private currentLayer: HealthLayer | null = null;
   private responses: Record<string, any> = {};
@@ -745,16 +1595,22 @@ export class UnifiedHealthFlow {
       CHRONIC_DISEASE_DOMAIN,
       LIFESTYLE_DOMAIN,
       FAMILY_HISTORY_DOMAIN,
+      RISK_BEHAVIORS_DOMAIN,
+      CRISIS_INTERVENTION_DOMAIN,
       VALIDATION_DOMAIN
     ];
 
     for (const domain of allDomains) {
       if (this.completedDomains.has(domain.id)) continue;
       
+      // Avoid duplicate entries
+      if (this.triggeredDomains.find(d => d.id === domain.id)) continue;
+      
       for (const trigger of domain.triggerConditions) {
         if (this.evaluateCondition(trigger.condition)) {
           if (trigger.action === 'enter_domain' || trigger.action === 'prioritize_domain') {
             this.triggeredDomains.push(domain);
+            break; // Only add once per domain
           }
         }
       }
@@ -834,8 +1690,15 @@ export class UnifiedHealthFlow {
         return this.processNextQuestion();
       }
       
-      // Everything complete
-      return this.advanceFlow();
+      // Everything complete - prevent infinite recursion
+      return {
+        type: 'complete',
+        results: this.generateResults(),
+        progress: 100,
+        currentDomain: 'Completo',
+        currentLayer: 'Finalizado',
+        estimatedTimeRemaining: 0
+      };
     }
 
     this.currentDomain = nextDomain;
@@ -870,14 +1733,22 @@ export class UnifiedHealthFlow {
   }
 
   private calculateProgress(): number {
-    const totalDomains = this.triggeredDomains.length + 1; // +1 for triage
+    // Use total possible domains instead of triggered domains to avoid 50% bug
+    // This ensures consistent progress calculation regardless of how many domains are triggered
+    const totalDomains = UnifiedHealthFlow.TOTAL_POSSIBLE_DOMAINS + 1; // +1 for triage (7 total)
     const completedCount = this.completedDomains.size + (this.isTriageComplete ? 1 : 0);
     return Math.round((completedCount / totalDomains) * 100);
   }
 
   private calculateTimeRemaining(): number {
+    // Calculate remaining time based on triggered domains only (this is correct behavior)
     const remainingDomains = this.triggeredDomains.filter(d => !this.completedDomains.has(d.id));
-    return remainingDomains.reduce((total, domain) => total + domain.estimatedMinutes, 0);
+    const remainingTime = remainingDomains.reduce((total, domain) => total + domain.estimatedMinutes, 0);
+    
+    // Add triage time if not complete
+    const triageTimeRemaining = this.isTriageComplete ? 0 : 1; // 1 minute for triage
+    
+    return remainingTime + triageTimeRemaining;
   }
 
   private findQuestion(questionId: string): HealthQuestion | null {
@@ -888,7 +1759,7 @@ export class UnifiedHealthFlow {
     }
 
     // Search all domains
-    const allDomains = [PAIN_DOMAIN, MENTAL_HEALTH_DOMAIN, CHRONIC_DISEASE_DOMAIN, LIFESTYLE_DOMAIN, FAMILY_HISTORY_DOMAIN, VALIDATION_DOMAIN];
+    const allDomains = [PAIN_DOMAIN, MENTAL_HEALTH_DOMAIN, CHRONIC_DISEASE_DOMAIN, LIFESTYLE_DOMAIN, FAMILY_HISTORY_DOMAIN, RISK_BEHAVIORS_DOMAIN, CRISIS_INTERVENTION_DOMAIN, VALIDATION_DOMAIN];
     for (const domain of allDomains) {
       for (const layer of domain.layers) {
         const question = layer.questions.find(q => q.id === questionId);

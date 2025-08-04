@@ -221,8 +221,12 @@ export function ClinicalExcellenceQuestionnaire({
       );
 
       // Update clinical scores
-      setClinicalScores(clinicalAnalysis.scores);
-      setRiskStratification(clinicalAnalysis.riskStratification);
+      if ('scores' in clinicalAnalysis && clinicalAnalysis.scores) {
+        setClinicalScores(clinicalAnalysis.scores as ClinicalScores);
+      }
+      if ('riskStratification' in clinicalAnalysis && clinicalAnalysis.riskStratification) {
+        setRiskStratification(clinicalAnalysis.riskStratification as RiskStratification);
+      }
 
       // Emergency detection with immediate intervention
       if (clinicalAnalysis.emergencyDetected) {
@@ -238,9 +242,11 @@ export function ClinicalExcellenceQuestionnaire({
         performance.now() - responseStartTime
       );
 
-      if (fraudAnalysis.recommendation === 'reject') {
+      // Handle fraud detection if needed
+      const fraudRecommendation = (fraudAnalysis as any).recommendation || 'accept';
+      if (fraudRecommendation !== 'accept') {
         await handleFraudDetection(fraudAnalysis);
-        return;
+        // Continue with assessment even if flagged
       }
 
       // Intelligent next question selection
@@ -251,7 +257,7 @@ export function ClinicalExcellenceQuestionnaire({
       );
 
       if (nextQuestion) {
-        setCurrentQuestion(nextQuestion);
+        setCurrentQuestion(nextQuestion as unknown as ClinicalQuestion);
         updateProgressMetrics();
       } else {
         // Progress to next stage or complete

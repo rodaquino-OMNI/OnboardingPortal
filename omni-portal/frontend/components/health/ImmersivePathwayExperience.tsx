@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Heart, Brain, Activity, Shield, Sparkles, 
   Navigation, Compass, Map, Route, Zap,
@@ -159,11 +159,7 @@ export function ImmersivePathwayExperience({
   const [emotionalState, setEmotionalState] = useState<EmotionalState | null>(null);
 
   // Initialize immersive experience
-  useEffect(() => {
-    initializeJourney();
-  }, [pathwayType, userProfile]);
-
-  const initializeJourney = async () => {
+  const initializeJourney = useCallback(async () => {
     const experience = await immersionEngine.createExperience(pathwayType);
     setCurrentExperience(experience);
     
@@ -171,7 +167,11 @@ export function ImmersivePathwayExperience({
     setCurrentNarrative(narrative);
     
     engagementTracker.startTracking();
-  };
+  }, [pathwayType, immersionEngine, engagementTracker]);
+
+  useEffect(() => {
+    initializeJourney();
+  }, [initializeJourney]);
 
   // Handle user interactions with real-time adaptation
   const handleUserInteraction = async (interaction: UserInteraction) => {

@@ -352,7 +352,8 @@ test.describe('Admin Dashboard Workflows', () => {
       await page.click('[data-testid="search-logs-button"]');
 
       // Results should contain admin user actions
-      await expect(page.locator('[data-testid="audit-log-entry"]:has-text("admin@example.com")')).toHaveCount({ min: 1 });
+      const count = await page.locator('[data-testid="audit-log-entry"]:has-text("admin@example.com")').count();
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should allow detailed log entry inspection', async ({ page }) => {
@@ -459,7 +460,8 @@ test.describe('Admin Dashboard Workflows', () => {
       await page.waitForSelector('[data-testid="audit-log-table"]');
 
       // Should see the user creation action
-      await expect(page.locator('[data-testid="audit-log-entry"]:has-text("user_created")')).toHaveCount({ min: 1 });
+      const count = await page.locator('[data-testid="audit-log-entry"]:has-text("user_created")').count();
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should prevent CSRF attacks on admin endpoints', async ({ page }) => {

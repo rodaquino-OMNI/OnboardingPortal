@@ -20,48 +20,63 @@ import {
   Home,
   Pill
 } from 'lucide-react';
+import { ScaleQuestion } from './ScaleQuestion';
 import {
   UnifiedHealthFlow,
   type FlowResult,
   type HealthAssessmentResults,
   type HealthQuestion
 } from '@/lib/unified-health-flow';
+import { HealthQuestionnaireErrorBoundary, useErrorHandler } from './ErrorBoundary';
 
 interface UnifiedHealthAssessmentProps {
   onComplete: (results: HealthAssessmentResults) => void;
   onDomainChange?: (domain: string) => void;
+  onProgressUpdate?: (progress: number) => void;
 }
 
-export function UnifiedHealthAssessment({ 
+function UnifiedHealthAssessmentInner({ 
   onComplete, 
-  onDomainChange 
+  onDomainChange,
+  onProgressUpdate
 }: UnifiedHealthAssessmentProps) {
   const [flow] = useState(new UnifiedHealthFlow());
   const [currentQuestion, setCurrentQuestion] = useState<HealthQuestion | null>(null);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [responses, setResponses] = useState<Record<string, any>>({});
   const [conversationHistory, setConversationHistory] = useState<Array<{
     type: 'bot' | 'user';
     content: string;
     timestamp: Date;
     domain?: string;
   }>>([]);
+  const { captureError } = useErrorHandler();
 
   useEffect(() => {
     initializeAssessment();
   }, []);
 
   const initializeAssessment = async () => {
-    addBotMessage(
-      "Olá! Vou fazer uma avaliação personalizada da sua saúde. " +
-      "Começaremos com algumas perguntas básicas e, baseado nas suas respostas, " +
-      "aprofundaremos apenas nas áreas que precisam de mais atenção. " +
-      "Vamos começar?"
-    );
-    
-    // Start with the first question from triage
-    const result = await flow.processResponse('_init', true);
-    handleFlowResult(result);
+    try {
+      addBotMessage(
+        "Olá! Vou fazer uma avaliação personalizada da sua saúde. " +
+        "Começaremos com algumas perguntas básicas e, baseado nas suas respostas, " +
+        "aprofundaremos apenas nas áreas que precisam de mais atenção. " +
+        "Vamos começar?"
+      );
+      
+      // Start with the first question from triage
+      const result = await flow.processResponse('_init', true);
+      handleFlowResult(result);
+    } catch (error) {
+      console.error('Error initializing assessment:', error);
+      captureError(error as Error);
+      addBotMessage(
+        "Houve um problema ao inicializar a avaliação. Por favor, recarregue a página e tente novamente.",
+        'error'
+      );
+    }
   };
 
   const addBotMessage = (content: string, domain?: string) => {
@@ -86,11 +101,11 @@ export function UnifiedHealthAssessment({
 
     setIsProcessing(true);
 
-    // Add user response to conversation
-    const displayValue = formatResponseForDisplay(currentQuestion, value);
-    addUserMessage(displayValue);
-
     try {
+      // Add user response to conversation
+      const displayValue = formatResponseForDisplay(currentQuestion, value);
+      addUserMessage(displayValue);
+
       // Process response through unified flow
       const result = await flow.processResponse(currentQuestion.id, value);
       handleFlowResult(result);
@@ -103,6 +118,11 @@ export function UnifiedHealthAssessment({
 
   const handleFlowResult = (result: FlowResult) => {
     setFlowResult(result);
+    
+    // Update progress whenever we get a new flow result
+    if (result.progress !== undefined) {
+      onProgressUpdate?.(result.progress);
+    }
 
     switch (result.type) {
       case 'question':
@@ -114,11 +134,13 @@ export function UnifiedHealthAssessment({
         onDomainChange?.(result.domain!.id);
         addBotMessage(result.message!, result.domain!.id);
         
-        // Automatically proceed to first question of new domain
-        setTimeout(async () => {
-          const nextResult = await flow.processResponse('_continue', true);
-          handleFlowResult(nextResult);
-        }, 1500);
+        // Show continue button instead of auto-advancing for user control
+        setCurrentQuestion({
+          id: '_continue_domain',
+          type: 'boolean',
+          text: 'Pronto para continuar com a próxima seção?',
+          domain: result.domain!.id
+        });
         break;
 
       case 'complete':
@@ -128,9 +150,7 @@ export function UnifiedHealthAssessment({
           "Com base nas suas respostas, preparei recomendações personalizadas para você."
         );
         
-        setTimeout(() => {
-          onComplete(result.results!);
-        }, 2000);
+        // Remove auto-advancement - user will click continue button in the complete view
         break;
     }
   };
@@ -168,41 +188,48 @@ export function UnifiedHealthAssessment({
     switch (currentQuestion.type) {
       case 'scale':
         return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>0 - Mínimo</span>
-                <span>10 - Máximo</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="10"
-                defaultValue="0"
-                onChange={(e) => handleResponse(parseInt(e.target.value))}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-              <div className="mt-4 text-4xl">
-                {currentQuestion.options?.[0]?.emoji || '📊'}
-              </div>
-            </div>
-          </div>
+          <ScaleQuestion 
+            question={currentQuestion}
+            onComplete={handleResponse}
+            isProcessing={isProcessing}
+          />
         );
 
       case 'select':
         return (
-          <div className="space-y-3">
-            {currentQuestion.options?.map(option => (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {currentQuestion.options?.map(option => (
+                <Button
+                  key={option.value}
+                  variant={responses[currentQuestion.id] === option.value ? 'default' : 'outline'}
+                  onClick={() => {
+                    const newResponses = { ...responses, [currentQuestion.id]: option.value };
+                    setResponses(newResponses);
+                  }}
+                  className="w-full justify-start py-4 text-left hover:bg-blue-50"
+                >
+                  {option.emoji && <span className="mr-3 text-lg">{option.emoji}</span>}
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+            {/* Add consistent continue button for select questions */}
+            <div className="text-center">
               <Button
-                key={option.value}
-                variant="outline"
-                onClick={() => handleResponse(option.value)}
-                className="w-full justify-start py-4 text-left hover:bg-blue-50"
+                onClick={() => {
+                  const selectedValue = responses[currentQuestion.id];
+                  if (selectedValue !== undefined) {
+                    handleResponse(selectedValue);
+                  }
+                }}
+                disabled={responses[currentQuestion.id] === undefined}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 min-h-[44px] touch-manipulation"
               >
-                {option.emoji && <span className="mr-3 text-lg">{option.emoji}</span>}
-                {option.label}
+                Continuar
+                <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
-            ))}
+            </div>
           </div>
         );
 
@@ -220,22 +247,66 @@ export function UnifiedHealthAssessment({
         );
 
       case 'boolean':
+        // Special handling for domain transition continue button
+        if (currentQuestion.id === '_continue_domain') {
+          return (
+            <div className="text-center space-y-4">
+              <Button
+                onClick={async () => {
+                  setIsProcessing(true);
+                  try {
+                    const nextResult = await flow.processResponse('_continue', true);
+                    handleFlowResult(nextResult);
+                  } catch (error) {
+                    console.error('Error in domain transition:', error);
+                    addBotMessage('Houve um erro ao continuar. Por favor, tente novamente.');
+                  } finally {
+                    setIsProcessing(false);
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3"
+              >
+                Continuar para Próxima Seção
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          );
+        }
+        
         return (
-          <div className="grid grid-cols-2 gap-4">
-            <Button
-              variant="outline"
-              onClick={() => handleResponse(true)}
-              className="py-8 text-lg hover:bg-green-50"
-            >
-              ✅ Sim
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleResponse(false)}
-              className="py-8 text-lg hover:bg-red-50"
-            >
-              ❌ Não
-            </Button>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant="outline"
+                onClick={() => handleResponse(true)}
+                className="py-8 text-lg hover:bg-green-50"
+              >
+                ✅ Sim
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleResponse(false)}
+                className="py-8 text-lg hover:bg-red-50"
+              >
+                ❌ Não
+              </Button>
+            </div>
+            {/* Add consistent continue button for boolean questions */}
+            <div className="text-center mt-4">
+              <Button
+                onClick={() => {
+                  const currentValue = responses[currentQuestion.id];
+                  if (currentValue !== undefined) {
+                    handleResponse(currentValue);
+                  }
+                }}
+                disabled={responses[currentQuestion.id] === undefined}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 min-h-[44px] touch-manipulation"
+              >
+                Continuar
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
           </div>
         );
 
@@ -260,6 +331,7 @@ export function UnifiedHealthAssessment({
       case 'chronic_disease': return <Stethoscope className="w-5 h-5" />;
       case 'lifestyle': return <Activity className="w-5 h-5" />;
       case 'family_history': return <Home className="w-5 h-5" />;
+      case 'risk_behaviors': return <AlertTriangle className="w-5 h-5" />;
       case 'validation': return <Shield className="w-5 h-5" />;
       default: return <User className="w-5 h-5" />;
     }
@@ -272,6 +344,7 @@ export function UnifiedHealthAssessment({
       case 'chronic_disease': return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'lifestyle': return 'text-green-600 bg-green-50 border-green-200';
       case 'family_history': return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'risk_behaviors': return 'text-amber-600 bg-amber-50 border-amber-200';
       case 'validation': return 'text-gray-600 bg-gray-50 border-gray-200';
       default: return 'text-blue-600 bg-blue-50 border-blue-200';
     }
@@ -482,5 +555,20 @@ function TextInputQuestion({ question, onComplete }: { question: HealthQuestion,
         <ChevronRight className="w-4 h-4 ml-2" />
       </Button>
     </div>
+  );
+}
+
+// Main component with error boundary wrapper
+export function UnifiedHealthAssessment(props: UnifiedHealthAssessmentProps) {
+  return (
+    <HealthQuestionnaireErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Unified Health Assessment error:', error, errorInfo);
+        // Could send to error tracking service here
+      }}
+      resetKeys={[props]}
+    >
+      <UnifiedHealthAssessmentInner {...props} />
+    </HealthQuestionnaireErrorBoundary>
   );
 }

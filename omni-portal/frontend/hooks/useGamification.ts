@@ -2,75 +2,65 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import apiService from '@/services/api';
-import type { 
-  GamificationProgress, 
-  GamificationStats, 
-  GamificationBadge, 
-  LeaderboardEntry, 
-  ActivityFeedItem, 
-  DashboardSummary,
-  AppError
-} from '@/types';
+import { 
+  gamificationApi, 
+  type GamificationProgress,
+  type GamificationStats,
+  type GamificationBadge,
+  type LeaderboardEntry,
+  type ActivityFeedItem,
+  type DashboardSummary,
+  type GamificationAchievements
+} from '@/lib/api/gamification';
 
+// Real gamification store with API integration
 interface GamificationState {
-  // Data
+  // Data states
   progress: GamificationProgress | null;
   stats: GamificationStats | null;
-  badges: {
-    earned: GamificationBadge[];
-    available: GamificationBadge[];
-  };
-  leaderboard: LeaderboardEntry[];
-  activityFeed: ActivityFeedItem[];
+  badges: { earned: GamificationBadge[]; available: GamificationBadge[] } | null;
+  leaderboard: LeaderboardEntry[] | null;
+  activityFeed: ActivityFeedItem[] | null;
   dashboardSummary: DashboardSummary | null;
+  achievements: GamificationAchievements | null;
+  levels: any[] | null;
   
   // Loading states
-  isLoading: boolean;
   isLoadingProgress: boolean;
   isLoadingStats: boolean;
   isLoadingBadges: boolean;
   isLoadingLeaderboard: boolean;
   isLoadingActivity: boolean;
   isLoadingDashboard: boolean;
+  isLoadingAchievements: boolean;
+  isLoadingLevels: boolean;
+  isLoading: boolean;
   
-  // Error states
+  // Error handling
   error: string | null;
+  lastFetch: number | null;
   
-  // Actions
+  // Performance optimization
+  retryCount: number;
+  isOnline: boolean;
+  
+  // Real API actions
   fetchProgress: () => Promise<void>;
   fetchStats: () => Promise<void>;
   fetchBadges: () => Promise<void>;
   fetchLeaderboard: (limit?: number) => Promise<void>;
   fetchActivityFeed: (limit?: number) => Promise<void>;
   fetchDashboardSummary: () => Promise<void>;
+  fetchAchievements: () => Promise<void>;
+  fetchLevels: () => Promise<void>;
   fetchAll: () => Promise<void>;
+  
+  // Utility actions
   clearError: () => void;
-  reset: () => void;
-  
-  // Real-time updates
-  updateProgress: (newProgress: Partial<GamificationProgress>) => void;
-  addNewBadge: (badge: GamificationBadge) => void;
-  updateStats: (newStats: Partial<GamificationStats>) => void;
-  
-  // Game actions
-  addPoints: (points: number, reason?: string) => void;
-  unlockBadge: (badgeId: string) => void;
-  
-  // Additional methods expected by tests
-  unlockAchievement: (achievementId: string) => void;
-  getLeaderboard: () => LeaderboardEntry[];
-  getProgressToNextLevel: () => number;
-  getCurrentLevel: () => any;
-  getUnlockedBadges: () => GamificationBadge[];
-  getTotalPoints: () => number;
-  
-  // Compatibility properties for tests
-  points: number;
-  level: number;
-  badges: string[];
-  achievements: any[];
-  leaderboardPosition: number | null;
+  invalidateCache: () => void;
+  refreshData: () => Promise<void>;
+  updateOnlineStatus: () => void;
+  shouldRefresh: () => boolean;
 }
 
 export const useGamification = create<GamificationState>()(
@@ -79,199 +69,209 @@ export const useGamification = create<GamificationState>()(
       // Initial state
       progress: null,
       stats: null,
-      badges: {
-        earned: [],
-        available: []
-      },
-      leaderboard: [],
-      activityFeed: [],
+      badges: null,
+      leaderboard: null,
+      activityFeed: null,
       dashboardSummary: null,
-      
-      // Loading states
-      isLoading: false,
+      achievements: null,
+      levels: null,
       isLoadingProgress: false,
       isLoadingStats: false,
       isLoadingBadges: false,
       isLoadingLeaderboard: false,
       isLoadingActivity: false,
       isLoadingDashboard: false,
-      
-      // Error state
+      isLoadingAchievements: false,
+      isLoadingLevels: false,
+      isLoading: false,
       error: null,
+      lastFetch: null,
+      retryCount: 0,
+      isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
       
-      // Fetch progress
+      // Real API fetch methods with retry logic and offline support
       fetchProgress: async () => {
-        set({ isLoadingProgress: true, error: null });
-        try {
-          const response = await apiService.getGamificationProgress();
-          if (response.success) {
-            set({ progress: response.data, isLoadingProgress: false });
-          } else {
-            // Set default progress if endpoint fails
-            set({ 
-              progress: {
-                total_points: 0,
-                current_level: { number: 1, name: 'Iniciante', title: 'Iniciante' },
-                next_level: { number: 2, name: 'Novato', title: 'Novato', points_remaining: 100 },
-                progress_percentage: 0,
-                streak_days: 0,
-                tasks_completed: 0
-              },
-              isLoadingProgress: false 
-            });
+        const state = get();
+        
+        // Skip if offline and we have cached data
+        if (!state.isOnline && state.progress && state.lastFetch) {
+          const cacheAge = Date.now() - state.lastFetch;
+          if (cacheAge < 10 * 60 * 1000) { // 10 minutes cache
+            console.log('Using cached progress data (offline)');
+            return;
           }
-        } catch (error) {
-          // Set default progress on error
-          set({ 
-            progress: {
-              total_points: 0,
-              current_level: { number: 1, name: 'Iniciante', title: 'Iniciante' },
-              next_level: { number: 2, name: 'Novato', title: 'Novato', points_remaining: 100 },
-              progress_percentage: 0,
-              streak_days: 0,
-              tasks_completed: 0
-            },
-            isLoadingProgress: false 
-          });
+        }
+        
+        set({ isLoadingProgress: true, error: null });
+        
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            const progress = await gamificationApi.getProgress();
+            set({ 
+              progress,
+              isLoadingProgress: false,
+              lastFetch: Date.now(),
+              retryCount: 0,
+              error: null
+            });
+            return;
+          } catch (error: any) {
+            retryCount++;
+            console.error(`Error fetching progress (attempt ${retryCount}):`, error);
+            
+            if (retryCount >= maxRetries) {
+              // Check if we have cached data to fall back on
+              if (state.progress && state.lastFetch) {
+                const cacheAge = Date.now() - state.lastFetch;
+                if (cacheAge < 30 * 60 * 1000) { // 30 minutes fallback
+                  console.log('Using cached progress data due to API failure');
+                  set({ isLoadingProgress: false, error: null });
+                  return;
+                }
+              }
+              
+              set({ 
+                error: error.message || 'Failed to fetch progress', 
+                isLoadingProgress: false,
+                retryCount
+              });
+            } else {
+              // Wait before retry with exponential backoff
+              await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+            }
+          }
         }
       },
       
-      // Fetch stats
       fetchStats: async () => {
         set({ isLoadingStats: true, error: null });
         try {
-          const response = await apiService.getGamificationStats();
-          if (response.success) {
-            set({ stats: response.data, isLoadingStats: false });
-          } else {
-            set({ 
-              error: response.error?.message || 'Failed to fetch stats',
-              isLoadingStats: false 
-            });
-          }
-        } catch (error) {
-          const appError = error as AppError;
+          const stats = await gamificationApi.getStats();
           set({ 
-            error: appError.message || 'Failed to fetch stats',
+            stats,
+            isLoadingStats: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching gamification stats:', error);
+          set({ 
+            error: error.message || 'Failed to fetch stats', 
             isLoadingStats: false 
           });
         }
       },
       
-      // Fetch badges
       fetchBadges: async () => {
         set({ isLoadingBadges: true, error: null });
         try {
-          const response = await apiService.getAchievements();
-          if (response.success) {
-            set({ 
-              badges: {
-                earned: response.data.earned || [],
-                available: response.data.available || []
-              },
-              isLoadingBadges: false 
-            });
-          } else {
-            set({ 
-              error: response.error?.message || 'Failed to fetch badges',
-              isLoadingBadges: false 
-            });
-          }
-        } catch (error) {
-          const appError = error as AppError;
+          const badges = await gamificationApi.getBadges();
           set({ 
-            error: appError.message || 'Failed to fetch badges',
+            badges,
+            isLoadingBadges: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching gamification badges:', error);
+          set({ 
+            error: error.message || 'Failed to fetch badges', 
             isLoadingBadges: false 
           });
         }
       },
       
-      // Fetch leaderboard
       fetchLeaderboard: async (limit = 10) => {
         set({ isLoadingLeaderboard: true, error: null });
         try {
-          const response = await apiService.getLeaderboard(limit);
-          if (response.success) {
-            // Deduplicate leaderboard entries by beneficiary_id
-            const leaderboardData = response.data || [];
-            const uniqueEntries = leaderboardData.reduce((acc: LeaderboardEntry[], current: LeaderboardEntry) => {
-              const existing = acc.find(entry => entry.beneficiary_id === current.beneficiary_id);
-              if (!existing) {
-                acc.push(current);
-              }
-              return acc;
-            }, []);
-            
-            set({ 
-              leaderboard: uniqueEntries,
-              isLoadingLeaderboard: false 
-            });
-          } else {
-            set({ 
-              error: response.error?.message || 'Failed to fetch leaderboard',
-              isLoadingLeaderboard: false 
-            });
-          }
-        } catch (error) {
-          const appError = error as AppError;
+          const leaderboard = await gamificationApi.getLeaderboard(limit);
           set({ 
-            error: appError.message || 'Failed to fetch leaderboard',
+            leaderboard,
+            isLoadingLeaderboard: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching leaderboard:', error);
+          set({ 
+            error: error.message || 'Failed to fetch leaderboard', 
             isLoadingLeaderboard: false 
           });
         }
       },
       
-      // Fetch activity feed
       fetchActivityFeed: async (limit = 20) => {
         set({ isLoadingActivity: true, error: null });
         try {
-          const response = await apiService.getActivityFeed(limit);
-          if (response.success) {
-            set({ 
-              activityFeed: response.data || [],
-              isLoadingActivity: false 
-            });
-          } else {
-            set({ 
-              error: response.error?.message || 'Failed to fetch activity feed',
-              isLoadingActivity: false 
-            });
-          }
-        } catch (error) {
-          const appError = error as AppError;
+          const activityFeed = await gamificationApi.getActivityFeed(limit);
           set({ 
-            error: appError.message || 'Failed to fetch activity feed',
+            activityFeed,
+            isLoadingActivity: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching activity feed:', error);
+          set({ 
+            error: error.message || 'Failed to fetch activity', 
             isLoadingActivity: false 
           });
         }
       },
       
-      // Fetch dashboard summary
       fetchDashboardSummary: async () => {
         set({ isLoadingDashboard: true, error: null });
         try {
-          const response = await apiService.getDashboardSummary();
-          if (response.success) {
-            set({ 
-              dashboardSummary: response.data,
-              isLoadingDashboard: false 
-            });
-          } else {
-            set({ 
-              error: response.error?.message || 'Failed to fetch dashboard summary',
-              isLoadingDashboard: false 
-            });
-          }
-        } catch (error) {
-          const appError = error as AppError;
+          const dashboardSummary = await gamificationApi.getDashboard();
           set({ 
-            error: appError.message || 'Failed to fetch dashboard summary',
+            dashboardSummary,
+            isLoadingDashboard: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching dashboard:', error);
+          set({ 
+            error: error.message || 'Failed to fetch dashboard', 
             isLoadingDashboard: false 
           });
         }
       },
       
-      // Fetch all data
+      fetchAchievements: async () => {
+        set({ isLoadingAchievements: true, error: null });
+        try {
+          const achievements = await gamificationApi.getAchievements();
+          set({ 
+            achievements,
+            isLoadingAchievements: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching achievements:', error);
+          set({ 
+            error: error.message || 'Failed to fetch achievements', 
+            isLoadingAchievements: false 
+          });
+        }
+      },
+      
+      fetchLevels: async () => {
+        set({ isLoadingLevels: true, error: null });
+        try {
+          const levels = await gamificationApi.getLevels();
+          set({ 
+            levels,
+            isLoadingLevels: false,
+            lastFetch: Date.now()
+          });
+        } catch (error: any) {
+          console.error('Error fetching levels:', error);
+          set({ 
+            error: error.message || 'Failed to fetch levels', 
+            isLoadingLevels: false 
+          });
+        }
+      },
+      
       fetchAll: async () => {
         set({ isLoading: true, error: null });
         try {
@@ -280,169 +280,111 @@ export const useGamification = create<GamificationState>()(
             fetchStats, 
             fetchBadges, 
             fetchLeaderboard, 
-            fetchActivityFeed,
-            fetchDashboardSummary
+            fetchActivityFeed, 
+            fetchDashboardSummary,
+            fetchAchievements,
+            fetchLevels
           } = get();
           
+          // Fetch all data in parallel for better performance
           await Promise.allSettled([
             fetchProgress(),
-            fetchStats(), 
+            fetchStats(),
             fetchBadges(),
             fetchLeaderboard(),
             fetchActivityFeed(),
-            fetchDashboardSummary()
+            fetchDashboardSummary(),
+            fetchAchievements(),
+            fetchLevels()
           ]);
           
-          set({ isLoading: false });
-        } catch (error) {
-          const appError = error as AppError;
+          set({ isLoading: false, lastFetch: Date.now() });
+        } catch (error: any) {
+          console.error('Error fetching all gamification data:', error);
           set({ 
-            error: appError.message || 'Failed to fetch gamification data',
+            error: error.message || 'Failed to fetch data', 
             isLoading: false 
           });
         }
       },
       
-      // Clear error
+      // Utility methods
       clearError: () => set({ error: null }),
       
-      // Reset state
-      reset: () => set({
-        progress: null,
-        stats: null,
-        badges: { earned: [], available: [] },
-        leaderboard: [],
-        activityFeed: [],
-        dashboardSummary: null,
-        isLoading: false,
-        isLoadingProgress: false,
-        isLoadingStats: false,
-        isLoadingBadges: false,
-        isLoadingLeaderboard: false,
-        isLoadingActivity: false,
-        isLoadingDashboard: false,
-        error: null
-      }),
-      
-      // Real-time updates
-      updateProgress: (newProgress) => {
-        const currentProgress = get().progress;
-        if (currentProgress) {
-          set({ progress: { ...currentProgress, ...newProgress } });
-        }
-      },
-      
-      addNewBadge: (badge) => {
-        const currentBadges = get().badges;
-        set({
-          badges: {
-            ...currentBadges,
-            earned: [...currentBadges.earned, badge],
-            available: currentBadges.available.filter(b => b.id !== badge.id)
-          }
+      invalidateCache: () => {
+        set({ 
+          progress: null,
+          stats: null,
+          badges: null,
+          leaderboard: null,
+          activityFeed: null,
+          dashboardSummary: null,
+          achievements: null,
+          levels: null,
+          lastFetch: null
         });
       },
       
-      updateStats: (newStats) => {
-        const currentStats = get().stats;
-        if (currentStats) {
-          set({ stats: { ...currentStats, ...newStats } });
-        }
-      },
-      
-      // Game actions
-      addPoints: (points, reason?: string) => {
-        const currentProgress = get().progress;
-        if (currentProgress) {
-          const newTotalPoints = currentProgress.total_points + points;
-          const newLevel = Math.floor(newTotalPoints / 1000) + 1; // Simple level calculation
-          set({ 
-            progress: { 
-              ...currentProgress, 
-              total_points: newTotalPoints
-            } 
-          });
-        }
-      },
-      
-      unlockBadge: (badgeId) => {
-        const currentBadges = get().badges;
-        const badgeToUnlock = currentBadges.available.find(b => b.id === badgeId);
-        if (badgeToUnlock) {
-          set({
-            badges: {
-              earned: [...currentBadges.earned, { ...badgeToUnlock, unlockedAt: new Date() }],
-              available: currentBadges.available.filter(b => b.id !== badgeId)
-            }
-          });
+      refreshData: async () => {
+        const { invalidateCache, fetchAll } = get();
+        
+        // Update online status
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        set({ isOnline });
+        
+        // Only refresh if online or forced
+        if (isOnline) {
+          invalidateCache();
+          await fetchAll();
         } else {
-          // If badge doesn't exist, create a default one
-          const defaultBadge = {
-            id: badgeId,
-            name: badgeId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            description: 'Badge unlocked!',
-            icon_name: 'trophy',
-            icon_color: 'gold',
-            points_value: 50,
-            unlockedAt: new Date()
-          };
-          set({
-            badges: {
-              ...currentBadges,
-              earned: [...currentBadges.earned, defaultBadge]
-            }
-          });
+          console.log('Offline - skipping data refresh');
         }
       },
       
-      // Additional methods expected by tests
-      unlockAchievement: (achievementId) => {
-        // Alias for unlockBadge for test compatibility
-        const { unlockBadge } = get();
-        unlockBadge(achievementId);
+      // Network status awareness
+      updateOnlineStatus: () => {
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        set({ isOnline });
       },
       
-      getLeaderboard: () => {
-        return get().leaderboard;
-      },
-      
-      getProgressToNextLevel: () => {
-        const progress = get().progress;
-        if (progress?.next_level?.points_remaining) {
-          return progress.next_level.points_remaining;
-        }
-        return 0;
-      },
-      
-      getCurrentLevel: () => {
-        const progress = get().progress;
-        return progress?.current_level || { number: 1, name: 'Iniciante', title: 'Iniciante' };
-      },
-      
-      getUnlockedBadges: () => {
-        return get().badges.earned;
-      },
-      
-      getTotalPoints: () => {
-        const progress = get().progress;
-        return progress?.total_points || 0;
-      },
-      
-      // Computed properties for test compatibility
-      points: 0,
-      level: 1,
-      badges: [],
-      achievements: [],
-      leaderboardPosition: null,
+      // Smart cache invalidation
+      shouldRefresh: () => {
+        const state = get();
+        if (!state.lastFetch) return true;
+        
+        const cacheAge = Date.now() - state.lastFetch;
+        const maxAge = state.isOnline ? 5 * 60 * 1000 : 30 * 60 * 1000; // 5min online, 30min offline
+        
+        return cacheAge > maxAge;
+      }
     }),
     {
       name: 'gamification-storage',
-      partialize: (state) => ({
+      // Only persist essential data - not loading states or errors
+      partialize: (state) => ({ 
         progress: state.progress,
         stats: state.stats,
         badges: state.badges,
         dashboardSummary: state.dashboardSummary,
+        achievements: state.achievements,
+        lastFetch: state.lastFetch
       }),
+      // Add version for cache invalidation when structure changes
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          // Clear old cache structure when migrating
+          return {
+            progress: null,
+            stats: null,
+            badges: null,
+            dashboardSummary: null,
+            achievements: null,
+            lastFetch: null
+          };
+        }
+        return persistedState;
+      }
     }
   )
 );

@@ -12,6 +12,7 @@ const api = axios.create({
     'Accept': 'application/json',
   },
   withCredentials: true,
+  timeout: 15000, // 15 second timeout
 });
 
 // Add CSRF token to requests - tokens now handled via httpOnly cookies
@@ -21,6 +22,11 @@ api.interceptors.request.use((config) => {
   if (xsrfToken) {
     // Use X-CSRF-TOKEN header for Laravel CSRF protection
     config.headers['X-CSRF-TOKEN'] = xsrfToken;
+  }
+  
+  // Add AbortSignal support if provided
+  if (config.signal) {
+    // Axios will handle the AbortSignal automatically
   }
   
   return config;
@@ -64,32 +70,33 @@ export const authApi = {
     return response.data;
   },
 
-  login: async (data: LoginData): Promise<AuthResponse> => {
+  login: async (data: LoginData, signal?: AbortSignal): Promise<AuthResponse> => {
     // Get CSRF cookie first for stateful authentication
-    await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, { withCredentials: true });
+    await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, { 
+      withCredentials: true,
+      signal,
+      timeout: 5000,
+    });
+    
+    // Check cancellation after CSRF call
+    if (signal?.aborted) {
+      throw new Error('Login request was cancelled');
+    }
     
     // Use JSON with proper CSRF handling for SPA stateful authentication
     // Tokens are now managed as httpOnly cookies for enhanced security
-    const response = await api.post<{
-      success: boolean;
-      user: {
-        id: string;
-        name: string;
-        email: string;
-        cpf: string;
-        gamification_progress?: {
-          points: number;
-          level: number;
-        };
-        lgpd_consent?: boolean;
-        lgpd_consent_at?: string;
-        last_login_at?: string;
-      };
-      registration_step?: string;
-    }>('/auth/login', {
+    const response = await api.post<LoginResponse>('/auth/login', {
       email: data.login, // Send login (CPF or email) in the email field
       password: data.password,
+    }, {
+      signal,
+      timeout: 10000,
     });
+    
+    // Check cancellation after login call
+    if (signal?.aborted) {
+      throw new Error('Login request was cancelled');
+    }
     
     // Check if registration is incomplete
     if (response.data.registration_step && response.data.registration_step !== 'completed') {
@@ -114,28 +121,70 @@ export const authApi = {
   },
 
   register: async (data: RegisterData): Promise<AuthResponse> => {
+    // Get CSRF cookie first
+    await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, { withCredentials: true });
+    
     // Step 1: Create user with basic info
     const step1Response = await api.post<{
       token: string;
       user_id: string;
       registration_step: string;
+      message: string;
     }>('/register/step1', {
       name: data.fullName,
+      cpf: data.cpf.replace(/[.-]/g, ''), // Remove CPF formatting
       email: data.email,
-      cpf: data.cpf,
+      birth_date: data.birthDate,
+      phone: data.phone.replace(/[()\s-]/g, ''), // Remove phone formatting
       lgpd_consent: true,
+    });
+    
+    const userId = step1Response.data.user_id;
+    const token = step1Response.data.token;
+    
+    // Step 2: Add address info
+    await api.post('/register/step2', {
+      user_id: userId,
+      street: data.address.street,
+      number: data.address.number,
+      complement: data.address.complement || '',
+      neighborhood: data.address.neighborhood,
+      city: data.address.city,
+      state: data.address.state,
+      cep: data.address.zipCode.replace(/-/g, ''), // Remove CEP formatting
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
+    });
+    
+    // Step 3: Set password and complete registration
+    const step3Response = await api.post<{
+      message: string;
+      user: LoginResponse['user'];
+    }>('/register/step3', {
+      user_id: userId,
+      password: data.password,
+      password_confirmation: data.confirmPassword,
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      }
     });
     
     // Return the response in the expected format
     return {
-      token: step1Response.data.token,
+      token: 'secured-httponly-cookie', // Token is now in httpOnly cookie
       user: {
-        id: step1Response.data.user_id,
-        fullName: data.fullName,
-        email: data.email,
-        cpf: data.cpf,
-        points: 0,
-        level: 1,
+        id: step3Response.data.user.id,
+        fullName: step3Response.data.user.name,
+        email: step3Response.data.user.email,
+        cpf: step3Response.data.user.cpf,
+        points: step3Response.data.user.gamification_progress?.points || 0,
+        level: step3Response.data.user.gamification_progress?.level || 1,
+        lgpd_consent: step3Response.data.user.lgpd_consent || false,
+        lgpd_consent_at: step3Response.data.user.lgpd_consent_at || undefined,
+        last_login_at: step3Response.data.user.last_login_at || undefined,
       }
     };
   },
@@ -156,8 +205,16 @@ export const authApi = {
   },
 
   getProfile: async (): Promise<AuthResponse['user']> => {
-    const response = await api.get<{ user: AuthResponse['user'] }>('/auth/user');
-    return response.data.user;
+    try {
+      const response = await api.get<{ user: AuthResponse['user'] }>('/auth/user');
+      return response.data.user;
+    } catch (error: any) {
+      // If unauthenticated, throw error to be handled by checkAuth
+      if (error.response?.status === 401 || error.response?.data?.message === 'Unauthenticated.') {
+        throw new Error('Unauthenticated');
+      }
+      throw error;
+    }
   },
 };
 

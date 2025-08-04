@@ -26,7 +26,20 @@ describe('UnifiedHealthAssessment', () => {
     
     // Create mock flow instance
     mockFlow = {
-      processResponse: jest.fn(),
+      processResponse: jest.fn().mockResolvedValue({
+        type: 'question',
+        question: {
+          id: 'default-question',
+          text: 'Default Question?',
+          type: 'boolean',
+          domain: 'test',
+          riskWeight: 1
+        },
+        progress: 0,
+        currentDomain: 'Test Domain',
+        currentLayer: 'Test Layer',
+        estimatedTimeRemaining: 5
+      }),
       getCurrentDomain: jest.fn().mockReturnValue('Avaliação Inicial'),
       getCurrentLayer: jest.fn().mockReturnValue('Triage'),
       getResponses: jest.fn().mockReturnValue({})
@@ -41,6 +54,24 @@ describe('UnifiedHealthAssessment', () => {
   });
 
   describe('Component Initialization', () => {
+    beforeEach(() => {
+      // Setup default mock response for initialization
+      mockFlow.processResponse.mockResolvedValue({
+        type: 'question',
+        question: {
+          id: 'init-question',
+          text: 'Initial Question?',
+          type: 'boolean',
+          domain: 'test',
+          riskWeight: 1
+        },
+        progress: 0,
+        currentDomain: 'Test Domain',
+        currentLayer: 'Test Layer',
+        estimatedTimeRemaining: 5
+      });
+    });
+
     it('should render loading state initially', () => {
       render(
         <UnifiedHealthAssessment 
@@ -478,7 +509,22 @@ describe('UnifiedHealthAssessment', () => {
   describe('Error Handling', () => {
     it('should handle errors gracefully', async () => {
       const consoleError = jest.spyOn(console, 'error').mockImplementation();
-      mockFlow.processResponse.mockRejectedValue(new Error('Test error'));
+      
+      // First render with a successful response to initialize
+      mockFlow.processResponse.mockResolvedValueOnce({
+        type: 'question',
+        question: {
+          id: 'test-question',
+          text: 'Test Question?',
+          type: 'boolean',
+          domain: 'test',
+          riskWeight: 1
+        },
+        progress: 10,
+        currentDomain: 'Test Domain',
+        currentLayer: 'Test Layer',
+        estimatedTimeRemaining: 5
+      });
 
       render(
         <UnifiedHealthAssessment 
@@ -486,6 +532,17 @@ describe('UnifiedHealthAssessment', () => {
           onDomainChange={mockOnDomainChange}
         />
       );
+
+      // Wait for initial render
+      await waitFor(() => {
+        expect(screen.getByText('Test Question?')).toBeInTheDocument();
+      });
+
+      // Now set up the error for the next call
+      mockFlow.processResponse.mockRejectedValueOnce(new Error('Test error'));
+
+      // Trigger an action that will cause an error
+      fireEvent.click(screen.getByText('✅ Sim'));
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith('Error processing response:', expect.any(Error));

@@ -1,12 +1,25 @@
 // Advanced Health Questionnaire System V2
 // Implements evidence-based screening tools with fraud detection
+//
+// NOTE: This file contains the complete clinical questionnaires (PHQ-9, GAD-7, AUDIT-C, NIDA, 
+// allergy screening, crisis intervention) and gamification logic.
+// For flow orchestration and UI components, see unified-health-flow.ts
+//
+// CLINICAL STANDARDS IMPLEMENTED:
+// ✅ Complete PHQ-9 (9 questions) - Depression screening with clinical cutoffs
+// ✅ Complete GAD-7 (7 questions) - Anxiety screening with clinical cutoffs  
+// ✅ AUDIT-C (3 questions) - Alcohol use disorder screening
+// ✅ NIDA Quick Screen (2 questions) - Substance use screening
+// ✅ Comprehensive Allergy Screening (7 questions) - Drug, food, environmental allergies
+// ✅ Crisis Intervention Protocols (9 questions) - Safety assessment and suicide risk
+// ✅ Enhanced Gamification - Badges for clinical excellence and safety
 
 import type { QuestionValue } from '@/types';
 
 export interface HealthQuestion {
   id: string;
   text: string;
-  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'scale' | 'date';
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'scale' | 'date' | 'chronic_conditions' | 'medication_list' | 'emergency_contact' | 'surgery_history';
   category: 'screening' | 'medical_history' | 'lifestyle' | 'mental_health' | 'validation';
   required: boolean;
   options?: Array<{
@@ -46,7 +59,7 @@ export interface HealthSection {
   };
 }
 
-// Validated clinical screening tools
+// Validated clinical screening tools - Complete PHQ-9 Implementation
 export const PHQ9_QUESTIONS: HealthQuestion[] = [
   {
     id: 'phq9_1',
@@ -54,7 +67,14 @@ export const PHQ9_QUESTIONS: HealthQuestion[] = [
     type: 'select',
     category: 'mental_health',
     required: true,
-    metadata: { validatedTool: 'PHQ-9' }
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'F32.9' }
   },
   {
     id: 'phq9_2',
@@ -62,17 +82,119 @@ export const PHQ9_QUESTIONS: HealthQuestion[] = [
     type: 'select',
     category: 'mental_health',
     required: true,
-    metadata: { validatedTool: 'PHQ-9' }
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'F32.9' }
   },
-  // ... rest of PHQ-9 questions
+  {
+    id: 'phq9_3',
+    text: 'Nas últimas 2 semanas, com que frequência você teve dificuldade para adormecer, continuar dormindo ou dormir demais?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'G47.00' }
+  },
+  {
+    id: 'phq9_4',
+    text: 'Nas últimas 2 semanas, com que frequência você se sentiu cansado ou com pouca energia?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'R53.83' }
+  },
+  {
+    id: 'phq9_5',
+    text: 'Nas últimas 2 semanas, com que frequência você teve falta de apetite ou comeu demais?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 2,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'R63.0' }
+  },
+  {
+    id: 'phq9_6',
+    text: 'Nas últimas 2 semanas, com que frequência você se sentiu mal consigo mesmo ou que é um fracasso ou que decepcionou sua família ou você mesmo?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 4,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'F32.9' }
+  },
+  {
+    id: 'phq9_7',
+    text: 'Nas últimas 2 semanas, com que frequência você teve dificuldade para se concentrar nas coisas como ler jornal ou assistir televisão?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'R41.840' }
+  },
+  {
+    id: 'phq9_8',
+    text: 'Nas últimas 2 semanas, com que frequência você se moveu ou falou tão devagar que outras pessoas poderiam ter notado? Ou o oposto - ficou tão agitado ou inquieto que se moveu muito mais do que o habitual?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'F32.9' }
+  },
   {
     id: 'phq9_9',
-    text: 'Nas últimas 2 semanas, teve pensamentos de que seria melhor estar morto ou de se machucar?',
+    text: 'Nas últimas 2 semanas, teve pensamentos de que seria melhor estar morto ou de se machucar de alguma forma?',
     type: 'select',
     category: 'mental_health',
     required: true,
     riskWeight: 10, // Highest risk weight for suicide screening
-    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'R45.851' }
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'PHQ-9', clinicalCode: 'R45.851', sensitiveInfo: true }
   }
 ];
 
@@ -83,9 +205,350 @@ export const GAD7_QUESTIONS: HealthQuestion[] = [
     type: 'select',
     category: 'mental_health',
     required: true,
-    metadata: { validatedTool: 'GAD-7' }
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'F41.1' }
   },
-  // ... rest of GAD-7 questions
+  {
+    id: 'gad7_2',
+    text: 'Nas últimas 2 semanas, com que frequência você não conseguiu parar ou controlar as preocupações?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'F41.1' }
+  },
+  {
+    id: 'gad7_3',
+    text: 'Nas últimas 2 semanas, com que frequência você se preocupou demais com coisas diferentes?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'F41.1' }
+  },
+  {
+    id: 'gad7_4',
+    text: 'Nas últimas 2 semanas, com que frequência você teve dificuldade para relaxar?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 2,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'F41.1' }
+  },
+  {
+    id: 'gad7_5',
+    text: 'Nas últimas 2 semanas, com que frequência você ficou tão inquieto que foi difícil permanecer parado?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'R45.1' }
+  },
+  {
+    id: 'gad7_6',
+    text: 'Nas últimas 2 semanas, com que frequência você ficou facilmente irritado ou chateado?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 2,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'R45.4' }
+  },
+  {
+    id: 'gad7_7',
+    text: 'Nas últimas 2 semanas, com que frequência você sentiu medo como se algo terrível fosse acontecer?',
+    type: 'select',
+    category: 'mental_health',
+    required: true,
+    riskWeight: 4,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Alguns dias' },
+      { value: 2, label: 'Mais da metade dos dias' },
+      { value: 3, label: 'Quase todos os dias' }
+    ],
+    metadata: { validatedTool: 'GAD-7', clinicalCode: 'F41.9' }
+  }
+];
+
+// AUDIT-C (Alcohol Use Disorders Identification Test - Consumption)
+export const AUDIT_C_QUESTIONS: HealthQuestion[] = [
+  {
+    id: 'audit_c_1',
+    text: 'Com que frequência você toma bebidas alcoólicas?',
+    type: 'select',
+    category: 'screening',
+    required: true,
+    riskWeight: 3,
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Mensalmente ou menos' },
+      { value: 2, label: '2-4 vezes por mês' },
+      { value: 3, label: '2-3 vezes por semana' },
+      { value: 4, label: '4 ou mais vezes por semana' }
+    ],
+    metadata: { validatedTool: 'AUDIT-C', clinicalCode: 'F10.10' }
+  },
+  {
+    id: 'audit_c_2',
+    text: 'Quantas doses de álcool você toma em um dia típico quando está bebendo?',
+    type: 'select',
+    category: 'screening',
+    required: true,
+    riskWeight: 3,
+    conditionalOn: {
+      questionId: 'audit_c_1',
+      values: [1, 2, 3, 4]
+    },
+    options: [
+      { value: 0, label: '1 ou 2' },
+      { value: 1, label: '3 ou 4' },
+      { value: 2, label: '5 ou 6' },
+      { value: 3, label: '7-9' },
+      { value: 4, label: '10 ou mais' }
+    ],
+    metadata: { validatedTool: 'AUDIT-C', clinicalCode: 'F10.10' }
+  },
+  {
+    id: 'audit_c_3',
+    text: 'Com que frequência você toma 6 ou mais doses de bebida em uma ocasião?',
+    type: 'select',
+    category: 'screening',
+    required: true,
+    riskWeight: 4,
+    conditionalOn: {
+      questionId: 'audit_c_1',
+      values: [1, 2, 3, 4]
+    },
+    options: [
+      { value: 0, label: 'Nunca' },
+      { value: 1, label: 'Menos que mensalmente' },
+      { value: 2, label: 'Mensalmente' },
+      { value: 3, label: 'Semanalmente' },
+      { value: 4, label: 'Diariamente ou quase' }
+    ],
+    metadata: { validatedTool: 'AUDIT-C', clinicalCode: 'F10.10' }
+  }
+];
+
+// NIDA Quick Screen (Modified for Substance Use)
+export const NIDA_QUESTIONS: HealthQuestion[] = [
+  {
+    id: 'nida_1',
+    text: 'No último ano, você usou alguma dessas substâncias mais do que pretendia?',
+    type: 'select',
+    category: 'screening',
+    required: true,
+    riskWeight: 4,
+    options: [
+      { value: 'no', label: 'Não' },
+      { value: 'yes_alcohol', label: 'Sim - Álcool' },
+      { value: 'yes_tobacco', label: 'Sim - Tabaco/Nicotina' },
+      { value: 'yes_prescription', label: 'Sim - Medicamentos controlados' },
+      { value: 'yes_illegal', label: 'Sim - Drogas ilícitas' }
+    ],
+    metadata: { validatedTool: 'NIDA-Modified', clinicalCode: 'F19', sensitiveInfo: true }
+  },
+  {
+    id: 'nida_2',
+    text: 'Nos últimos 12 meses, você usou alguma dessas substâncias?',
+    type: 'multiselect',
+    category: 'screening',
+    required: true,
+    riskWeight: 4,
+    conditionalOn: {
+      questionId: 'nida_1',
+      values: ['yes_alcohol', 'yes_tobacco', 'yes_prescription', 'yes_illegal']
+    },
+    options: [
+      { value: 'none', label: 'Nenhuma das listadas' },
+      { value: 'tobacco', label: 'Tabaco/Cigarro' },
+      { value: 'cannabis', label: 'Maconha/Cannabis' },
+      { value: 'cocaine', label: 'Cocaína' },
+      { value: 'stimulants', label: 'Estimulantes (anfetaminas)' },
+      { value: 'sedatives', label: 'Sedativos (sem prescrição)' },
+      { value: 'hallucinogens', label: 'Alucinógenos' },
+      { value: 'opioids', label: 'Opioides (sem prescrição)' },
+      { value: 'inhalants', label: 'Inalantes' }
+    ],
+    metadata: { validatedTool: 'ASSIST', clinicalCode: 'F19', sensitiveInfo: true }
+  }
+];
+
+// Comprehensive Allergy Screening
+export const ALLERGY_SCREENING_QUESTIONS: HealthQuestion[] = [
+  {
+    id: 'has_allergies',
+    text: 'Você tem alguma alergia conhecida?',
+    type: 'boolean',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 2,
+    metadata: { clinicalCode: 'Z88' }
+  },
+  {
+    id: 'medication_allergies',
+    text: 'Selecione todas as alergias a medicamentos que você tem:',
+    type: 'multiselect',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 3,
+    conditionalOn: {
+      questionId: 'has_allergies',
+      values: [true]
+    },
+    options: [
+      { value: 'penicillin', label: 'Penicilina' },
+      { value: 'aspirin', label: 'Aspirina' },
+      { value: 'ibuprofen', label: 'Ibuprofeno' },
+      { value: 'sulfa', label: 'Sulfa' },
+      { value: 'contrast_dye', label: 'Contraste radiológico' },
+      { value: 'anesthesia', label: 'Anestesia' },
+      { value: 'codeine', label: 'Codeína' },
+      { value: 'antibiotics_other', label: 'Outros antibióticos' },
+      { value: 'none', label: 'Nenhuma alergia a medicamentos' },
+      { value: 'other', label: 'Outra (especificar)' }
+    ],
+    metadata: { clinicalCode: 'Z88.0' }
+  },
+  {
+    id: 'medication_allergy_reactions',
+    text: 'Que tipo de reação você teve aos medicamentos?',
+    type: 'multiselect',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 3,
+    conditionalOn: {
+      questionId: 'medication_allergies',
+      values: ['penicillin', 'aspirin', 'ibuprofen', 'sulfa', 'contrast_dye', 'anesthesia', 'codeine', 'antibiotics_other', 'other']
+    },
+    options: [
+      { value: 'rash', label: 'Erupção cutânea/Urticária' },
+      { value: 'breathing_difficulty', label: 'Dificuldade para respirar' },
+      { value: 'swelling', label: 'Inchaço (face, lábios, língua)' },
+      { value: 'nausea', label: 'Náusea/Vômito' },
+      { value: 'diarrhea', label: 'Diarreia' },
+      { value: 'anaphylaxis', label: 'Anafilaxia (reação grave)' },
+      { value: 'other', label: 'Outra reação' }
+    ],
+    metadata: { clinicalCode: 'T88.6' }
+  },
+  {
+    id: 'food_allergies',
+    text: 'Você tem alergias alimentares?',
+    type: 'multiselect',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 2,
+    conditionalOn: {
+      questionId: 'has_allergies',
+      values: [true]
+    },
+    options: [
+      { value: 'peanuts', label: 'Amendoim' },
+      { value: 'tree_nuts', label: 'Castanhas/Nozes' },
+      { value: 'shellfish', label: 'Frutos do mar/Crustáceos' },
+      { value: 'fish', label: 'Peixes' },
+      { value: 'eggs', label: 'Ovos' },
+      { value: 'milk', label: 'Leite/Laticínios' },
+      { value: 'soy', label: 'Soja' },
+      { value: 'wheat', label: 'Trigo/Glúten' },
+      { value: 'none', label: 'Nenhuma alergia alimentar' },
+      { value: 'other', label: 'Outra (especificar)' }
+    ],
+    metadata: { clinicalCode: 'Z91.010' }
+  },
+  {
+    id: 'environmental_allergies',
+    text: 'Você tem alergias ambientais?',
+    type: 'multiselect',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 1,
+    conditionalOn: {
+      questionId: 'has_allergies',
+      values: [true]
+    },
+    options: [
+      { value: 'pollen', label: 'Pólen' },
+      { value: 'dust_mites', label: 'Ácaros' },
+      { value: 'pet_dander', label: 'Pelos de animais' },
+      { value: 'mold', label: 'Mofo/Fungos' },
+      { value: 'latex', label: 'Látex' },
+      { value: 'insects', label: 'Picadas de insetos' },
+      { value: 'perfumes', label: 'Perfumes/Químicos' },
+      { value: 'none', label: 'Nenhuma alergia ambiental' },
+      { value: 'other', label: 'Outra (especificar)' }
+    ],
+    metadata: { clinicalCode: 'J30.9' }
+  },
+  {
+    id: 'allergy_severity',
+    text: 'Em geral, como você classificaria a gravidade das suas alergias?',
+    type: 'select',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 3,
+    conditionalOn: {
+      questionId: 'has_allergies',
+      values: [true]
+    },
+    options: [
+      { value: 'mild', label: 'Leve (sintomas menores, controláveis)' },
+      { value: 'moderate', label: 'Moderada (requer medicação regularmente)' },
+      { value: 'severe', label: 'Grave (interfere nas atividades diárias)' },
+      { value: 'life_threatening', label: 'Risco de vida (anafilaxia/emergência)' }
+    ],
+    metadata: { clinicalCode: 'T78.4' }
+  },
+  {
+    id: 'carries_epinephrine',
+    text: 'Você carrega um auto-injetor de epinefrina (EpiPen)?',
+    type: 'boolean',
+    category: 'medical_history',
+    required: true,
+    riskWeight: 4,
+    conditionalOn: {
+      questionId: 'allergy_severity',
+      values: ['severe', 'life_threatening']
+    },
+    metadata: { clinicalCode: 'Z88.1' }
+  }
 ];
 
 // Consistency check questions (paired for fraud detection)
@@ -193,51 +656,52 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
     priority: 'high',
     questions: [
       {
-        id: 'chronic_conditions',
-        text: 'Selecione todas as condições que você tem ou teve:',
-        type: 'multiselect',
+        id: 'chronic_conditions_structured',
+        text: 'Condições Crônicas de Saúde - Seleção Estruturada',
+        type: 'chronic_conditions',
         category: 'medical_history',
         required: true,
         riskWeight: 5,
-        options: [
-          { value: 'diabetes', label: 'Diabetes' },
-          { value: 'hypertension', label: 'Hipertensão (Pressão Alta)' },
-          { value: 'heart_disease', label: 'Doença Cardíaca' },
-          { value: 'respiratory_disease', label: 'Doença Respiratória (Asma, DPOC)' },
-          { value: 'cancer', label: 'Câncer' },
-          { value: 'kidney_disease', label: 'Doença Renal' },
-          { value: 'liver_disease', label: 'Doença Hepática' },
-          { value: 'thyroid', label: 'Problemas de Tireoide' },
-          { value: 'arthritis', label: 'Artrite/Artrose' },
-          { value: 'mental_health', label: 'Condições de Saúde Mental' },
-          { value: 'none', label: 'Nenhuma das acima' }
-        ]
-      },
-      {
-        id: 'condition_details',
-        text: 'Para cada condição selecionada, quando foi diagnosticada?',
-        type: 'text',
-        category: 'medical_history',
-        required: false,
-        conditionalOn: { questionId: 'chronic_conditions', values: ['*'] }
+        metadata: {
+          clinicalCode: 'Z87.891'
+        }
       },
       {
         id: 'medications_current',
-        text: 'Liste todos os medicamentos que você toma regularmente',
-        type: 'text',
+        text: 'Medicamentos Atuais - Seleção Estruturada',
+        type: 'medication_list',
         category: 'medical_history',
         required: true,
+        riskWeight: 3,
         validation: { 
           crossCheck: ['medication_allergies', 'chronic_conditions']
+        },
+        metadata: {
+          clinicalCode: 'Z88.3'
         }
       },
       {
         id: 'surgeries',
-        text: 'Você já fez alguma cirurgia? Se sim, quais e quando?',
-        type: 'text',
+        text: 'Histórico de Cirurgias - Seleção Estruturada',
+        type: 'surgery_history',
         category: 'medical_history',
-        required: false,
-        validationPair: 'hospitalization_history'
+        required: true,
+        riskWeight: 2,
+        validationPair: 'hospitalization_history',
+        metadata: {
+          clinicalCode: 'Z98.89'
+        }
+      },
+      {
+        id: 'emergency_contact',
+        text: 'Contato de Emergência - Informações Estruturadas',
+        type: 'emergency_contact',
+        category: 'medical_history',
+        required: true,
+        riskWeight: 1,
+        metadata: {
+          clinicalCode: 'Z76.2'
+        }
       },
       {
         id: 'hospitalization_history',
@@ -321,6 +785,139 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
     ]
   },
   {
+    id: 'crisis_intervention',
+    title: 'Avaliação de Segurança',
+    description: 'Protocolo de segurança e bem-estar',
+    estimatedMinutes: 3,
+    priority: 'critical',
+    questions: [
+      {
+        id: 'safety_check',
+        text: 'Você está se sentindo seguro neste momento?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: 10,
+        metadata: { sensitiveInfo: true, clinicalCode: 'Z91.5' }
+      },
+      {
+        id: 'suicidal_ideation_screen',
+        text: 'Nos últimos 2 meses, você teve pensamentos de se machucar?',
+        type: 'select',
+        category: 'screening',
+        required: true,
+        riskWeight: 10,
+        options: [
+          { value: 'never', label: 'Nunca' },
+          { value: 'passive', label: 'Pensamentos passivos (seria melhor estar morto)' },
+          { value: 'active_no_plan', label: 'Pensamentos ativos sem plano específico' },
+          { value: 'active_with_plan', label: 'Pensamentos com plano específico' },
+          { value: 'recent_attempt', label: 'Tentativa recente' }
+        ],
+        metadata: { sensitiveInfo: true, clinicalCode: 'R45.851' }
+      },
+      {
+        id: 'suicide_plan_details',
+        text: 'Você tem um plano específico para se machucar?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: 10,
+        conditionalOn: {
+          questionId: 'suicidal_ideation_screen',
+          values: ['active_with_plan', 'recent_attempt']
+        },
+        metadata: { sensitiveInfo: true, clinicalCode: 'R45.851' }
+      },
+      {
+        id: 'suicide_means_access',
+        text: 'Você tem acesso aos meios para executar esse plano?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: 10,
+        conditionalOn: {
+          questionId: 'suicide_plan_details',
+          values: [true]
+        },
+        metadata: { sensitiveInfo: true }
+      },
+      {
+        id: 'protective_factors',
+        text: 'O que tem impedido você de agir sobre esses pensamentos?',
+        type: 'multiselect',
+        category: 'screening',
+        required: true,
+        riskWeight: -2,
+        conditionalOn: {
+          questionId: 'suicidal_ideation_screen',
+          values: ['passive', 'active_no_plan', 'active_with_plan']
+        },
+        options: [
+          { value: 'family', label: 'Família/Amigos' },
+          { value: 'children', label: 'Filhos' },
+          { value: 'pets', label: 'Animais de estimação' },
+          { value: 'religion', label: 'Crenças religiosas/espirituais' },
+          { value: 'hope', label: 'Esperança de melhora' },
+          { value: 'fear', label: 'Medo da dor' },
+          { value: 'none', label: 'Nada específico' }
+        ]
+      },
+      {
+        id: 'support_system',
+        text: 'Há alguém com você ou que você possa contatar agora se precisar de ajuda?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: -3,
+        conditionalOn: {
+          questionId: 'suicidal_ideation_screen',
+          values: ['passive', 'active_no_plan', 'active_with_plan', 'recent_attempt']
+        }
+      },
+      {
+        id: 'previous_attempts',
+        text: 'Você já tentou se machucar antes?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: 8,
+        conditionalOn: {
+          questionId: 'suicidal_ideation_screen',
+          values: ['passive', 'active_no_plan', 'active_with_plan']
+        },
+        metadata: { sensitiveInfo: true, clinicalCode: 'Z91.5' }
+      },
+      {
+        id: 'violence_safety',
+        text: 'Você já se sentiu ameaçado ou machucado por alguém próximo a você?',
+        type: 'select',
+        category: 'screening',
+        required: true,
+        riskWeight: 5,
+        options: [
+          { value: 'never', label: 'Nunca' },
+          { value: 'past', label: 'No passado, mas não atualmente' },
+          { value: 'current', label: 'Sim, atualmente' }
+        ],
+        metadata: { sensitiveInfo: true, clinicalCode: 'Z91.410' }
+      },
+      {
+        id: 'safety_plan_willingness',
+        text: 'Você está disposto a criar um plano de segurança conosco agora?',
+        type: 'boolean',
+        category: 'screening',
+        required: true,
+        riskWeight: -3,
+        conditionalOn: {
+          questionId: 'suicidal_ideation_screen',
+          values: ['passive', 'active_no_plan', 'active_with_plan', 'recent_attempt']
+        },
+        metadata: { clinicalCode: 'Z73.6' }
+      }
+    ]
+  },
+  {
     id: 'mental_health_screening',
     title: 'Bem-estar Mental',
     description: 'Avaliação de saúde mental validada clinicamente',
@@ -351,20 +948,17 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
     ]
   },
   {
-    id: 'risk_behaviors',
-    title: 'Fatores de Risco',
-    description: 'Identificação de comportamentos de risco',
-    estimatedMinutes: 3,
+    id: 'substance_screening',
+    title: 'Avaliação de Uso de Substâncias',
+    description: 'Triagem clínica para álcool e outras substâncias (AUDIT-C e NIDA)',
+    estimatedMinutes: 4,
     priority: 'high',
     questions: [
-      {
-        id: 'substance_use',
-        text: 'Você já usou substâncias não prescritas para lidar com stress ou problemas?',
-        type: 'boolean',
-        category: 'screening',
-        required: true,
-        riskWeight: 6
-      },
+      // Complete AUDIT-C alcohol screening
+      ...AUDIT_C_QUESTIONS,
+      // Complete NIDA substance use screening  
+      ...NIDA_QUESTIONS,
+      // Additional lifestyle risk factors
       {
         id: 'driving_habits',
         text: 'Você sempre usa cinto de segurança ao dirigir ou andar de carro?',
@@ -379,6 +973,17 @@ export const HEALTH_QUESTIONNAIRE_SECTIONS: HealthSection[] = [
         category: 'screening',
         required: false
       }
+    ]
+  },
+  {
+    id: 'allergy_assessment',
+    title: 'Avaliação de Alergias e Segurança',
+    description: 'Triagem abrangente de alergias para sua segurança médica',
+    estimatedMinutes: 3,
+    priority: 'high',
+    questions: [
+      // Complete comprehensive allergy screening
+      ...ALLERGY_SCREENING_QUESTIONS
     ]
   },
   {
@@ -399,6 +1004,8 @@ export interface RiskScore {
     mental_health: number;
     substance_abuse: number;
     chronic_disease: number;
+    allergy_risk: number;
+    safety_risk: number;
   };
   flags: string[];
   recommendations: string[];
@@ -411,42 +1018,140 @@ export function calculateRiskScore(responses: Record<string, any>): RiskScore {
       cardiovascular: 0,
       mental_health: 0,
       substance_abuse: 0,
-      chronic_disease: 0
+      chronic_disease: 0,
+      allergy_risk: 0,
+      safety_risk: 0
     },
     flags: [],
     recommendations: []
   };
 
-  // PHQ-9 scoring
-  const phq9Score = Object.keys(responses)
-    .filter(key => key.startsWith('phq9_'))
-    .reduce((sum, key) => sum + (responses[key] || 0), 0);
+  // Enhanced PHQ-9 scoring with clinical cutoffs
+  const phq9Score = PHQ9_QUESTIONS.reduce((sum, q) => sum + (responses[q.id] || 0), 0);
   
-  if (phq9Score >= 10) {
-    score.categories.mental_health = phq9Score;
+  if (phq9Score >= 20) {
+    score.categories.mental_health += 30;
+    score.flags.push('severe_depression');
+    score.recommendations.push('Encaminhamento urgente para psiquiatra - depressão severa');
+  } else if (phq9Score >= 15) {
+    score.categories.mental_health += 25;
+    score.flags.push('moderately_severe_depression');
+    score.recommendations.push('Encaminhamento para profissional de saúde mental - depressão moderadamente severa');
+  } else if (phq9Score >= 10) {
+    score.categories.mental_health += 20;
     score.flags.push('moderate_depression');
+    score.recommendations.push('Avaliação de saúde mental recomendada - depressão moderada');
+  } else if (phq9Score >= 5) {
+    score.categories.mental_health += 10;
+    score.flags.push('mild_depression');
+    score.recommendations.push('Monitoramento de sintomas depressivos leves');
   }
   
-  // Validate PHQ-9 question 9 response before flagging suicide risk
+  // Critical PHQ-9 question 9 (suicidal ideation)
   if (responses.phq9_9 !== undefined && 
       responses.phq9_9 !== null && 
       typeof responses.phq9_9 === 'number' && 
       responses.phq9_9 > 0) {
+    score.categories.safety_risk += 50;
     score.flags.push('suicide_risk');
-    score.recommendations.push('Encaminhamento urgente para profissional de saúde mental');
+    score.recommendations.push('EMERGÊNCIA: Encaminhamento imediato para profissional de saúde mental');
   }
 
-  // GAD-7 scoring
-  const gad7Score = Object.keys(responses)
-    .filter(key => key.startsWith('gad7_'))
-    .reduce((sum, key) => sum + (responses[key] || 0), 0);
+  // Enhanced GAD-7 scoring with clinical cutoffs
+  const gad7Score = GAD7_QUESTIONS.reduce((sum, q) => sum + (responses[q.id] || 0), 0);
   
-  if (gad7Score >= 8) {
-    score.categories.mental_health += gad7Score;
-    score.flags.push('anxiety_disorder');
+  if (gad7Score >= 15) {
+    score.categories.mental_health += 25;
+    score.flags.push('severe_anxiety');
+    score.recommendations.push('Encaminhamento urgente para avaliação de transtorno de ansiedade severo');
+  } else if (gad7Score >= 10) {
+    score.categories.mental_health += 20;
+    score.flags.push('moderate_anxiety');
+    score.recommendations.push('Avaliação para transtorno de ansiedade moderado');
+  } else if (gad7Score >= 5) {
+    score.categories.mental_health += 10;
+    score.flags.push('mild_anxiety');
+    score.recommendations.push('Monitoramento de sintomas de ansiedade leves');
   }
 
-  // Cardiovascular risk factors
+  // AUDIT-C alcohol screening with clinical cutoffs
+  const auditScore = (responses.audit_c_1 || 0) + (responses.audit_c_2 || 0) + (responses.audit_c_3 || 0);
+  if (auditScore >= 8) {
+    score.categories.substance_abuse += 30;
+    score.flags.push('high_risk_alcohol_use');
+    score.recommendations.push('Encaminhamento para avaliação de transtorno por uso de álcool');
+  } else if (auditScore >= 4) {
+    score.categories.substance_abuse += 20;
+    score.flags.push('moderate_risk_alcohol_use');
+    score.recommendations.push('Intervenção breve para uso de álcool recomendada');
+  } else if (auditScore >= 3) {
+    score.categories.substance_abuse += 10;
+    score.flags.push('mild_risk_alcohol_use');
+    score.recommendations.push('Educação sobre uso seguro de álcool');
+  }
+
+  // NIDA substance use screening
+  if (responses.nida_1 && responses.nida_1 !== 'no') {
+    score.categories.substance_abuse += 25;
+    score.flags.push('substance_use_concern');
+    score.recommendations.push('Avaliação completa de uso de substâncias recomendada');
+    
+    if (responses.nida_1 === 'yes_illegal') {
+      score.categories.substance_abuse += 15;
+      score.flags.push('illegal_drug_use');
+    }
+    
+    if (responses.nida_2 && responses.nida_2.includes('cocaine')) {
+      score.categories.substance_abuse += 20;
+      score.flags.push('high_risk_drug_use');
+    }
+  }
+
+  // Allergy risk assessment
+  if (responses.allergy_severity === 'life_threatening') {
+    score.categories.allergy_risk += 40;
+    score.flags.push('life_threatening_allergies');
+    score.recommendations.push('Protocolo de emergência para anafilaxia deve estar disponível');
+    
+    if (responses.carries_epinephrine !== true) {
+      score.categories.allergy_risk += 20;
+      score.flags.push('missing_epinephrine');
+      score.recommendations.push('Prescrição de auto-injetor de epinefrina urgente');
+    }
+  } else if (responses.allergy_severity === 'severe') {
+    score.categories.allergy_risk += 25;
+    score.flags.push('severe_allergies');
+    score.recommendations.push('Avaliação alergológica especializada recomendada');
+  }
+
+  // Crisis intervention and safety assessment
+  if (responses.suicidal_ideation_screen && responses.suicidal_ideation_screen !== 'never') {
+    if (responses.suicidal_ideation_screen === 'recent_attempt') {
+      score.categories.safety_risk += 60;
+      score.flags.push('recent_suicide_attempt');
+      score.recommendations.push('EMERGÊNCIA: Avaliação psiquiátrica imediata obrigatória');
+    } else if (responses.suicidal_ideation_screen === 'active_with_plan') {
+      score.categories.safety_risk += 50;
+      score.flags.push('active_suicidal_ideation_with_plan');
+      score.recommendations.push('EMERGÊNCIA: Intervenção de crise imediata');
+    } else if (responses.suicidal_ideation_screen === 'active_no_plan') {
+      score.categories.safety_risk += 35;
+      score.flags.push('active_suicidal_ideation');
+      score.recommendations.push('Avaliação de risco suicida urgente');
+    } else if (responses.suicidal_ideation_screen === 'passive') {
+      score.categories.safety_risk += 20;
+      score.flags.push('passive_suicidal_ideation');
+      score.recommendations.push('Acompanhamento de saúde mental prioritário');
+    }
+  }
+
+  if (responses.violence_safety === 'current') {
+    score.categories.safety_risk += 30;
+    score.flags.push('current_violence_exposure');
+    score.recommendations.push('Protocolo de segurança para violência doméstica');
+  }
+
+  // Enhanced cardiovascular risk factors
   const cvRiskFactors = [
     responses.chronic_conditions?.includes('hypertension'),
     responses.chronic_conditions?.includes('diabetes'),
@@ -454,10 +1159,21 @@ export function calculateRiskScore(responses: Record<string, any>): RiskScore {
     responses.smoking_status === 'current',
     responses.bmi > 30,
     responses.exercise_frequency < 3,
-    responses.family_conditions?.includes('heart_disease')
+    responses.family_conditions?.includes('heart_disease'),
+    responses.audit_c_1 >= 3, // Heavy alcohol use
+    responses.age > 65
   ].filter(Boolean).length;
 
-  score.categories.cardiovascular = cvRiskFactors * 15;
+  score.categories.cardiovascular = cvRiskFactors * 12;
+
+  // Enhanced chronic disease risk
+  if (responses.chronic_conditions?.length > 3) {
+    score.categories.chronic_disease += 25;
+    score.flags.push('multiple_chronic_conditions');
+  } else if (responses.chronic_conditions?.length > 1) {
+    score.categories.chronic_disease += 15;
+    score.flags.push('comorbid_conditions');
+  }
 
   // Overall risk calculation
   score.overall = Object.values(score.categories).reduce((sum, val) => sum + val, 0);
@@ -570,23 +1286,99 @@ export function calculateHealthScore(responses: Record<string, any>, fraudIndica
     badges.push('honest_reporter');
   }
   
-  // Bonus for completeness
-  const completionRate = Object.keys(responses).length / 50; // Assuming ~50 total questions
+  // Updated total question count to include all new clinical assessments
+  const expectedQuestions = 80; // Updated for PHQ-9, GAD-7, AUDIT-C, NIDA, allergy screening, crisis intervention
+  const completionRate = Object.keys(responses).length / expectedQuestions;
   if (completionRate > 0.9) {
     badges.push('thorough_responder');
     baseScore += 5;
   }
   
-  // Health achievements
+  // Mental Health badges - Complete PHQ-9 and GAD-7 assessments
+  const phq9Completed = PHQ9_QUESTIONS.every(q => responses[q.id] !== undefined);
+  const gad7Completed = GAD7_QUESTIONS.every(q => responses[q.id] !== undefined);
+  if (phq9Completed && gad7Completed) {
+    badges.push('mental_wellness_champion');
+    baseScore += 15;
+    
+    // Additional badge for completing mental health screening with low risk
+    const phq9Score = PHQ9_QUESTIONS.reduce((sum, q) => sum + (responses[q.id] || 0), 0);
+    const gad7Score = GAD7_QUESTIONS.reduce((sum, q) => sum + (responses[q.id] || 0), 0);
+    if (phq9Score < 5 && gad7Score < 5) {
+      badges.push('mental_health_resilient');
+      baseScore += 10;
+    }
+  }
+  
+  // Substance screening badges - Complete AUDIT-C and NIDA assessments
+  const auditCompleted = AUDIT_C_QUESTIONS.every(q => responses[q.id] !== undefined);
+  const nidaCompleted = NIDA_QUESTIONS.every(q => responses[q.id] !== undefined);
+  if (auditCompleted && nidaCompleted) {
+    badges.push('substance_awareness_advocate');
+    baseScore += 10;
+    
+    // Low-risk substance use badge
+    if (responses.audit_c_1 === 0 && responses.nida_1 === 'no') {
+      badges.push('substance_free_lifestyle');
+      baseScore += 15;
+    }
+  }
+  
+  // Allergy safety badges - Complete comprehensive allergy screening
+  const allergyCompleted = ALLERGY_SCREENING_QUESTIONS.every(q => 
+    responses[q.id] !== undefined || 
+    (q.conditionalOn && !q.conditionalOn.values.includes(responses[q.conditionalOn.questionId]))
+  );
+  if (allergyCompleted) {
+    badges.push('allergy_safety_expert');
+    baseScore += 8;
+    
+    // Carries EpiPen badge for severe allergies
+    if (responses.carries_epinephrine === true) {
+      badges.push('emergency_prepared');
+      baseScore += 12;
+    }
+  }
+  
+  // Crisis intervention and safety badges
+  if (responses.safety_check === true && responses.suicidal_ideation_screen === 'never') {
+    badges.push('safety_first_champion');
+    baseScore += 20;
+  }
+  
+  if (responses.safety_plan_willingness === true) {
+    badges.push('proactive_safety_planner');
+    baseScore += 10;
+  }
+  
+  // Health lifestyle achievements (existing)
   if (responses.exercise_frequency >= 5) badges.push('fitness_enthusiast');
   if (responses.sleep_hours >= 7 && responses.sleep_hours <= 9) badges.push('sleep_champion');
   if (!responses.smoking_status || responses.smoking_status === 'never') badges.push('smoke_free');
   
-  // Determine level
+  // Clinical excellence badges - completion of all major sections
+  const majorSectionsCompleted = [
+    phq9Completed && gad7Completed,
+    auditCompleted && nidaCompleted,
+    allergyCompleted,
+    responses.safety_check !== undefined
+  ].filter(Boolean).length;
+  
+  if (majorSectionsCompleted >= 3) {
+    badges.push('clinical_excellence');
+    baseScore += 25;
+  }
+  
+  if (majorSectionsCompleted === 4) {
+    badges.push('comprehensive_health_advocate');
+    baseScore += 30;
+  }
+  
+  // Determine level with updated thresholds
   let level: 'bronze' | 'silver' | 'gold' | 'platinum' = 'bronze';
-  if (baseScore >= 90) level = 'platinum';
-  else if (baseScore >= 80) level = 'gold';
-  else if (baseScore >= 70) level = 'silver';
+  if (baseScore >= 95) level = 'platinum';
+  else if (baseScore >= 85) level = 'gold';
+  else if (baseScore >= 75) level = 'silver';
   
   return {
     healthScore: Math.max(0, Math.min(100, baseScore)),
@@ -597,8 +1389,9 @@ export function calculateHealthScore(responses: Record<string, any>, fraudIndica
     },
     level,
     nextRewards: [
-      'Complete mental health section for "Mental Wellness" badge',
-      'Add emergency contact for "Prepared" badge'
+      'Complete all clinical assessments for "Clinical Excellence" badge',
+      'Maintain safety protocols for "Safety Champion" badge',
+      'Complete substance screening for "Substance Awareness" badge'
     ]
   };
 }

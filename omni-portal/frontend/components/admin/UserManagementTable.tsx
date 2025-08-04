@@ -128,7 +128,7 @@ export const UserManagementTable: React.FC = () => {
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'destructive';
+        return 'error';
       case 'hr':
         return 'default';
       case 'beneficiary':
@@ -245,8 +245,8 @@ export const UserManagementTable: React.FC = () => {
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant={getRoleBadgeVariant(user.role)}>
-                        {user.role}
+                      <Badge variant={getRoleBadgeVariant(user.role || 'beneficiary')}>
+                        {user.role || 'beneficiary'}
                       </Badge>
                     </TableCell>
                     <TableCell>

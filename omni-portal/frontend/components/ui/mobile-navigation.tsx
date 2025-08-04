@@ -10,11 +10,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navigationItems = [
-  { href: '/home', label: 'Dashboard', icon: Home },
-  { href: '/profile', label: 'Profile', icon: User },
-  { href: '/documents', label: 'Documents', icon: FileText },
-  { href: '/interview', label: 'Interview', icon: Calendar },
-  { href: '/health', label: 'Health', icon: Heart },
+  { href: '/home', label: 'Painel', icon: Home },
+  { href: '/profile', label: 'Perfil', icon: User },
+  { href: '/documents', label: 'Documentos', icon: FileText },
+  { href: '/interview', label: 'Entrevista', icon: Calendar },
+  { href: '/health', label: 'Saúde', icon: Heart },
 ];
 
 export function MobileNavigation() {

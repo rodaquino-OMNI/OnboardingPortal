@@ -1,75 +1,155 @@
-// Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
+import 'jest-axe/extend-expect'
 
-// Set required environment variables for tests
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000/api';
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+// Polyfill fetch for test environment (required for MSW and API calls)
+import { TextEncoder, TextDecoder } from 'util'
+global.TextEncoder = TextEncoder
+global.TextDecoder = TextDecoder
 
-// Optimized Next.js router mock - cache the mock object
-const mockRouter = {
-  push: jest.fn(),
-  replace: jest.fn(),
-  prefetch: jest.fn(),
-  back: jest.fn(),
-};
+// Fetch polyfill for Node.js test environment
+global.fetch = require('node-fetch')
 
-const mockSearchParams = new URLSearchParams();
-
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-    replace: jest.fn(),
-    prefetch: jest.fn(),
-    back: jest.fn(),
-  }),
-  useSearchParams: () => mockSearchParams,
-  usePathname: () => '',
-}));
-
-// Optimized global mocks - create once and reuse
-const mockIntersectionObserver = class IntersectionObserver {
+// Mock IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  disconnect() {}
   observe() {}
   unobserve() {}
-  disconnect() {}
-};
+}
 
-const mockResizeObserver = class ResizeObserver {
+// Mock ResizeObserver  
+global.ResizeObserver = class ResizeObserver {
+  constructor() {}
+  disconnect() {}
   observe() {}
   unobserve() {}
-  disconnect() {}
-};
+}
 
-const mockMatchMedia = jest.fn().mockImplementation(query => ({
-  matches: false,
-  media: query,
-  onchange: null,
-  addListener: jest.fn(),
-  removeListener: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
-  dispatchEvent: jest.fn(),
-}));
-
-// Apply optimized mocks
-global.IntersectionObserver = mockIntersectionObserver;
-global.ResizeObserver = mockResizeObserver;
+// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: mockMatchMedia,
-});
+  value: jest.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+})
 
-// Optimized console error filtering - more specific and performant
+// Mock performance.now
+global.performance = {
+  ...global.performance,
+  now: jest.fn(() => Date.now()),
+}
+
+// Mock BroadcastChannel
+global.BroadcastChannel = class BroadcastChannel {
+  constructor(name) {
+    this.name = name
+    this.listeners = []
+  }
+  postMessage(message) {
+    this.listeners.forEach(listener => {
+      listener({ data: message })
+    })
+  }
+  addEventListener(event, callback) {
+    if (event === 'message') {
+      this.listeners.push(callback)
+    }
+  }
+  removeEventListener(event, callback) {
+    if (event === 'message') {
+      this.listeners = this.listeners.filter(l => l !== callback)
+    }
+  }
+  close() {
+    this.listeners = []
+  }
+}
+
+// Mock window.location
+delete window.location
+window.location = { 
+  pathname: '/',
+  href: 'http://localhost:3000',
+  origin: 'http://localhost:3000',
+  reload: jest.fn(),
+}
+
+// Mock act for async operations
+global.act = require('react').act
+
+// Add TextEncoder/TextDecoder for MSW
+const { TextEncoder, TextDecoder } = require('util')
+global.TextEncoder = TextEncoder
+global.TextDecoder = TextDecoder
+
+// Add polyfills for MSW
+if (typeof global.Request === 'undefined') {
+  global.Request = class Request {
+    constructor(input, init) {
+      this.url = input
+      this.method = init?.method || 'GET'
+      this.headers = new Map(Object.entries(init?.headers || {}))
+      this.body = init?.body
+    }
+  }
+}
+
+if (typeof global.Response === 'undefined') {
+  global.Response = class Response {
+    constructor(body, init) {
+      this.body = body
+      this.status = init?.status || 200
+      this.statusText = init?.statusText || ''
+      this.headers = new Map(Object.entries(init?.headers || {}))
+      this.ok = this.status >= 200 && this.status < 300
+    }
+    
+    async json() {
+      return typeof this.body === 'string' ? JSON.parse(this.body) : this.body
+    }
+    
+    async text() {
+      return typeof this.body === 'string' ? this.body : JSON.stringify(this.body)
+    }
+  }
+}
+
+if (typeof global.Headers === 'undefined') {
+  global.Headers = class Headers extends Map {
+    constructor(init) {
+      super()
+      if (init) {
+        Object.entries(init).forEach(([key, value]) => {
+          this.set(key.toLowerCase(), value)
+        })
+      }
+    }
+    
+    get(name) {
+      return super.get(name.toLowerCase())
+    }
+    
+    set(name, value) {
+      return super.set(name.toLowerCase(), value)
+    }
+  }
+}
+
+// Mock console.error to filter out React act() warnings in tests
 const originalError = console.error;
-const ignoredWarnings = [
-  'Warning: ReactDOM.render',
-  'Warning: componentWillReceiveProps',
-  'Warning: componentWillMount',
-];
-
 beforeAll(() => {
   console.error = (...args) => {
-    const message = args[0];
-    if (typeof message === 'string' && ignoredWarnings.some(warning => message.includes(warning))) {
+    if (
+      typeof args[0] === 'string' && 
+      args[0].includes('Warning: An update to')
+    ) {
       return;
     }
     originalError.call(console, ...args);

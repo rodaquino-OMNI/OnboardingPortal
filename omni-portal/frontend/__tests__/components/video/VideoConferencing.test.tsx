@@ -7,6 +7,11 @@ import { useApi } from '@/hooks/useApi';
 jest.mock('@/hooks/useApi');
 const mockUseApi = useApi as jest.MockedFunction<typeof useApi>;
 
+// Mock api service
+jest.mock('@/services/api');
+
+import api from '@/services/api';
+
 // Mock WebRTC APIs
 const mockGetUserMedia = jest.fn();
 const mockRTCPeerConnection = jest.fn();
@@ -31,8 +36,7 @@ Object.defineProperty(HTMLVideoElement.prototype, 'play', {
 });
 
 describe('VideoConferencing Component', () => {
-  const mockPost = jest.fn();
-  const mockGet = jest.fn();
+  const mockExecute = jest.fn();
   
   const defaultProps = {
     interviewId: 'interview-123',
@@ -49,8 +53,11 @@ describe('VideoConferencing Component', () => {
     jest.clearAllMocks();
     
     mockUseApi.mockReturnValue({
-      post: mockPost,
-      get: mockGet
+      data: null,
+      error: null,
+      isLoading: false,
+      execute: mockExecute,
+      reset: jest.fn()
     });
 
     // Mock successful media access
@@ -76,7 +83,7 @@ describe('VideoConferencing Component', () => {
     mockRTCPeerConnection.mockReturnValue(mockPeerConnection);
 
     // Mock successful session creation
-    mockPost.mockResolvedValue({
+    (api.post as jest.Mock).mockResolvedValue({
       success: true,
       session: {
         id: 'session-123',
@@ -103,7 +110,7 @@ describe('VideoConferencing Component', () => {
 
     // Wait for initialization
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalledWith('/api/video/sessions', expect.objectContaining({
+      expect(api.post).toHaveBeenCalledWith('/api/video/sessions', expect.objectContaining({
         interview_id: 'interview-123',
         participants: expect.arrayContaining([
           expect.objectContaining({
@@ -129,7 +136,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Find and click video toggle button
@@ -144,7 +151,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Find and click audio toggle button
@@ -170,7 +177,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Find and click screen share button
@@ -191,7 +198,7 @@ describe('VideoConferencing Component', () => {
       }
     };
 
-    mockPost.mockResolvedValueOnce({
+    (api.post as jest.Mock).mockResolvedValueOnce({
       success: true,
       session: {
         id: 'session-123',
@@ -205,7 +212,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...doctorProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Recording button should be visible for doctors
@@ -213,7 +220,7 @@ describe('VideoConferencing Component', () => {
     expect(recordButton).toBeInTheDocument();
 
     // Mock recording start response
-    mockPost.mockResolvedValueOnce({
+    (api.post as jest.Mock).mockResolvedValueOnce({
       success: true,
       recording: {
         archive_id: 'archive-123',
@@ -224,7 +231,7 @@ describe('VideoConferencing Component', () => {
     fireEvent.click(recordButton);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalledWith(
+      expect(api.post).toHaveBeenCalledWith(
         '/api/video/sessions/vonage-session-123/recording/start',
         expect.any(Object)
       );
@@ -235,7 +242,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Recording button should not be visible for patients
@@ -248,11 +255,11 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} onSessionEnd={onSessionEnd} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Mock session end response
-    mockPost.mockResolvedValueOnce({
+    (api.post as jest.Mock).mockResolvedValueOnce({
       success: true,
       session: {
         id: 'session-123',
@@ -266,7 +273,7 @@ describe('VideoConferencing Component', () => {
     fireEvent.click(endButton);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalledWith('/api/video/sessions/vonage-session-123/end');
+      expect(api.post).toHaveBeenCalledWith('/api/video/sessions/vonage-session-123/end');
       expect(onSessionEnd).toHaveBeenCalled();
     });
   });
@@ -275,7 +282,7 @@ describe('VideoConferencing Component', () => {
     const onError = jest.fn();
     
     // Mock failed session creation
-    mockPost.mockRejectedValueOnce(new Error('Session creation failed'));
+    (api.post as jest.Mock).mockRejectedValueOnce(new Error('Session creation failed'));
 
     render(<VideoConferencing {...defaultProps} onError={onError} />);
 
@@ -288,7 +295,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Should display connection quality indicator
@@ -299,7 +306,7 @@ describe('VideoConferencing Component', () => {
     render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     // Find and click chat button
@@ -350,7 +357,7 @@ describe('VideoConferencing Component', () => {
     const { unmount } = render(<VideoConferencing {...defaultProps} />);
 
     await waitFor(() => {
-      expect(mockPost).toHaveBeenCalled();
+      expect(api.post).toHaveBeenCalled();
     });
 
     unmount();

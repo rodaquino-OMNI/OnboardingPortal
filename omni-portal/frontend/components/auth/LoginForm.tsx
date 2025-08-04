@@ -12,13 +12,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { SocialLoginButton } from './SocialLoginButton';
+import TwoFactorAuth from './TwoFactorAuth';
 // import { cn } from '@/lib/utils'; // Will be used for future enhancements
 
-export function LoginForm() {
+export default function LoginForm() {
   const router = useRouter();
   const { login, socialLogin, error: authError, clearError } = useAuth();
   const [showSuccess, setShowSuccess] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string>('');
+  const [sessionLimitError, setSessionLimitError] = useState<any>(null);
 
   const {
     register,
@@ -31,8 +35,44 @@ export function LoginForm() {
   const onSubmit = async (data: LoginData) => {
     try {
       clearError();
+      setSessionLimitError(null);
+      
+      // Try to login - handle different response types
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: data.login,
+          password: data.password 
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // Handle session limit error
+        if (result.error === 'SESSION_LIMIT_EXCEEDED') {
+          setSessionLimitError(result);
+          return;
+        }
+        throw new Error(result.error || 'Login failed');
+      }
+
+      // Handle 2FA requirement
+      if (result.requires_2fa) {
+        setRequires2FA(true);
+        setSessionToken(result.session_token);
+        return;
+      }
+
+      // Normal login success
       await login(data);
       setShowSuccess(true);
+      
+      // Store token if provided
+      if (result.access_token) {
+        localStorage.setItem('access_token', result.access_token);
+      }
       
       // Redirect after success animation
       setTimeout(() => {
@@ -54,6 +94,103 @@ export function LoginForm() {
       setSocialLoading(null);
     }
   };
+
+  const handle2FAVerification = async (code: string) => {
+    try {
+      const response = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, session_token: sessionToken }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        // Store token and user data
+        if (result.access_token) {
+          localStorage.setItem('access_token', result.access_token);
+        }
+        
+        // Show success message with user name
+        const welcomeElement = document.createElement('div');
+        welcomeElement.textContent = `Welcome, ${result.user.name}!`;
+        welcomeElement.className = 'text-green-600 text-center';
+        document.body.appendChild(welcomeElement);
+        
+        setShowSuccess(true);
+        setTimeout(() => {
+          router.push('/home');
+        }, 1500);
+      } else {
+        throw new Error(result.error || '2FA verification failed');
+      }
+    } catch (error) {
+      console.error('2FA verification error:', error);
+      throw error;
+    }
+  };
+
+  const handleRevokeSession = async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/auth/sessions/${sessionId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Retry login after revoking session
+        setSessionLimitError(null);
+      }
+    } catch (error) {
+      console.error('Session revoke error:', error);
+    }
+  };
+
+  // Show 2FA component if required
+  if (requires2FA) {
+    return (
+      <div className="w-full max-w-md">
+        <TwoFactorAuth 
+          sessionToken={sessionToken}
+          onVerify={handle2FAVerification}
+        />
+      </div>
+    );
+  }
+
+  // Show session limit error
+  if (sessionLimitError) {
+    return (
+      <div className="w-full max-w-md">
+        <div className="card-modern p-8">
+          <h2 className="text-xl font-bold mb-4 text-red-600">Maximum Sessions Exceeded</h2>
+          <p className="text-gray-600 mb-4">{sessionLimitError.message}</p>
+          <p className="text-sm text-gray-500 mb-4">Revoke old sessions to continue:</p>
+          
+          <div className="space-y-2 mb-4">
+            {sessionLimitError.sessions?.map((session: any) => (
+              <div key={session.id} className="flex justify-between items-center p-2 border rounded">
+                <span className="text-sm">{session.device}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleRevokeSession(session.id)}
+                >
+                  Revoke {session.device}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center">
+            <p className="text-sm text-green-600 mb-2">Session revoked. Please try again</p>
+            <Button onClick={() => setSessionLimitError(null)}>
+              Back to Login
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-md">

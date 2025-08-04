@@ -24,13 +24,33 @@ export function Leaderboard({
   } = useGamification();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Helper function to safely get display name with fallback
+  const getDisplayName = (entry: any): string => {
+    return entry.username || entry.name || 'User';
+  };
+
+  // Helper function to safely get points with fallback
+  const getPoints = (entry: any): number => {
+    return entry.points || entry.total_points || 0;
+  };
+
+  // Helper function to safely get rank with fallback
+  const getRank = (entry: any, index: number): number => {
+    return entry.rank || (index + 1);
+  };
+
+  // Helper function to safely get achievements/badges
+  const getAchievements = (entry: any): any[] => {
+    return entry.achievements || entry.badges || [];
+  };
+
   useEffect(() => {
-    fetchLeaderboard(limit);
-  }, [limit, fetchLeaderboard]);
+    fetchLeaderboard();
+  }, []); // Only fetch on mount
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchLeaderboard(limit);
+    await fetchLeaderboard();
     setRefreshing(false);
   };
 
@@ -95,12 +115,15 @@ export function Leaderboard({
 
         {/* Leaderboard List */}
         <div className="space-y-3">
-          {leaderboard.map((entry, index) => {
-            const rank = index + 1;
+          {leaderboard && leaderboard.length > 0 && leaderboard.map((entry, index) => {
+            const rank = getRank(entry, index);
+            const displayName = getDisplayName(entry);
+            const points = getPoints(entry);
+            const achievements = getAchievements(entry);
             
             return (
               <div
-                key={`${entry.userId}-${index}`}
+                key={`${entry.userId || entry.beneficiary_id || index}`}
                 className={`
                   flex items-center space-x-4 p-4 rounded-lg border transition-all
                   ${getRankBackground(rank)}
@@ -117,7 +140,7 @@ export function Leaderboard({
                   {entry.avatar ? (
                     <Image
                       src={entry.avatar || '/default-avatar.png'}
-                      alt={entry.username}
+                      alt={displayName}
                       width={40}
                       height={40}
                       className="w-10 h-10 rounded-full object-cover"
@@ -125,7 +148,7 @@ export function Leaderboard({
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                       <span className="text-white font-bold text-sm">
-                        {entry.username.charAt(0).toUpperCase()}
+                        {displayName.charAt(0).toUpperCase()}
                       </span>
                     </div>
                   )}
@@ -134,23 +157,23 @@ export function Leaderboard({
                 {/* User Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-1">
-                    <h4 className="font-medium text-sm truncate">{entry.username}</h4>
+                    <h4 className="font-medium text-sm truncate">{displayName}</h4>
                     <Badge 
                       variant="outline" 
                       className="text-xs bg-gray-100 text-gray-600"
                     >
-                      Rank #{entry.rank}
+                      Rank #{rank}
                     </Badge>
                   </div>
                   <div className="flex items-center space-x-3 text-xs text-gray-600">
-                    <span>Position #{entry.rank}</span>
+                    <span>Position #{rank}</span>
                     <div className="flex items-center space-x-1">
                       <Star className="w-3 h-3 text-yellow-500" />
-                      <span>{entry.achievements?.length || 0} badges</span>
+                      <span>{achievements.length || 0} badges</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <TrendingUp className="w-3 h-3 text-green-500" />
-                      <span>{entry.points} pts</span>
+                      <span>{points} pts</span>
                     </div>
                   </div>
                 </div>
@@ -158,7 +181,7 @@ export function Leaderboard({
                 {/* Points */}
                 <div className="flex-shrink-0 text-right" data-testid="points-display">
                   <div className="font-bold text-lg" data-testid="points-counter">
-                    {entry.points.toLocaleString()}
+                    {points.toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500">pontos</div>
                 </div>
@@ -168,7 +191,7 @@ export function Leaderboard({
         </div>
 
         {/* Empty State */}
-        {leaderboard.length === 0 && (
+        {(!leaderboard || leaderboard.length === 0) && (
           <div className="text-center py-8 text-gray-500">
             <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>Nenhum dado de ranking disponível</p>
@@ -179,7 +202,7 @@ export function Leaderboard({
         )}
 
         {/* Footer */}
-        {leaderboard.length > 0 && (
+        {leaderboard && leaderboard.length > 0 && (
           <div className="pt-4 border-t text-center">
             <p className="text-xs text-gray-500">
               Atualizado em tempo real • Ranking da empresa

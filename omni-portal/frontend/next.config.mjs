@@ -1,10 +1,10 @@
-import withPWA from 'next-pwa';
+import withPWA from '@ducanh2912/next-pwa';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'standalone',
+  // output: 'standalone', // Temporarily disabled for development
   images: {
     domains: ['localhost', 'api.omni-portal.com'],
     formats: ['image/webp', 'image/avif'],
@@ -13,7 +13,7 @@ const nextConfig = {
   },
   experimental: {
     // typedRoutes: true, // Temporarily disabled for build
-    // optimizeCss: true, // Temporarily disabled - causing critters issue
+    // optimizeCss removed - fixing critters/util._extend issue
     serverComponentsExternalPackages: ['mysql2'],
   },
   compiler: {
@@ -34,9 +34,10 @@ const nextConfig = {
   compress: true,
   generateEtags: true,
   
-  // Bundle analyzer
+  // Bundle analyzer and webpack optimizations
   webpack: (config, { isServer }) => {
-    if (process.env.ANALYZE === 'true') {
+    // Temporarily disable bundle analyzer for now
+    /* if (process.env.ANALYZE === 'true') {
       const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
       config.plugins.push(
         new BundleAnalyzerPlugin({
@@ -45,14 +46,70 @@ const nextConfig = {
           openAnalyzer: false,
         })
       );
+    } */
+
+    // Fix webpack module resolution for @hookform packages
+    config.resolve = {
+      ...config.resolve,
+      fallback: {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      }
+    };
+
+    // Configure Tesseract.js assets to be served properly
+    config.module.rules.push({
+      test: /\.(wasm|traineddata)$/,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/tesseract/[name][ext]'
+      }
+    });
+
+    // Optimize chunk splitting for form libraries
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          ...config.optimization.splitChunks,
+          chunks: 'all',
+          cacheGroups: {
+            ...config.optimization.splitChunks?.cacheGroups,
+            hookform: {
+              name: 'vendor-hookform',
+              test: /[\\/]node_modules[\\/]@hookform[\\/]/,
+              priority: 30,
+              chunks: 'all',
+              enforce: true,
+            },
+            reactHookForm: {
+              name: 'vendor-react-hook-form',
+              test: /[\\/]node_modules[\\/]react-hook-form[\\/]/,
+              priority: 25,
+              chunks: 'all',
+              enforce: true,
+            },
+            zod: {
+              name: 'vendor-zod',
+              test: /[\\/]node_modules[\\/]zod[\\/]/,
+              priority: 25,
+              chunks: 'all',
+              enforce: true,
+            },
+          }
+        }
+      };
     }
+
     return config;
   },
   
   headers: async () => {
     return [
       {
-        source: '/(.*)',
+        source: '/((?!_next/static|favicon.ico).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -74,6 +131,16 @@ const nextConfig = {
       },
     ];
   },
+  
+  // API Proxy Configuration
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8000/api/:path*',
+      },
+    ];
+  },
 };
 
 const withPWAConfig = withPWA({
@@ -81,24 +148,25 @@ const withPWAConfig = withPWA({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
-  buildExcludes: [/middleware-manifest\.json$/],
-  runtimeCaching: [
-    {
-      urlPattern: /^https?.*/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'https-calls',
-        networkTimeoutSeconds: 15,
-        expiration: {
-          maxEntries: 150,
-          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-        },
-        cacheableResponse: {
-          statuses: [0, 200],
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        urlPattern: /^https?.*/,
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'https-calls',
+          networkTimeoutSeconds: 15,
+          expiration: {
+            maxEntries: 150,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          },
+          cacheableResponse: {
+            statuses: [0, 200],
+          },
         },
       },
-    },
-  ],
+    ],
+  },
 });
 
 export default withPWAConfig(nextConfig);

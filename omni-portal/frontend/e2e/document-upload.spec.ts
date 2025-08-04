@@ -344,11 +344,14 @@ test.describe('Document Upload Flow', () => {
       await page.route('**/api/documents/validation-progress', async route => {
         const progress = {};
         for (let j = 0; j <= i; j++) {
-          progress[documentTypes[j]] = {
-            uploaded: true,
-            status: 'approved',
-            required: true
-          };
+          const docType = documentTypes[j];
+          if (docType) {
+            progress[docType] = {
+              uploaded: true,
+              status: 'approved',
+              required: true
+            };
+          }
         }
         
         await route.fulfill({

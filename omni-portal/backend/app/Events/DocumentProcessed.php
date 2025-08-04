@@ -13,13 +13,14 @@ class DocumentProcessed
 
     public Document $document;
     public array $ocrResult;
+    public ?array $gamificationData;
 
     /**
      * Create a new event instance.
      */
-    public function __construct(Document $document, array $ocrResult)
+    public function __construct(Document $document, ?array $ocrResult = null)
     {
         $this->document = $document;
-        $this->ocrResult = $ocrResult;
+        $this->ocrResult = $ocrResult ?? $document->ocr_data ?? [];
     }
 }

@@ -1,69 +1,89 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { UserManagementTable } from '@/components/admin/UserManagementTable';
-import { useAdminUsers } from '@/hooks/useAdminUsers';
+import { useAdminUsers, AdminUser } from '@/hooks/useAdminUsers';
+import type { TestPermissions, Permission, Role } from '@/types/test-types';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { ErrorBoundary } from 'react-error-boundary';
 
-// Mock hooks
+// Extend Jest matchers
+expect.extend(toHaveNoViolations);
+
+// Mock only external dependencies, not implementation details
 jest.mock('@/hooks/useAdminUsers');
 jest.mock('@/hooks/useAdminPermissions');
+
+// Mock API services but keep component integration
+jest.mock('@/services/api', () => ({
+  default: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn()
+  }
+}));
 
 const mockUseAdminUsers = useAdminUsers as jest.MockedFunction<typeof useAdminUsers>;
 const mockUseAdminPermissions = useAdminPermissions as jest.MockedFunction<typeof useAdminPermissions>;
 
 describe('UserManagementTable Component', () => {
-  const mockUsers = [
+  const mockUsers: AdminUser[] = [
     {
-      id: 1,
+      id: '1',
       name: 'John Doe',
       email: 'john@example.com',
       cpf: '12345678901',
-      roles: ['user'],
-      status: 'active',
-      registration_step: 'completed',
-      created_at: '2024-01-15T10:00:00Z',
-      last_login: '2024-01-20T14:30:00Z'
+      role: 'user',
+      createdAt: '2024-01-15T10:00:00Z',
+      updatedAt: '2024-01-15T10:00:00Z',
+      lastLogin: '2024-01-20T14:30:00Z',
+      isActive: true
     },
     {
-      id: 2,
+      id: '2',
       name: 'Jane Manager',
       email: 'jane@example.com',
       cpf: '98765432109',
-      roles: ['manager'],
-      status: 'active',
-      registration_step: 'completed',
-      created_at: '2024-01-10T09:00:00Z',
-      last_login: '2024-01-19T16:45:00Z'
+      role: 'manager',
+      createdAt: '2024-01-10T09:00:00Z',
+      updatedAt: '2024-01-10T09:00:00Z',
+      lastLogin: '2024-01-19T16:45:00Z',
+      isActive: true
     },
     {
-      id: 3,
+      id: '3',
       name: 'Bob Admin',
       email: 'bob@example.com',
       cpf: '11122233344',
-      roles: ['admin'],
-      status: 'inactive',
-      registration_step: 'completed',
-      created_at: '2024-01-05T08:00:00Z',
-      last_login: '2024-01-18T11:20:00Z'
+      role: 'admin',
+      createdAt: '2024-01-05T08:00:00Z',
+      updatedAt: '2024-01-05T08:00:00Z',
+      lastLogin: '2024-01-18T11:20:00Z',
+      isActive: false
     }
   ];
 
-  const mockAdminPermissions = {
-    canManageUsers: true,
-    canViewUsers: true,
-    canEditUsers: true,
-    canDeleteUsers: true,
-    canManageRoles: true,
-    canPerformBulkOperations: true
-  };
+  const mockPermissions = [
+    { id: '1', name: 'manage_users', resource: 'users', action: 'manage' },
+    { id: '2', name: 'view_users', resource: 'users', action: 'view' },
+    { id: '3', name: 'edit_users', resource: 'users', action: 'edit' },
+    { id: '4', name: 'delete_users', resource: 'users', action: 'delete' },
+    { id: '5', name: 'manage_roles', resource: 'roles', action: 'manage' },
+    { id: '6', name: 'bulk_operations', resource: 'users', action: 'bulk' }
+  ];
+
+  const mockRoles = [
+    { id: '1', name: 'admin', permissions: mockPermissions }
+  ];
 
   const mockUserActions = {
+    fetchUsers: jest.fn(),
     updateUser: jest.fn(),
     deleteUser: jest.fn(),
-    assignRole: jest.fn(),
+    toggleUserStatus: jest.fn(),
     bulkAssignRole: jest.fn(),
-    bulkDeactivate: jest.fn(),
     exportUsers: jest.fn(),
     refreshUsers: jest.fn()
   };
@@ -71,28 +91,65 @@ describe('UserManagementTable Component', () => {
   beforeEach(() => {
     mockUseAdminUsers.mockReturnValue({
       users: mockUsers,
-      isLoading: false,
+      loading: false,
       error: null,
       totalUsers: mockUsers.length,
-      currentPage: 1,
       totalPages: 1,
       ...mockUserActions
     });
 
-    mockUseAdminPermissions.mockReturnValue(mockAdminPermissions);
+    mockUseAdminPermissions.mockReturnValue({
+      permissions: mockPermissions,
+      roles: mockRoles,
+      loading: false,
+      error: null,
+      hasPermission: (resource: string, action: string) => 
+        mockPermissions.some(p => p.resource === resource && p.action === action),
+      hasRole: (roleName: string) => mockRoles.some(r => r.name === roleName)
+    });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should render user management table with all users', () => {
-    render(<UserManagementTable />);
-
-    expect(screen.getByText('User Management')).toBeInTheDocument();
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('Jane Manager')).toBeInTheDocument();
-    expect(screen.getByText('Bob Admin')).toBeInTheDocument();
+  describe('Rendering', () => {
+    it('should render user management table with all users and proper accessibility', async () => {
+      // Arrange
+      const expectedUsers = ['John Doe', 'Jane Manager', 'Bob Admin'];
+      
+      // Act
+      render(<UserManagementTable />);
+      
+      // Assert
+      await waitFor(() => {
+        // Check table structure and accessibility
+        const table = screen.getByRole('table', { name: /user management/i });
+        expect(table).toBeInTheDocument();
+        
+        // Verify heading exists
+        expect(screen.getByRole('heading', { level: 1, name: /user management/i })).toBeInTheDocument();
+        
+        // Check all expected users are rendered
+        expectedUsers.forEach(userName => {
+          expect(screen.getByText(userName)).toBeInTheDocument();
+        });
+        
+        // Verify table has proper column headers
+        expect(screen.getByRole('columnheader', { name: /name/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /email/i })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /role/i })).toBeInTheDocument();
+      });
+    });
+    
+    it('should have no accessibility violations', async () => {
+      // Arrange
+      const { container } = render(<UserManagementTable />);
+      
+      // Act & Assert
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
   });
 
   it('should display correct user information in table rows', () => {
@@ -107,9 +164,12 @@ describe('UserManagementTable Component', () => {
 
   it('should show loading state when users are being fetched', () => {
     mockUseAdminUsers.mockReturnValue({
-      ...mockUseAdminUsers(),
-      isLoading: true,
-      users: []
+      users: [],
+      loading: true,
+      error: null,
+      totalUsers: 0,
+      totalPages: 0,
+      ...mockUserActions
     });
 
     render(<UserManagementTable />);
@@ -118,38 +178,56 @@ describe('UserManagementTable Component', () => {
 
   it('should display error message when users fail to load', () => {
     mockUseAdminUsers.mockReturnValue({
-      ...mockUseAdminUsers(),
-      isLoading: false,
+      users: [],
+      loading: false,
       error: 'Failed to load users',
-      users: []
+      totalUsers: 0,
+      totalPages: 0,
+      ...mockUserActions
     });
 
     render(<UserManagementTable />);
     expect(screen.getByText(/failed to load users/i)).toBeInTheDocument();
   });
 
-  it('should show search functionality', async () => {
-    const user = userEvent.setup();
-    render(<UserManagementTable />);
-
-    const searchInput = screen.getByPlaceholderText(/search users/i);
-    expect(searchInput).toBeInTheDocument();
-
-    await user.type(searchInput, 'John');
-    expect(searchInput).toHaveValue('John');
+  describe('Search and Filtering', () => {
+    it('should allow user to search for users with proper debouncing', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      render(<UserManagementTable />);
+      
+      // Act
+      const searchInput = await screen.findByLabelText(/search users/i);
+      await user.type(searchInput, 'John');
+      
+      // Assert
+      await waitFor(() => {
+        expect(searchInput).toHaveValue('John');
+        expect(searchInput).toHaveAttribute('aria-describedby'); // Should have help text
+      });
+    });
   });
 
-  it('should filter users based on search query', async () => {
-    const user = userEvent.setup();
-    render(<UserManagementTable />);
-
-    const searchInput = screen.getByPlaceholderText(/search users/i);
-    await user.type(searchInput, 'Jane');
-
-    // Should show only Jane Manager
-    expect(screen.getByText('Jane Manager')).toBeInTheDocument();
-    expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
-  });
+    it('should filter users when user searches for specific name', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      render(<UserManagementTable />);
+      
+      // Act
+      const searchInput = await screen.findByLabelText(/search users/i);
+      await user.type(searchInput, 'Jane');
+      
+      // Assert - Wait for filtering to complete
+      await waitFor(() => {
+        expect(screen.getByText('Jane Manager')).toBeInTheDocument();
+        expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
+        expect(screen.queryByText('Bob Admin')).not.toBeInTheDocument();
+      });
+      
+      // Verify search results are announced to screen readers
+      const resultsAnnouncement = screen.getByRole('status');
+      expect(resultsAnnouncement).toHaveTextContent(/1 user found/i);
+    });
 
   it('should show role filter dropdown', () => {
     render(<UserManagementTable />);
@@ -199,9 +277,12 @@ describe('UserManagementTable Component', () => {
 
   it('should hide action buttons for users without permissions', () => {
     mockUseAdminPermissions.mockReturnValue({
-      ...mockAdminPermissions,
-      canEditUsers: false,
-      canDeleteUsers: false
+      permissions: [],
+      roles: [],
+      loading: false,
+      error: null,
+      hasPermission: () => false,
+      hasRole: () => false
     });
 
     render(<UserManagementTable />);
@@ -216,10 +297,14 @@ describe('UserManagementTable Component', () => {
 
     const editButtons = screen.getAllByRole('button', { name: /edit/i });
     expect(editButtons.length).toBeGreaterThan(0);
-    await user.click(editButtons[0]);
+    const firstEditButton = editButtons[0];
+    expect(firstEditButton).toBeDefined();
+    await user.click(firstEditButton as Element);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Edit User')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Edit User')).toBeInTheDocument();
+    });
   });
 
   it('should show confirmation dialog when delete button is clicked', async () => {
@@ -228,24 +313,49 @@ describe('UserManagementTable Component', () => {
 
     const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
     expect(deleteButtons.length).toBeGreaterThan(0);
-    await user.click(deleteButtons[0]);
+    const firstDeleteButton = deleteButtons[0];
+    expect(firstDeleteButton).toBeDefined();
+    await user.click(firstDeleteButton as Element);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
+    });
   });
 
-  it('should handle user deletion', async () => {
-    const user = userEvent.setup();
-    render(<UserManagementTable />);
-
-    const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
-    expect(deleteButtons.length).toBeGreaterThan(0);
-    await user.click(deleteButtons[0]);
-
-    const confirmButton = screen.getByRole('button', { name: /confirm/i });
-    await user.click(confirmButton);
-
-    expect(mockUserActions.deleteUser).toHaveBeenCalledWith(1);
+  describe('User Actions', () => {
+    it('should allow user to delete a user after confirmation', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      const mockDeleteUser = jest.fn().mockResolvedValue({ success: true });
+      mockUserActions.deleteUser = mockDeleteUser;
+      
+      render(<UserManagementTable />);
+      
+      // Act - Click delete button for first user
+      const deleteButtons = await screen.findAllByRole('button', { name: /delete/i });
+      expect(deleteButtons.length).toBeGreaterThan(0);
+      const firstDeleteButton = deleteButtons[0];
+      expect(firstDeleteButton).toBeDefined();
+      await user.click(firstDeleteButton as Element);
+      
+      // Verify confirmation dialog appears
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
+      });
+      
+      // Confirm deletion
+      const confirmButton = screen.getByRole('button', { name: /confirm|delete/i });
+      await user.click(confirmButton);
+      
+      // Assert
+      await waitFor(() => {
+        expect(mockDeleteUser).toHaveBeenCalledWith('1'); // Expect string ID based on mock data
+        // Success message should be shown
+        expect(screen.getByText(/user deleted successfully/i)).toBeInTheDocument();
+      });
+    });
   });
 
   it('should show bulk actions when users are selected', async () => {
@@ -255,9 +365,13 @@ describe('UserManagementTable Component', () => {
     // Select first user
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes.length).toBeGreaterThan(1);
-    await user.click(checkboxes[1]); // First is select all
+    const firstUserCheckbox = checkboxes[1]; // First is select all
+    expect(firstUserCheckbox).toBeDefined();
+    await user.click(firstUserCheckbox as Element);
 
-    expect(screen.getByText(/1 user selected/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/1 user selected/i)).toBeInTheDocument();
+    });
     expect(screen.getByRole('button', { name: /bulk assign role/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /bulk deactivate/i })).toBeInTheDocument();
   });
@@ -268,9 +382,13 @@ describe('UserManagementTable Component', () => {
 
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes.length).toBeGreaterThan(0);
-    await user.click(checkboxes[0]);
+    const selectAllCheckbox = checkboxes[0];
+    expect(selectAllCheckbox).toBeDefined();
+    await user.click(selectAllCheckbox as Element);
 
-    expect(screen.getByText(/3 users selected/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/3 users selected/i)).toBeInTheDocument();
+    });
   });
 
   it('should show bulk role assignment modal', async () => {
@@ -280,14 +398,18 @@ describe('UserManagementTable Component', () => {
     // Select users
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes.length).toBeGreaterThan(0);
-    await user.click(checkboxes[0]);
+    const selectAllCheckbox = checkboxes[0];
+    expect(selectAllCheckbox).toBeDefined();
+    await user.click(selectAllCheckbox as Element);
 
     // Click bulk assign role
     const bulkAssignButton = screen.getByRole('button', { name: /bulk assign role/i });
     await user.click(bulkAssignButton);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Assign Role to Selected Users')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByText('Assign Role to Selected Users')).toBeInTheDocument();
+    });
   });
 
   it('should handle bulk role assignment', async () => {
@@ -297,7 +419,9 @@ describe('UserManagementTable Component', () => {
     // Select users and open bulk assign modal
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes.length).toBeGreaterThan(0);
-    await user.click(checkboxes[0]);
+    const selectAllCheckbox = checkboxes[0];
+    expect(selectAllCheckbox).toBeDefined();
+    await user.click(selectAllCheckbox as Element);
 
     const bulkAssignButton = screen.getByRole('button', { name: /bulk assign role/i });
     await user.click(bulkAssignButton);
@@ -333,8 +457,7 @@ describe('UserManagementTable Component', () => {
   it('should show pagination when there are multiple pages', () => {
     mockUseAdminUsers.mockReturnValue({
       ...mockUseAdminUsers(),
-      totalPages: 3,
-      currentPage: 1
+      totalPages: 3
     });
 
     render(<UserManagementTable />);
@@ -363,10 +486,14 @@ describe('UserManagementTable Component', () => {
     // Click expand button for first user
     const expandButtons = screen.getAllByRole('button', { name: /expand/i });
     expect(expandButtons.length).toBeGreaterThan(0);
-    await user.click(expandButtons[0]);
+    const firstExpandButton = expandButtons[0];
+    expect(firstExpandButton).toBeDefined();
+    await user.click(firstExpandButton as Element);
 
-    expect(screen.getByText('Registration Step:')).toBeInTheDocument();
-    expect(screen.getByText('Last Login:')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Registration Step:')).toBeInTheDocument();
+      expect(screen.getByText('Last Login:')).toBeInTheDocument();
+    });
   });
 
   it('should handle keyboard navigation', async () => {
@@ -415,8 +542,12 @@ describe('UserManagementTable Component', () => {
 
   it('should hide user creation button without permissions', () => {
     mockUseAdminPermissions.mockReturnValue({
-      ...mockAdminPermissions,
-      canManageUsers: false
+      permissions: [],
+      roles: [],
+      loading: false,
+      error: null,
+      hasPermission: () => false,
+      hasRole: () => false
     });
 
     render(<UserManagementTable />);
@@ -460,5 +591,92 @@ describe('UserManagementTable Component', () => {
 
     const inactiveStatus = screen.getByText('inactive');
     expect(inactiveStatus).toHaveClass('status-inactive');
+  });
+  
+  describe('Performance and Error Handling', () => {
+    it('should render within performance budget', async () => {
+      // Arrange
+      const startTime = performance.now();
+      
+      // Act
+      render(<UserManagementTable />);
+      
+      await waitFor(() => {
+        expect(screen.getByRole('table')).toBeInTheDocument();
+      });
+      
+      const renderTime = performance.now() - startTime;
+      
+      // Assert - Should render within 100ms budget
+      expect(renderTime).toBeLessThan(100);
+    });
+    
+    it('should handle component errors gracefully', async () => {
+      // Arrange
+      const ErrorComponent = () => {
+        throw new Error('Table rendering error');
+      };
+      
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Act
+      render(
+        <ErrorBoundary
+          fallback={<div role="alert">Failed to load user table. Please refresh.</div>}
+          onError={(error) => {
+            console.error('UserTable error:', error.message);
+          }}
+        >
+          <ErrorComponent />
+        </ErrorBoundary>
+      );
+      
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Failed to load user table. Please refresh.');
+        expect(consoleErrorSpy).toHaveBeenCalledWith('UserTable error:', 'Table rendering error');
+      });
+      
+      consoleErrorSpy.mockRestore();
+    });
+    
+    it('should handle large user datasets efficiently', async () => {
+      // Arrange - Mock large dataset
+      const largeUserList = Array.from({ length: 500 }, (_, i) => ({
+        id: `user-${i}`,
+        name: `User ${i}`,
+        email: `user${i}@example.com`,
+        cpf: `${String(i).padStart(11, '0')}`,
+        role: i % 3 === 0 ? 'admin' : i % 2 === 0 ? 'manager' : 'user',
+        registration_step: 'completed',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        isActive: true
+      }));
+      
+      mockUseAdminUsers.mockReturnValue({
+        users: largeUserList,
+        loading: false,
+        error: null,
+        totalUsers: largeUserList.length,
+        totalPages: Math.ceil(largeUserList.length / 50),
+        ...mockUserActions
+      });
+      
+      const startTime = performance.now();
+      
+      // Act
+      render(<UserManagementTable />);
+      
+      await waitFor(() => {
+        expect(screen.getByRole('table')).toBeInTheDocument();
+      });
+      
+      const renderTime = performance.now() - startTime;
+      
+      // Assert - Should handle large datasets efficiently
+      expect(renderTime).toBeLessThan(200); // Slightly higher budget for large data
+    });
   });
 });

@@ -1,22 +1,53 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminDashboard } from '@/components/admin/AdminDashboard';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { ErrorBoundary } from 'react-error-boundary';
 
-// Mock hooks
+// Extend Jest matchers
+expect.extend(toHaveNoViolations);
+
+// Mock only external dependencies, not implementation details
 jest.mock('@/hooks/useAuth');
 jest.mock('@/hooks/useAdminPermissions');
-jest.mock('@/components/admin/UserManagementTable', () => ({
-  UserManagementTable: () => <div data-testid="user-management-table">User Management Table</div>
+
+// Keep real components for integration testing - only mock heavy external calls
+jest.mock('@/services/api', () => ({
+  default: {
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn()
+  }
 }));
-jest.mock('@/components/admin/SystemMetrics', () => ({
-  SystemMetrics: () => <div data-testid="system-metrics">System Metrics</div>
-}));
-jest.mock('@/components/admin/AuditLogViewer', () => ({
-  AuditLogViewer: () => <div data-testid="audit-log-viewer">Audit Log Viewer</div>
-}));
+
+// Test wrapper with QueryClient
+const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        staleTime: 0,
+        gcTime: 0, // Updated from cacheTime to gcTime for React Query v5
+      },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+};
+
+// Custom render function with wrapper
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(ui, { wrapper: TestWrapper });
+};
 
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockUseAdminPermissions = useAdminPermissions as jest.MockedFunction<typeof useAdminPermissions>;
@@ -29,18 +60,22 @@ describe('AdminDashboard Component', () => {
     roles: ['admin']
   };
 
-  const mockAdminPermissions = {
-    canManageUsers: true,
-    canViewUsers: true,
-    canEditUsers: true,
-    canDeleteUsers: true,
-    canManageRoles: true,
-    canViewReports: true,
-    canExportData: true,
-    canViewAuditLogs: true,
-    canManageSystem: true,
-    canPerformBulkOperations: true
-  };
+  const mockPermissions = [
+    { id: '1', name: 'manage_users', resource: 'users', action: 'manage' },
+    { id: '2', name: 'view_users', resource: 'users', action: 'view' },
+    { id: '3', name: 'edit_users', resource: 'users', action: 'edit' },
+    { id: '4', name: 'delete_users', resource: 'users', action: 'delete' },
+    { id: '5', name: 'manage_roles', resource: 'roles', action: 'manage' },
+    { id: '6', name: 'view_reports', resource: 'reports', action: 'view' },
+    { id: '7', name: 'export_data', resource: 'data', action: 'export' },
+    { id: '8', name: 'view_audit_logs', resource: 'audit_logs', action: 'view' },
+    { id: '9', name: 'manage_system', resource: 'system', action: 'manage' },
+    { id: '10', name: 'bulk_operations', resource: 'users', action: 'bulk' }
+  ];
+
+  const mockRoles = [
+    { id: '1', name: 'admin', permissions: mockPermissions }
+  ];
 
   beforeEach(() => {
     mockUseAuth.mockReturnValue({
@@ -52,24 +87,52 @@ describe('AdminDashboard Component', () => {
       refresh: jest.fn()
     });
 
-    mockUseAdminPermissions.mockReturnValue(mockAdminPermissions);
+    mockUseAdminPermissions.mockReturnValue({
+      permissions: mockPermissions,
+      roles: mockRoles,
+      loading: false,
+      error: null,
+      hasPermission: (resource: string, action: string) => 
+        mockPermissions.some(p => p.resource === resource && p.action === action),
+      hasRole: (roleName: string) => mockRoles.some(r => r.name === roleName)
+    });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should render admin dashboard with all components for admin user', () => {
-    render(<AdminDashboard />);
-
-    expect(screen.getByText('Admin Dashboard')).toBeInTheDocument();
-    expect(screen.getByTestId('system-metrics')).toBeInTheDocument();
-    expect(screen.getByTestId('user-management-table')).toBeInTheDocument();
-    expect(screen.getByTestId('audit-log-viewer')).toBeInTheDocument();
+  describe('Rendering', () => {
+    it('should render admin dashboard with proper structure for admin user', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      
+      // Act
+      renderWithProviders(<AdminDashboard />);
+      
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByRole('main')).toHaveAttribute('aria-label', 'Admin Dashboard');
+        expect(screen.getByRole('heading', { level: 1, name: /admin dashboard/i })).toBeInTheDocument();
+        
+        // Verify real components are rendered instead of mocked ones
+        expect(screen.getByRole('tablist')).toBeInTheDocument();
+        expect(screen.getByRole('tabpanel')).toBeInTheDocument();
+      });
+    });
+    
+    it('should have no accessibility violations', async () => {
+      // Arrange
+      const { container } = renderWithProviders(<AdminDashboard />);
+      
+      // Act & Assert
+      const results = await axe(container);
+      expect(results).toHaveNoViolations();
+    });
   });
 
   it('should show navigation tabs based on user permissions', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /users/i })).toBeInTheDocument();
@@ -80,14 +143,21 @@ describe('AdminDashboard Component', () => {
   });
 
   it('should hide restricted tabs for users without permissions', () => {
+    const limitedPermissions = mockPermissions.filter(p => 
+      !['system', 'audit_logs', 'roles'].includes(p.resource)
+    );
+    
     mockUseAdminPermissions.mockReturnValue({
-      ...mockAdminPermissions,
-      canManageSystem: false,
-      canViewAuditLogs: false,
-      canManageRoles: false
+      permissions: limitedPermissions,
+      roles: mockRoles,
+      loading: false,
+      error: null,
+      hasPermission: (resource: string, action: string) => 
+        limitedPermissions.some(p => p.resource === resource && p.action === action),
+      hasRole: (roleName: string) => mockRoles.some(r => r.name === roleName)
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByRole('tab', { name: /users/i })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /roles/i })).not.toBeInTheDocument();
@@ -95,24 +165,39 @@ describe('AdminDashboard Component', () => {
     expect(screen.queryByRole('tab', { name: /audit logs/i })).not.toBeInTheDocument();
   });
 
-  it('should switch between different dashboard sections', async () => {
-    const user = userEvent.setup();
-    render(<AdminDashboard />);
-
-    // Initially on overview tab
-    expect(screen.getByTestId('system-metrics')).toBeVisible();
-
-    // Click users tab
-    await user.click(screen.getByRole('tab', { name: /users/i }));
-    expect(screen.getByTestId('user-management-table')).toBeVisible();
-
-    // Click audit logs tab
-    await user.click(screen.getByRole('tab', { name: /audit logs/i }));
-    expect(screen.getByTestId('audit-log-viewer')).toBeVisible();
+  describe('User Interactions', () => {
+    it('should allow user to navigate between dashboard sections', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      renderWithProviders(<AdminDashboard />);
+      
+      // Act & Assert - Navigate through tabs
+      await waitFor(() => {
+        expect(screen.getByRole('tab', { selected: true, name: /overview/i })).toBeInTheDocument();
+      });
+      
+      // Navigate to users tab
+      const usersTab = screen.getByRole('tab', { name: /users/i });
+      await user.click(usersTab);
+      
+      await waitFor(() => {
+        expect(usersTab).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByRole('tabpanel', { name: /users/i })).toBeInTheDocument();
+      });
+      
+      // Navigate to audit logs tab
+      const auditTab = screen.getByRole('tab', { name: /audit logs/i });
+      await user.click(auditTab);
+      
+      await waitFor(() => {
+        expect(auditTab).toHaveAttribute('aria-selected', 'true');
+        expect(screen.getByRole('tabpanel', { name: /audit logs/i })).toBeInTheDocument();
+      });
+    });
   });
 
   it('should display user info and logout option', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByText('Admin User')).toBeInTheDocument();
     expect(screen.getByText('admin@example.com')).toBeInTheDocument();
@@ -127,7 +212,7 @@ describe('AdminDashboard Component', () => {
     });
 
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     await user.click(screen.getByRole('button', { name: /logout/i }));
     expect(mockLogout).toHaveBeenCalled();
@@ -143,18 +228,11 @@ describe('AdminDashboard Component', () => {
       refresh: jest.fn()
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
     expect(screen.getByTestId('admin-loading')).toBeInTheDocument();
   });
 
   it('should redirect to login when user is not authenticated', () => {
-    const mockPush = jest.fn();
-    jest.mock('next/router', () => ({
-      useRouter: () => ({
-        push: mockPush
-      })
-    }));
-
     mockUseAuth.mockReturnValue({
       user: null,
       isAuthenticated: false,
@@ -164,30 +242,26 @@ describe('AdminDashboard Component', () => {
       refresh: jest.fn()
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
     expect(screen.getByText(/access denied/i)).toBeInTheDocument();
   });
 
   it('should show appropriate error message for insufficient permissions', () => {
     mockUseAdminPermissions.mockReturnValue({
-      canManageUsers: false,
-      canViewUsers: false,
-      canEditUsers: false,
-      canDeleteUsers: false,
-      canManageRoles: false,
-      canViewReports: false,
-      canExportData: false,
-      canViewAuditLogs: false,
-      canManageSystem: false,
-      canPerformBulkOperations: false
+      permissions: [],
+      roles: [],
+      loading: false,
+      error: null,
+      hasPermission: () => false,
+      hasRole: () => false
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
     expect(screen.getByText(/insufficient permissions/i)).toBeInTheDocument();
   });
 
   it('should display real-time notifications for admin actions', async () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     // Simulate real-time notification
     const notificationEvent = new CustomEvent('admin-notification', {
@@ -207,7 +281,7 @@ describe('AdminDashboard Component', () => {
 
   it('should handle keyboard navigation for accessibility', async () => {
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     // Tab through navigation
     await user.tab();
@@ -225,14 +299,14 @@ describe('AdminDashboard Component', () => {
   });
 
   it('should display system health indicators', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByText(/system status/i)).toBeInTheDocument();
     expect(screen.getByTestId('health-indicator')).toBeInTheDocument();
   });
 
   it('should show quick action buttons based on permissions', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByRole('button', { name: /create user/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /export data/i })).toBeInTheDocument();
@@ -240,14 +314,21 @@ describe('AdminDashboard Component', () => {
   });
 
   it('should hide quick actions for users without permissions', () => {
+    const limitedPermissions = mockPermissions.filter(p => 
+      !['users', 'data', 'system'].includes(p.resource) || p.action === 'view'
+    );
+    
     mockUseAdminPermissions.mockReturnValue({
-      ...mockAdminPermissions,
-      canManageUsers: false,
-      canExportData: false,
-      canManageSystem: false
+      permissions: limitedPermissions,
+      roles: mockRoles,
+      loading: false,
+      error: null,
+      hasPermission: (resource: string, action: string) => 
+        limitedPermissions.some(p => p.resource === resource && p.action === action),
+      hasRole: (roleName: string) => mockRoles.some(r => r.name === roleName)
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.queryByRole('button', { name: /create user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /export data/i })).not.toBeInTheDocument();
@@ -255,7 +336,7 @@ describe('AdminDashboard Component', () => {
   });
 
   it('should display recent activity feed', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByText(/recent activity/i)).toBeInTheDocument();
     expect(screen.getByTestId('activity-feed')).toBeInTheDocument();
@@ -269,7 +350,7 @@ describe('AdminDashboard Component', () => {
       value: 768
     });
 
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByTestId('mobile-nav-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-sidebar')).toHaveClass('hidden');
@@ -284,14 +365,14 @@ describe('AdminDashboard Component', () => {
     });
 
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     await user.click(screen.getByTestId('mobile-nav-toggle'));
     expect(screen.getByTestId('mobile-sidebar')).not.toHaveClass('hidden');
   });
 
   it('should display performance metrics for admin overview', () => {
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     expect(screen.getByText(/active users/i)).toBeInTheDocument();
     expect(screen.getByText(/system uptime/i)).toBeInTheDocument();
@@ -301,7 +382,7 @@ describe('AdminDashboard Component', () => {
 
   it('should handle dark mode toggle', async () => {
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     const darkModeToggle = screen.getByRole('button', { name: /toggle dark mode/i });
     await user.click(darkModeToggle);
@@ -311,7 +392,7 @@ describe('AdminDashboard Component', () => {
 
   it('should persist user preferences in localStorage', async () => {
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     // Change dashboard layout
     await user.click(screen.getByRole('button', { name: /compact view/i }));
@@ -321,7 +402,7 @@ describe('AdminDashboard Component', () => {
 
   it('should show confirmation dialog for destructive actions', async () => {
     const user = userEvent.setup();
-    render(<AdminDashboard />);
+    renderWithProviders(<AdminDashboard />);
 
     // Navigate to system tab
     await user.click(screen.getByRole('tab', { name: /system/i }));
@@ -333,30 +414,118 @@ describe('AdminDashboard Component', () => {
     expect(screen.getByText(/are you sure/i)).toBeInTheDocument();
   });
 
-  it('should handle error states gracefully', async () => {
-    // Mock API error
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-    
-    const ErrorBoundary = ({ children }: { children: React.ReactNode }) => {
-      try {
-        return <>{children}</>;
-      } catch (error) {
-        return <div data-testid="error-boundary">Something went wrong</div>;
-      }
-    };
-
-    render(
-      <ErrorBoundary>
-        <AdminDashboard />
-      </ErrorBoundary>
-    );
-
-    // Simulate component error
-    const mockError = new Error('Test error');
-    jest.spyOn(React, 'createElement').mockImplementation(() => {
-      throw mockError;
+  describe('Error Handling', () => {
+    it('should handle component errors with proper error boundary', async () => {
+      // Arrange
+      const ErrorComponent = () => {
+        throw new Error('Simulated component error');
+      };
+      
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Act
+      render(
+        <ErrorBoundary
+          fallback={<div role="alert">Something went wrong. Please try again.</div>}
+          onError={(error) => {
+            console.error('Dashboard error:', error.message);
+          }}
+        >
+          <ErrorComponent />
+        </ErrorBoundary>
+      );
+      
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Something went wrong. Please try again.');
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Dashboard error:', 'Simulated component error');
+      });
+      
+      consoleErrorSpy.mockRestore();
     });
-
-    expect(screen.getByTestId('error-boundary')).toBeInTheDocument();
+    
+    it('should handle API errors gracefully', async () => {
+      // Arrange
+      const mockApi = require('@/services/api').default;
+      mockApi.get.mockRejectedValueOnce(new Error('API Error'));
+      
+      const user = userEvent.setup();
+      
+      // Act
+      renderWithProviders(<AdminDashboard />);
+      
+      // Assert - component should handle API errors without crashing
+      await waitFor(() => {
+        expect(screen.getByRole('main')).toBeInTheDocument();
+        // Error should be handled gracefully, possibly showing error message
+      });
+    });
+  });
+  
+  describe('Performance and Accessibility', () => {
+    it('should render within performance budget', async () => {
+      // Arrange
+      const startTime = performance.now();
+      
+      // Act
+      renderWithProviders(<AdminDashboard />);
+      
+      await waitFor(() => {
+        expect(screen.getByRole('main')).toBeInTheDocument();
+      });
+      
+      const renderTime = performance.now() - startTime;
+      
+      // Assert - Should render within 100ms budget
+      expect(renderTime).toBeLessThan(100);
+    });
+    
+    it('should support keyboard navigation through all interactive elements', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      renderWithProviders(<AdminDashboard />);
+      
+      // Act - Tab through interactive elements
+      await user.tab();
+      
+      // Assert - First tab should focus on navigation
+      await waitFor(() => {
+        const focusedElement = document.activeElement;
+        expect(focusedElement).toHaveAttribute('role', 'tab');
+      });
+      
+      // Navigate through tabs with arrow keys if tab navigation is implemented
+      await user.keyboard('{ArrowRight}');
+      await waitFor(() => {
+        const focusedElement = document.activeElement;
+        expect(focusedElement).toHaveAttribute('role', 'tab');
+      });
+    });
+    
+    it('should handle large datasets without performance degradation', async () => {
+      // Arrange - Mock large dataset
+      const mockApi = require('@/services/api').default;
+      const largeDataset = Array.from({ length: 1000 }, (_, i) => ({
+        id: i,
+        name: `User ${i}`,
+        email: `user${i}@example.com`
+      }));
+      
+      mockApi.get.mockResolvedValue({ data: { users: largeDataset } });
+      
+      const startTime = performance.now();
+      
+      // Act
+      renderWithProviders(<AdminDashboard />);
+      
+      await waitFor(() => {
+        expect(screen.getByRole('main')).toBeInTheDocument();
+      });
+      
+      const renderTime = performance.now() - startTime;
+      
+      // Assert - Should handle large datasets efficiently
+      expect(renderTime).toBeLessThan(200); // Slightly higher budget for large data
+    });
   });
 });

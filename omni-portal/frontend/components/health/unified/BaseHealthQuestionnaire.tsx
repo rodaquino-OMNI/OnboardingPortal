@@ -11,6 +11,7 @@ import React, {
   ComponentType
 } from 'react';
 import { HealthQuestion, HealthSection, QuestionValue } from '@/types/health';
+import { HealthQuestionnaireErrorBoundary } from '../ErrorBoundary';
 
 // Core Types
 export interface QuestionnaireState {
@@ -253,7 +254,7 @@ export function QuestionnaireProvider({
     return config.sections[state.currentSectionIndex] || null;
   }, [config.sections, state.currentSectionIndex]);
 
-  // Get visible questions based on conditions
+  // Get visible questions based on conditions with enhanced logic
   const getVisibleQuestions = useCallback(() => {
     const section = getCurrentSection();
     if (!section) return [];
@@ -262,17 +263,46 @@ export function QuestionnaireProvider({
       if (!question.conditionalOn) return true;
       
       const conditionValue = state.responses[question.conditionalOn.questionId];
+      
+      // Handle wildcard conditions
       if (question.conditionalOn.values.includes('*')) {
-        return conditionValue !== undefined && conditionValue !== null;
+        return conditionValue !== undefined && conditionValue !== null && conditionValue !== '';
       }
       
-      return question.conditionalOn.values.includes(conditionValue);
+      // Handle array values (for multiselect conditions)
+      if (Array.isArray(conditionValue)) {
+        return question.conditionalOn.values.some(val => conditionValue.includes(val));
+      }
+      
+      // Handle exact value matching with type coercion
+      return question.conditionalOn.values.some(val => {
+        // Handle string/number type matching
+        if (typeof val === 'string' && typeof conditionValue === 'number') {
+          return val === String(conditionValue);
+        }
+        if (typeof val === 'number' && typeof conditionValue === 'string') {
+          return String(val) === conditionValue;
+        }
+        return val === conditionValue;
+      });
     });
   }, [getCurrentSection, state.responses]);
 
-  // Get current question
+  // Get current question with bounds checking
   const getCurrentQuestion = useCallback(() => {
     const visibleQuestions = getVisibleQuestions();
+    
+    // Handle index out of bounds
+    if (state.currentQuestionIndex >= visibleQuestions.length) {
+      // If we're past the end, we've completed this section
+      return null;
+    }
+    
+    if (state.currentQuestionIndex < 0) {
+      // If we're before the start, go to first question
+      return visibleQuestions[0] || null;
+    }
+    
     return visibleQuestions[state.currentQuestionIndex] || null;
   }, [getVisibleQuestions, state.currentQuestionIndex]);
 
@@ -281,9 +311,24 @@ export function QuestionnaireProvider({
     question: HealthQuestion, 
     value: QuestionValue
   ): string | null => {
-    // Built-in validation
-    if (question.required && !value) {
-      return 'Este campo é obrigatório';
+    // Built-in validation with explicit null/undefined checking
+    // TECHNICAL EXCELLENCE FIX: Never use implicit boolean conversion on numeric values
+    // because !0 === true, which would incorrectly invalidate legitimate zero responses
+    if (question.required) {
+      // Type-aware validation - check for actual emptiness, not falsy values
+      if (value === null || value === undefined) {
+        return 'Este campo é obrigatório';
+      }
+      
+      // For string values, check for empty strings (but allow '0' as valid)
+      if (typeof value === 'string' && value.trim() === '') {
+        return 'Este campo é obrigatório';
+      }
+      
+      // For array values (multiselect), check for empty arrays
+      if (Array.isArray(value) && value.length === 0) {
+        return 'Este campo é obrigatório';
+      }
     }
 
     if (question.validation) {
@@ -340,12 +385,60 @@ export function QuestionnaireProvider({
     }
   }, [getCurrentQuestion, config, state, validateQuestion]);
 
-  // Navigation helpers
+  // Navigation helpers with enhanced bounds checking
   const nextQuestion = useCallback(() => {
     const visibleQuestions = getVisibleQuestions();
     const currentQuestion = getCurrentQuestion();
     
+    // Handle case where visible questions changed and index is out of bounds
+    if (state.currentQuestionIndex >= visibleQuestions.length) {
+      // We've completed the section, proceed to next section
+      const section = getCurrentSection();
+      if (section) {
+        dispatch({ 
+          type: 'SET_SECTION_PROGRESS', 
+          payload: { sectionId: section.id, progress: 100 } 
+        });
+
+        // Run section complete hooks
+        config.features
+          .filter(f => f.enabled)
+          .forEach(feature => {
+            feature.hooks?.onSectionComplete?.(section.id, state);
+          });
+
+        // Move to next section or complete
+        if (state.currentSectionIndex < config.sections.length - 1) {
+          dispatch({ type: 'SET_SECTION', payload: state.currentSectionIndex + 1 });
+          dispatch({ type: 'SET_QUESTION', payload: 0 });
+        } else {
+          dispatch({ type: 'SET_FLOW_STATE', payload: 'complete' });
+          
+          // Run complete hooks
+          config.features
+            .filter(f => f.enabled)
+            .forEach(feature => {
+              feature.hooks?.onComplete?.(state);
+            });
+
+          // Call parent onComplete
+          onComplete({
+            responses: state.responses,
+            metadata: state.metadata,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+      return;
+    }
+    
     if (!currentQuestion) return;
+
+    // Clear any existing validation errors for current question
+    dispatch({ 
+      type: 'SET_VALIDATION_ERROR', 
+      payload: { questionId: currentQuestion.id, error: null } 
+    });
 
     // Validate current question
     const error = validateQuestion(currentQuestion, state.responses[currentQuestion.id]);
@@ -413,27 +506,62 @@ export function QuestionnaireProvider({
       dispatch({ type: 'SET_QUESTION', payload: state.currentQuestionIndex - 1 });
     } else if (state.currentSectionIndex > 0) {
       dispatch({ type: 'SET_SECTION', payload: state.currentSectionIndex - 1 });
-      // Set to last question of previous section
-      const prevSection = config.sections[state.currentSectionIndex - 1];
+      
+      // Set to last visible question of previous section (not just last question)
+      const prevSectionIndex = state.currentSectionIndex - 1;
+      const prevSection = config.sections[prevSectionIndex];
       if (prevSection) {
-        dispatch({ type: 'SET_QUESTION', payload: prevSection.questions.length - 1 });
+        // We need to calculate visible questions for the previous section
+        // For now, use the total questions count as an approximation
+        // This could be improved by calculating visible questions for previous section
+        const lastQuestionIndex = Math.max(0, prevSection.questions.length - 1);
+        dispatch({ type: 'SET_QUESTION', payload: lastQuestionIndex });
       }
     }
-  }, [state, config.sections]);
+    
+    // Clear any validation errors when going back
+    const currentQuestion = getCurrentQuestion();
+    if (currentQuestion) {
+      dispatch({ 
+        type: 'SET_VALIDATION_ERROR', 
+        payload: { questionId: currentQuestion.id, error: null } 
+      });
+    }
+  }, [state, config.sections, getCurrentQuestion]);
 
   // Calculate overall progress
   const calculateProgress = useCallback(() => {
     const totalSections = config.sections.length;
-    const visibleQuestions = getVisibleQuestions();
-    const totalQuestions = visibleQuestions.length;
+    
+    if (totalSections === 0) return 0;
 
-    if (totalSections === 0 || totalQuestions === 0) return 0;
+    // Count total questions across all sections
+    let totalQuestions = 0;
+    let completedQuestions = 0;
+    
+    // Count questions from all sections
+    for (let i = 0; i < totalSections; i++) {
+      const section = config.sections[i];
+      if (section) {
+        totalQuestions += section.questions.length;
+        
+        // Count completed questions from previous sections
+        if (i < state.currentSectionIndex) {
+          completedQuestions += section.questions.length;
+        }
+        // Count completed questions in current section
+        else if (i === state.currentSectionIndex) {
+          completedQuestions += state.currentQuestionIndex;
+        }
+      }
+    }
 
-    const sectionProgress = (state.currentSectionIndex / totalSections) * 100;
-    const questionProgress = (state.currentQuestionIndex / totalQuestions) * (100 / totalSections);
+    if (totalQuestions === 0) return 0;
 
-    return Math.round(sectionProgress + questionProgress);
-  }, [config.sections, state, getVisibleQuestions]);
+    // Calculate progress as percentage of total questions
+    const progress = (completedQuestions / totalQuestions) * 100;
+    return Math.round(Math.min(progress, 100));
+  }, [config.sections, state]);
 
   const contextValue: QuestionnaireContextValue = {
     state,
@@ -459,23 +587,33 @@ export function QuestionnaireProvider({
 // Base Questionnaire Component
 export function BaseHealthQuestionnaire({ 
   config, 
-  onComplete 
+  onComplete,
+  onProgressUpdate
 }: {
   config: QuestionnaireConfig;
   onComplete: (data: any) => void;
+  onProgressUpdate?: (progress: number) => void;
 }) {
   return (
-    <QuestionnaireProvider config={config} onComplete={onComplete}>
-      <div className="health-questionnaire">
-        {/* Feature components will be rendered here */}
-        {config.features
-          .filter(f => f.enabled && f.component)
-          .sort((a, b) => b.priority - a.priority)
-          .map(feature => {
-            const Component = feature.component!;
-            return <Component key={feature.id} {...feature.config} />;
-          })}
-      </div>
-    </QuestionnaireProvider>
+    <HealthQuestionnaireErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Health questionnaire error:', error);
+        // Could also send to error tracking service here
+      }}
+      resetKeys={[config]}
+    >
+      <QuestionnaireProvider config={config} onComplete={onComplete}>
+        <div className="health-questionnaire">
+          {/* Feature components will be rendered here */}
+          {config.features
+            .filter(f => f.enabled && f.component)
+            .sort((a, b) => b.priority - a.priority)
+            .map(feature => {
+              const Component = feature.component!;
+              return <Component key={feature.id} {...feature.config} onProgressUpdate={onProgressUpdate} />;
+            })}
+        </div>
+      </QuestionnaireProvider>
+    </HealthQuestionnaireErrorBoundary>
   );
 }

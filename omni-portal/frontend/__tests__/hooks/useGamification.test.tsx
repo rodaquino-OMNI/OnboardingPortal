@@ -15,11 +15,10 @@ describe('useGamification', () => {
     it('initializes with default values', () => {
       const { result } = renderHook(() => useGamification());
       
-      expect(result.current.points).toBe(0);
-      expect(result.current.level).toBe(1);
-      expect(result.current.badges).toEqual([]);
-      expect(result.current.achievements).toEqual([]);
-      expect(result.current.leaderboardPosition).toBeNull();
+      expect(result.current.progress).toBeNull();
+      expect(result.current.stats).toBeNull();
+      expect(result.current.badges).toEqual({ earned: [], available: [] });
+      expect(result.current.leaderboard).toEqual([]);
     });
 
     it('loads data from localStorage if available', () => {
@@ -82,7 +81,7 @@ describe('useGamification', () => {
         points: 50,
         reason: 'task_completed'
       });
-      expect(result.current.points).toBe(150);
+      expect(result.current.progress?.points).toBe(150);
     });
 
     it('handles level up when adding points', async () => {

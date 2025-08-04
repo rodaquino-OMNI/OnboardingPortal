@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         // OCR Processing Metrics table
-        Schema::create('ocr_processing_metrics', function (Blueprint $table) {
+        if (!Schema::hasTable('ocr_processing_metrics')) {
+            Schema::create('ocr_processing_metrics', function (Blueprint $table) {
             $table->id();
             $table->string('file_path');
             $table->float('processing_time')->comment('Processing time in seconds');
@@ -34,9 +35,11 @@ return new class extends Migration
             $table->index('confidence_score');
             $table->index('processing_time');
         });
+        }
 
         // OCR Alerts table
-        Schema::create('ocr_alerts', function (Blueprint $table) {
+        if (!Schema::hasTable('ocr_alerts')) {
+            Schema::create('ocr_alerts', function (Blueprint $table) {
             $table->id();
             $table->string('type')->comment('Alert type: high_processing_time, low_confidence, etc');
             $table->enum('severity', ['info', 'warning', 'error', 'critical']);
@@ -53,9 +56,11 @@ return new class extends Migration
             $table->index('status');
             $table->index(['created_at', 'status']);
         });
+        }
 
         // Performance Reports table
-        Schema::create('performance_reports', function (Blueprint $table) {
+        if (!Schema::hasTable('performance_reports')) {
+            Schema::create('performance_reports', function (Blueprint $table) {
             $table->id();
             $table->string('period')->comment('Report period: 1h, 24h, 7d, 30d');
             $table->timestamp('generated_at');
@@ -68,9 +73,11 @@ return new class extends Migration
             $table->index('period');
             $table->index('generated_at');
         });
+        }
 
         // Monitoring Events table for real-time tracking
-        Schema::create('ocr_monitoring_events', function (Blueprint $table) {
+        if (!Schema::hasTable('ocr_monitoring_events')) {
+            Schema::create('ocr_monitoring_events', function (Blueprint $table) {
             $table->id();
             $table->string('event_type')->comment('Event type: monitoring_started, monitoring_stopped, etc');
             $table->string('service')->default('textract');
@@ -83,6 +90,7 @@ return new class extends Migration
             $table->index('service');
             $table->index('occurred_at');
         });
+        }
     }
 
     /**

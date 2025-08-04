@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { VideoConferencing } from '@/components/video/VideoConferencing';
+import { PendingTasksReminder } from '@/components/onboarding/PendingTasksReminder';
 import { useAuth } from '@/hooks/useAuth';
-import { useApi } from '@/hooks/useApi';
+import api from '@/services/api';
 
 interface Interview {
   id: string;
@@ -35,7 +36,6 @@ export default function VideoConsultationPage() {
   const interviewId = searchParams.get('interview');
   
   const { user, isAuthenticated } = useAuth();
-  const { get } = useApi();
   
   const [interview, setInterview] = useState<Interview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,19 +53,20 @@ export default function VideoConsultationPage() {
       }
 
       try {
-        const response = await get(`/api/interviews/${interviewId}`);
-        if (response.success) {
-          setInterview(response.interview);
+        const response = await api.get<{ interview: Interview }>(`/api/interviews/${interviewId}`);
+        if (response.success && response.data?.interview) {
+          setInterview(response.data.interview);
           
           // Check HIPAA consent
-          const consentResponse = await get('/api/lgpd/privacy-settings');
-          if (consentResponse.success) {
-            setHipaaConsent(consentResponse.settings.hipaa_telehealth || false);
+          const consentResponse = await api.get<{ settings: { hipaa_telehealth?: boolean } }>('/api/lgpd/privacy-settings');
+          if (consentResponse.success && consentResponse.data?.settings) {
+            setHipaaConsent(consentResponse.data.settings.hipaa_telehealth || false);
           }
         } else {
           setError(response.message || 'Interview not found');
         }
       } catch (err) {
+        console.error('Failed to load interview:', err);
         setError('Failed to load interview details');
       } finally {
         setIsLoading(false);
@@ -73,10 +74,10 @@ export default function VideoConsultationPage() {
     };
 
     loadInterview();
-  }, [interviewId, isAuthenticated, get]);
+  }, [interviewId, isAuthenticated]);
 
   // Handle session end
-  const handleSessionEnd = (sessionData: any) => {
+  const handleSessionEnd = (sessionData: { id: string }) => {
     setShowVideo(false);
     // Could redirect to session summary or feedback page
     router.push(`/home?session_completed=${sessionData.id}`);
@@ -100,12 +101,13 @@ export default function VideoConsultationPage() {
   // Accept HIPAA consent
   const acceptHipaaConsent = async () => {
     try {
-      const response = await get('/api/lgpd/privacy-settings');
-      if (response.success) {
+      const response = await api.get<{ settings: { hipaa_telehealth?: boolean } }>('/api/lgpd/privacy-settings');
+      if (response.success && response.data) {
         // Update HIPAA consent - in a real implementation this would be a PUT request
         setHipaaConsent(true);
       }
     } catch (err) {
+      console.error('Failed to update HIPAA consent:', err);
       setError('Failed to update HIPAA consent');
     }
   };
@@ -167,6 +169,8 @@ export default function VideoConsultationPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4">
+        <PendingTasksReminder className="mb-6" />
+        
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">

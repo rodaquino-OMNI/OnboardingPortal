@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Route, Brain, Heart, Shield, Activity, 
   Sparkles, CheckCircle, TrendingUp,
@@ -126,12 +126,22 @@ export function DualPathwayHealthAssessment({
     }
   });
 
-  // Initialize Dual Pathway System
-  useEffect(() => {
-    initializeDualPathwaySystem();
-  }, [userId, assessmentType]);
+  // Validate compliance requirements
+  const validateCompliance = useCallback(async () => {
+    // Validate compliance requirements based on configuration
+    const complianceChecks = {
+      hipaa: configuration.complianceLevel !== 'basic',
+      lgpd: true, // Always required in Brazil
+      fdaClassII: configuration.complianceLevel === 'fda_class_ii'
+    };
 
-  const initializeDualPathwaySystem = async () => {
+    // Perform compliance validation
+    // In production, this would check encryption, data handling, audit logs, etc.
+    return complianceChecks;
+  }, [configuration.complianceLevel]);
+
+  // Initialize Dual Pathway System
+  const initializeDualPathwaySystem = useCallback(async () => {
     setCurrentPhase('initialization');
     
     try {
@@ -172,20 +182,11 @@ export function DualPathwayHealthAssessment({
       console.error('Failed to initialize dual pathway system:', error);
       setCurrentPhase('error');
     }
-  };
+  }, [userId, assessmentType, integrationSystem, configuration, clinicalEngine, setCurrentPhase, setSystemStatus, setCurrentComponent, validateCompliance]);
 
-  const validateCompliance = async () => {
-    // Validate compliance requirements based on configuration
-    const complianceChecks = {
-      hipaa: configuration.complianceLevel !== 'basic',
-      lgpd: true, // Always required in Brazil
-      fdaClassII: configuration.complianceLevel === 'fda_class_ii'
-    };
-
-    // Perform compliance validation
-    // In production, this would check encryption, data handling, audit logs, etc.
-    return complianceChecks;
-  };
+  useEffect(() => {
+    initializeDualPathwaySystem();
+  }, [initializeDualPathwaySystem]);
 
   // Handle Assessment Completion from Router
   const handleRouterComplete = async (results: any) => {
@@ -433,7 +434,7 @@ export function DualPathwayHealthAssessment({
               <div>
                 <h1 className="text-xl font-semibold">Sistema Dual Pathway</h1>
                 <p className="text-sm text-gray-600">
-                  Avaliação Inteligente de Saúde - {assessmentType === 'onboarding' ? 'Primeira Vez' : 'Periódica'}
+                  {assessmentType === 'onboarding' ? 'Primeira Avaliação' : 'Avaliação Periódica'}
                 </p>
               </div>
             </div>

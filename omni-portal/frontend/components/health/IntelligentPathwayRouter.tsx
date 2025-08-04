@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Route, Users, Brain, Heart, Shield, Zap, 
   Clock, TrendingUp, AlertTriangle, CheckCircle,
@@ -15,8 +15,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 // Routes users between Enhanced (UX-focused) and Clinical (medical-focused) questionnaires
 // Based on: user type, risk factors, history, and intelligent analysis
 
-import { EnhancedHealthQuestionnaire } from './EnhancedHealthQuestionnaire';
-import { ClinicalExcellenceQuestionnaire } from './ClinicalExcellenceQuestionnaire';
+// Using UnifiedHealthQuestionnaire as the single health assessment component
+import { UnifiedHealthQuestionnaire } from './UnifiedHealthQuestionnaire';
 
 interface IntelligentPathwayRouterProps {
   userId: string;
@@ -85,11 +85,7 @@ export function IntelligentPathwayRouter({
   const [intelligenceEngine] = useState(new PathwayIntelligenceEngine());
   
   // Intelligent Analysis on Mount
-  useEffect(() => {
-    analyzeOptimalPathway();
-  }, [userId, userProfile]);
-
-  const analyzeOptimalPathway = async () => {
+  const analyzeOptimalPathway = useCallback(async () => {
     setIsAnalyzing(true);
     
     // Deep analysis of user context for optimal pathway selection
@@ -105,7 +101,11 @@ export function IntelligentPathwayRouter({
     setPathwayReasoning(analysis.reasoning);
     setCurrentPathway(analysis.decision.primaryPathway);
     setIsAnalyzing(false);
-  };
+  }, [userId, userProfile, intelligenceEngine]);
+
+  useEffect(() => {
+    analyzeOptimalPathway();
+  }, [analyzeOptimalPathway]);
 
   // Handle questionnaire completion with intelligent insights
   const handleQuestionnaireComplete = async (results: any) => {
@@ -194,19 +194,31 @@ export function IntelligentPathwayRouter({
     switch (currentPathway) {
       case 'enhanced':
         return (
-          <EnhancedHealthQuestionnaire
+          <UnifiedHealthQuestionnaire
             onComplete={handleQuestionnaireComplete}
             userId={userId}
-            progressiveResults={pathwayDecision?.contextualData}
+            mode="conversational"
+            features={{
+              ai: true,
+              gamification: true,
+              progressive: true,
+              accessibility: true
+            }}
           />
         );
         
       case 'clinical':
         return (
-          <ClinicalExcellenceQuestionnaire
+          <UnifiedHealthQuestionnaire
             onComplete={handleQuestionnaireComplete}
             userId={userId}
-            sessionId={pathwayDecision?.sessionId}
+            mode="clinical"
+            features={{
+              clinical: true,
+              progressive: true,
+              accessibility: true,
+              gamification: false
+            }}
           />
         );
         
@@ -517,9 +529,16 @@ function HybridPathwayComponent({ onComplete, userId, pathwayDecision }: HybridP
             Iniciando com avaliação empática. Caso necessário, faremos uma avaliação clínica adicional.
           </AlertDescription>
         </Alert>
-        <EnhancedHealthQuestionnaire
+        <UnifiedHealthQuestionnaire
           onComplete={handleFirstComplete}
           userId={userId}
+          mode="conversational"
+          features={{
+            ai: true,
+            gamification: true,
+            progressive: true,
+            accessibility: true
+          }}
         />
       </div>
     );
@@ -533,10 +552,16 @@ function HybridPathwayComponent({ onComplete, userId, pathwayDecision }: HybridP
           Com base nas suas respostas, vamos fazer uma avaliação clínica adicional para seu cuidado.
         </AlertDescription>
       </Alert>
-      <ClinicalExcellenceQuestionnaire
+      <UnifiedHealthQuestionnaire
         onComplete={handleClinicalComplete}
         userId={userId}
-        sessionId={pathwayDecision.sessionId}
+        mode="clinical"
+        features={{
+          clinical: true,
+          progressive: true,
+          accessibility: true,
+          gamification: false
+        }}
       />
     </div>
   );

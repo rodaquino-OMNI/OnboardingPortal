@@ -49,20 +49,13 @@ class RegisterController extends Controller
                 'email_verified_at' => now(),
             ]);
             
-            // Create beneficiary record with minimal required fields
+            // Create beneficiary record with minimal required fields - NO PLACEHOLDERS
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                'birth_date' => '2000-01-01', // Placeholder, will be updated in profile
-                'phone' => '11999999999', // Placeholder, will be updated in profile
-                'address' => 'To be updated', // Placeholder
-                'number' => '0', // Placeholder
-                'neighborhood' => 'To be updated', // Placeholder
-                'city' => 'To be updated', // Placeholder
-                'state' => 'SP', // Default to SP
-                'zip_code' => '00000-000', // Placeholder
-                'onboarding_status' => 'in_progress',
+                // NO PLACEHOLDER VALUES - Fields will be populated in step 2
+                'onboarding_status' => 'profile_incomplete', // More descriptive status
                 'onboarding_completed_at' => null,
             ]);
             
@@ -122,27 +115,20 @@ class RegisterController extends Controller
                 'is_active' => false, // Will be activated after completion
             ]);
             
-            // Create beneficiary record with minimal required fields
+            // Create beneficiary record with minimal required fields - NO PLACEHOLDERS
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                'birth_date' => '2000-01-01', // Placeholder
-                'phone' => '11999999999', // Placeholder
-                'address' => 'To be updated',
-                'number' => '0',
-                'neighborhood' => 'To be updated',
-                'city' => 'To be updated',
-                'state' => 'SP',
-                'zip_code' => '00000-000',
-                'onboarding_status' => 'pending',
+                // NO PLACEHOLDER VALUES - Fields will be populated in step 2
+                'onboarding_status' => 'profile_incomplete', // More descriptive status
                 'onboarding_completed_at' => null,
             ]);
             
             // Initialize gamification progress
             $gamification = GamificationProgress::create([
                 'beneficiary_id' => $beneficiary->id,
-                'total_points' => 0,
+                'total_points' => 100,
                 'current_level' => 1,
                 'last_activity_date' => now()->toDateString(),
             ]);
@@ -196,12 +182,47 @@ class RegisterController extends Controller
                 'registration_step' => 'security',
             ]);
             
-            // Update beneficiary
-            $user->beneficiary->update([
-                'birth_date' => $request->input('birth_date'),
-                'gender' => $request->input('gender'),
-                'marital_status' => $request->input('marital_status'),
-            ]);
+            // Update beneficiary with all validated data - NO MORE PLACEHOLDERS
+            $beneficiaryData = [
+                'birth_date' => $request->birth_date,
+                'gender' => $request->gender,
+                'marital_status' => $request->marital_status,
+                'phone' => $request->phone, // Update phone in beneficiary too
+            ];
+
+            // Add optional address fields if provided
+            if ($request->filled('address')) {
+                $beneficiaryData['address'] = $request->address;
+            }
+            if ($request->filled('number')) {
+                $beneficiaryData['number'] = $request->number;
+            }
+            if ($request->filled('complement')) {
+                $beneficiaryData['complement'] = $request->complement;
+            }
+            if ($request->filled('neighborhood')) {
+                $beneficiaryData['neighborhood'] = $request->neighborhood;
+            }
+            if ($request->filled('city')) {
+                $beneficiaryData['city'] = $request->city;
+            }
+            if ($request->filled('state')) {
+                $beneficiaryData['state'] = $request->state;
+            }
+            if ($request->filled('zip_code')) {
+                $beneficiaryData['zip_code'] = $request->zip_code;
+            }
+            if ($request->filled('emergency_contact_name')) {
+                $beneficiaryData['emergency_contact_name'] = $request->emergency_contact_name;
+            }
+            if ($request->filled('emergency_contact_phone')) {
+                $beneficiaryData['emergency_contact_phone'] = $request->emergency_contact_phone;
+            }
+            if ($request->filled('emergency_contact_relationship')) {
+                $beneficiaryData['emergency_contact_relationship'] = $request->emergency_contact_relationship;
+            }
+
+            $user->beneficiary->update($beneficiaryData);
             
             return response()->json([
                 'message' => 'Etapa 2 concluída com sucesso',
@@ -253,7 +274,7 @@ class RegisterController extends Controller
                 ]),
             ]);
             
-            // Update beneficiary onboarding status
+            // Update beneficiary onboarding status - Move from profile_incomplete to in_progress
             $user->beneficiary->update([
                 'onboarding_status' => 'in_progress',
             ]);
@@ -332,6 +353,124 @@ class RegisterController extends Controller
         ]);
     }
     
+    /**
+     * Validate profile completion based on required fields
+     */
+    public function validateProfileCompletion(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $beneficiary = $user->beneficiary;
+        
+        $requiredFields = [
+            'birth_date' => $beneficiary->birth_date,
+            'gender' => $beneficiary->gender,
+            'marital_status' => $beneficiary->marital_status,
+            'phone' => $beneficiary->phone,
+        ];
+        
+        $missingFields = [];
+        $hasPlaceholders = false;
+        
+        foreach ($requiredFields as $field => $value) {
+            if (empty($value)) {
+                $missingFields[] = $field;
+            }
+            
+            // Check for old placeholder values that might still exist
+            if ($this->isPlaceholderValue($field, $value)) {
+                $hasPlaceholders = true;
+                $missingFields[] = $field . ' (placeholder detected)';
+            }
+        }
+        
+        $isComplete = empty($missingFields) && !$hasPlaceholders;
+        
+        return response()->json([
+            'is_complete' => $isComplete,
+            'missing_fields' => $missingFields,
+            'completion_percentage' => $this->calculateCompletionPercentage($beneficiary),
+            'profile_quality_score' => $this->calculateProfileQualityScore($beneficiary),
+        ]);
+    }
+    
+    /**
+     * Check if a value is a placeholder
+     */
+    private function isPlaceholderValue(string $field, $value): bool
+    {
+        if (empty($value)) return false;
+        
+        $placeholders = [
+            'birth_date' => ['2000-01-01'],
+            'phone' => ['11999999999', '(11) 99999-9999'],
+            'address' => ['To be updated', 'A ser atualizado'],
+            'city' => ['To be updated', 'A ser atualizado'],
+            'neighborhood' => ['To be updated', 'A ser atualizado'],
+            'zip_code' => ['00000-000'],
+        ];
+        
+        return isset($placeholders[$field]) && in_array($value, $placeholders[$field]);
+    }
+    
+    /**
+     * Calculate profile completion percentage
+     */
+    private function calculateCompletionPercentage($beneficiary): int
+    {
+        $totalFields = 15; // Total relevant profile fields
+        $completedFields = 0;
+        
+        $fields = [
+            'birth_date', 'gender', 'marital_status', 'phone', 'address', 
+            'city', 'state', 'zip_code', 'emergency_contact_name', 
+            'emergency_contact_phone', 'emergency_contact_relationship',
+            'occupation', 'monthly_income', 'has_health_insurance',
+            'health_insurance_provider'
+        ];
+        
+        foreach ($fields as $field) {
+            if (!empty($beneficiary->$field) && !$this->isPlaceholderValue($field, $beneficiary->$field)) {
+                $completedFields++;
+            }
+        }
+        
+        return round(($completedFields / $totalFields) * 100);
+    }
+    
+    /**
+     * Calculate profile quality score (0-100)
+     */
+    private function calculateProfileQualityScore($beneficiary): int
+    {
+        $score = 0;
+        
+        // Essential fields (60 points total)
+        $essentialFields = ['birth_date', 'gender', 'marital_status', 'phone'];
+        foreach ($essentialFields as $field) {
+            if (!empty($beneficiary->$field) && !$this->isPlaceholderValue($field, $beneficiary->$field)) {
+                $score += 15;
+            }
+        }
+        
+        // Important fields (30 points total)
+        $importantFields = ['address', 'city', 'state', 'zip_code', 'emergency_contact_name', 'emergency_contact_phone'];
+        foreach ($importantFields as $field) {
+            if (!empty($beneficiary->$field) && !$this->isPlaceholderValue($field, $beneficiary->$field)) {
+                $score += 5;
+            }
+        }
+        
+        // Additional fields (10 points total)
+        $additionalFields = ['occupation', 'monthly_income', 'health_insurance_provider'];
+        foreach ($additionalFields as $field) {
+            if (!empty($beneficiary->$field)) {
+                $score += 3;
+            }
+        }
+        
+        return min($score, 100);
+    }
+
     /**
      * Cancel registration and delete incomplete account
      */

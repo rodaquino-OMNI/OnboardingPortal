@@ -1,9 +1,13 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { SmartHealthQuestionnaire } from '@/components/health/SmartHealthQuestionnaire';
 import { useGamification } from '@/hooks/useGamification';
 import api from '@/services/api';
+
+// Extend Jest matchers
+expect.extend(toHaveNoViolations);
 
 // Mock dependencies
 jest.mock('@/hooks/useGamification');
@@ -99,9 +103,17 @@ describe('SmartHealthQuestionnaire', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useGamification as jest.Mock).mockReturnValue({
+    (useGamification as unknown as jest.Mock).mockReturnValue({
       addPoints: mockAddPoints,
-      unlockBadge: mockUnlockBadge
+      unlockBadge: mockUnlockBadge,
+      progress: null,
+      stats: null,
+      badges: { earned: [], available: [] },
+      leaderboard: [],
+      activityFeed: [],
+      dashboardSummary: null,
+      isLoading: false,
+      error: null
     });
     
     // Mock questionnaire data
@@ -513,7 +525,9 @@ describe('SmartHealthQuestionnaire', () => {
       // Skip chronic conditions by selecting "Nenhuma" if available
       await waitFor(() => screen.getAllByRole('checkbox'));
       const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[checkboxes.length - 1]); // Last option usually "Nenhuma"
+      if (checkboxes.length > 0) {
+        await user.click(checkboxes[checkboxes.length - 1]); // Last option usually "Nenhuma"
+      }
       
       // Answer medications question
       await waitFor(() => screen.getByRole('radio', { name: /sim/i }));
@@ -541,7 +555,9 @@ describe('SmartHealthQuestionnaire', () => {
       // Continue through remaining questions
       await waitFor(() => screen.getAllByRole('checkbox'));
       const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]); // Select first option
+      if (checkboxes.length > 0) {
+        await user.click(checkboxes[0]); // Select first option
+      }
       
       await waitFor(() => screen.getByRole('radio', { name: /não/i }));
       await user.click(screen.getByRole('radio', { name: /não/i }));
@@ -664,7 +680,9 @@ describe('SmartHealthQuestionnaire', () => {
       // Complete chronic conditions
       await waitFor(() => screen.getAllByRole('checkbox'));
       const checkboxes = screen.getAllByRole('checkbox');
-      await user.click(checkboxes[0]);
+      if (checkboxes.length > 0) {
+        await user.click(checkboxes[0]);
+      }
       
       // Complete medications
       await waitFor(() => screen.getByRole('radio', { name: /sim/i }));
@@ -805,17 +823,19 @@ describe('SmartHealthQuestionnaire', () => {
   });
   
   describe('Suicide Risk Detection', () => {
-    it('should NOT trigger suicide risk on initial mount', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('should NOT trigger false positive suicide risk on initial mount', async () => {
+      // Arrange
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       
+      // Act
       render(<SmartHealthQuestionnaire {...defaultProps} />);
 
-      // Wait for initial render and effects
+      // Assert - Wait for initial render and effects
       await waitFor(() => {
         expect(screen.getByRole('main')).toBeInTheDocument();
       });
 
-      // Verify no critical risk was logged
+      // Verify no false positive critical risk was logged
       expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('CRITICAL RISK DETECTED'));
       
       consoleSpy.mockRestore();
@@ -859,7 +879,7 @@ describe('SmartHealthQuestionnaire', () => {
       const mockCalculateRiskScore = jest.requireMock('@/lib/health-questionnaire-v2').calculateRiskScore;
       
       // Mock the component with PHQ-9 responses including question 9
-      mockCalculateRiskScore.mockImplementation((responses) => {
+      mockCalculateRiskScore.mockImplementation((responses: Record<string, any>) => {
         if (responses.phq9_9 > 0) {
           return {
             overall: 30,
@@ -894,44 +914,43 @@ describe('SmartHealthQuestionnaire', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should show crisis resources when legitimate suicide risk is detected', async () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+    it('should display crisis resources when user indicates suicide ideation', async () => {
+      // Arrange
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const mockCalculateRiskScore = jest.requireMock('@/lib/health-questionnaire-v2').calculateRiskScore;
       
-      // Setup mock to return suicide risk flag
-      mockCalculateRiskScore.mockReturnValue({
-        overall: 30,
-        categories: { mental_health: 20 },
-        flags: ['suicide_risk'],
-        recommendations: ['Encaminhamento urgente para profissional de saúde mental']
+      // Setup mock to return suicide risk flag only when phq9_9 > 0
+      mockCalculateRiskScore.mockImplementation((responses: Record<string, any>) => {
+        if (responses.phq9_9 && responses.phq9_9 > 0) {
+          return {
+            overall: 30,
+            categories: { mental_health: 20 },
+            flags: ['suicide_risk'],
+            recommendations: ['Encaminhamento urgente para profissional de saúde mental']
+          };
+        }
+        return { overall: 0, categories: {}, flags: [], recommendations: [] };
       });
 
-      // We need to render with initial responses that include phq9_9 > 0
+      // Act - Render with explicit suicide ideation response
       render(
         <SmartHealthQuestionnaire 
           {...defaultProps} 
           progressiveResults={{
             age: 30,
             gender: 'male',
-            phq9_1: 0,
-            phq9_2: 0,
-            phq9_3: 0,
-            phq9_4: 0,
-            phq9_5: 0,
-            phq9_6: 0,
-            phq9_7: 0,
-            phq9_8: 0,
-            phq9_9: 2, // Explicit positive response to suicide question
-            gad7_1: 0,
-            gad7_2: 0
+            phq9_9: 2 // Explicit positive response to suicide question
           }}
         />
       );
 
-      // Component should detect the risk and show resources
+      // Assert - Component should detect the risk and show resources
       await waitFor(() => {
         expect(consoleSpy).toHaveBeenCalledWith('CRITICAL RISK DETECTED: suicide');
-        expect(screen.getByText(/CVV - Centro de Valorização da Vida: 188/)).toBeInTheDocument();
+        // Crisis resources should be visible to user
+        expect(screen.getByRole('alert')).toHaveTextContent(/centro de valorização da vida/i);
+        expect(screen.getByText(/188/)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /emergência/i })).toHaveAttribute('href', 'tel:192');
       });
       
       consoleSpy.mockRestore();
@@ -967,9 +986,22 @@ describe('SmartHealthQuestionnaire', () => {
   });
 
   describe('WCAG Compliance', () => {
+    it('should have no accessibility violations', async () => {
+      // Arrange
+      const { container } = render(<SmartHealthQuestionnaire {...defaultProps} />);
+      
+      // Act & Assert
+      await waitFor(async () => {
+        const results = await axe(container);
+        expect(results).toHaveNoViolations();
+      });
+    });
+    
     it('meets color contrast requirements', async () => {
+      // Arrange & Act
       render(<SmartHealthQuestionnaire {...defaultProps} />);
       
+      // Assert
       await waitFor(() => {
         // Check that form elements are properly structured
         const ageInput = screen.getByRole('spinbutton', { name: /idade/i });
@@ -1022,6 +1054,44 @@ describe('SmartHealthQuestionnaire', () => {
         // Focus management should be handled by the component
         expect(document.activeElement).toBeTruthy();
       });
+    });
+  });
+  
+  describe('Performance', () => {
+    it('should render within performance budget', async () => {
+      // Arrange
+      const startTime = performance.now();
+      
+      // Act
+      render(<SmartHealthQuestionnaire {...defaultProps} />);
+      
+      await waitFor(() => {
+        expect(screen.getByRole('main')).toBeInTheDocument();
+      });
+      
+      const renderTime = performance.now() - startTime;
+      
+      // Assert - Should render within 150ms budget (questionnaire is complex)
+      expect(renderTime).toBeLessThan(150);
+    });
+    
+    it('should handle form state changes efficiently', async () => {
+      // Arrange
+      const user = userEvent.setup();
+      render(<SmartHealthQuestionnaire {...defaultProps} />);
+      
+      await waitFor(() => screen.getByRole('spinbutton', { name: /idade/i }));
+      
+      const startTime = performance.now();
+      
+      // Act - Multiple rapid state changes
+      const ageInput = screen.getByRole('spinbutton', { name: /idade/i });
+      await user.type(ageInput, '30');
+      
+      const responseTime = performance.now() - startTime;
+      
+      // Assert - Should handle rapid input efficiently
+      expect(responseTime).toBeLessThan(50); // Should be very fast for input handling
     });
   });
 });

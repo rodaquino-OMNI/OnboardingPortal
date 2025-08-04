@@ -23,19 +23,12 @@ import {
 } from '@/lib/health-questionnaire-v2';
 
 // Enhanced error boundary for production stability
-import { ErrorBoundary } from './ErrorBoundary';
+import { HealthQuestionnaireErrorBoundary, useErrorHandler } from './ErrorBoundary';
 
-function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
-  return (
-    <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
-      <h2 className="text-lg font-semibold text-red-800 mb-2">Erro no Questionário de Saúde</h2>
-      <p className="text-red-600 mb-4">Ocorreu um erro técnico. Seus dados estão seguros.</p>
-      <Button onClick={resetErrorBoundary} variant="outline">
-        Tentar Novamente
-      </Button>
-    </div>
-  );
-}
+// Unified navigation system
+import { useUnifiedNavigation, NAVIGATION_PROFILES } from '@/hooks/useUnifiedNavigation';
+import NavigationButtons from './unified/NavigationButtons';
+import StandardizedProgress from './unified/StandardizedProgress';
 
 interface SmartHealthQuestionnaireProps {
   onComplete: (data: any) => void;
@@ -43,7 +36,7 @@ interface SmartHealthQuestionnaireProps {
   progressiveResults?: any;
 }
 
-export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResults }: SmartHealthQuestionnaireProps) {
+function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults }: SmartHealthQuestionnaireProps) {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -54,6 +47,7 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
   const [trustScore, setTrustScore] = useState(100);
   const [showRiskAlert, setShowRiskAlert] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const { captureError } = useErrorHandler();
 
   const currentSection = HEALTH_QUESTIONNAIRE_SECTIONS[currentSectionIndex];
   const visibleQuestions = currentSection?.questions?.filter(q => {
@@ -66,6 +60,11 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
   }) || [];
   const currentQuestion = visibleQuestions[currentQuestionIndex];
   const totalQuestions = visibleQuestions.length;
+  
+  // Calculate overall progress
+  const allQuestions = HEALTH_QUESTIONNAIRE_SECTIONS.flatMap(section => section.questions || []);
+  const overallProgress = currentSectionIndex * 20 + (currentQuestionIndex / totalQuestions) * 20;
+  const completedQuestions = currentSectionIndex * 20 + currentQuestionIndex;
 
   // Define handleCriticalRisk BEFORE it's used in useEffect
   const handleCriticalRisk = useCallback((riskType: string) => {
@@ -177,23 +176,66 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
     return !hasErrors;
   };
 
-  const handleNextQuestion = () => {
+  // Unified navigation handlers
+  const handleNextQuestion = useCallback(() => {
     if (!currentQuestion) return;
-    
-    const error = validateResponse(currentQuestion, responses[currentQuestion.id]);
-    if (error) {
-      setValidationErrors(prev => ({ ...prev, [currentQuestion.id]: error }));
-      return;
-    }
     
     if (currentQuestionIndex < totalQuestions - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
       handleSectionComplete();
     }
-  };
+  }, [currentQuestion, currentQuestionIndex, totalQuestions]);
 
-  const handleResponse = (value: any) => {
+  const handlePreviousQuestion = useCallback(() => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    } else if (currentSectionIndex > 0) {
+      setCurrentSectionIndex(prev => prev - 1);
+      // Move to last question of previous section
+      const prevSection = HEALTH_QUESTIONNAIRE_SECTIONS[currentSectionIndex - 1];
+      const prevVisibleQuestions = prevSection?.questions?.filter(q => {
+        if (!q.conditionalOn) return true;
+        const conditionValue = responses[q.conditionalOn.questionId];
+        if (q.conditionalOn.values.includes('*')) {
+          return conditionValue && (Array.isArray(conditionValue) ? conditionValue.length > 0 : true);
+        }
+        return q.conditionalOn.values.includes(conditionValue);
+      }) || [];
+      setCurrentQuestionIndex(Math.max(0, prevVisibleQuestions.length - 1));
+    }
+  }, [currentQuestionIndex, currentSectionIndex, responses]);
+
+  // Use unified navigation system
+  const navigation = useUnifiedNavigation(
+    currentQuestion,
+    responses[currentQuestion?.id],
+    NAVIGATION_PROFILES.health, // Use the new health profile
+    {
+      onNext: handleNextQuestion,
+      onPrevious: handlePreviousQuestion,
+      onValidationError: (error: string) => {
+        if (currentQuestion) {
+          setValidationErrors(prev => ({ ...prev, [currentQuestion.id]: error }));
+        }
+      },
+      onProgress: (progress: number) => {
+        // Update section progress if needed
+      },
+      onNavigationStart: () => {
+        // Clear any existing validation errors
+        if (currentQuestion && validationErrors[currentQuestion.id]) {
+          setValidationErrors(prev => {
+            const updated = { ...prev };
+            delete updated[currentQuestion.id];
+            return updated;
+          });
+        }
+      }
+    }
+  );
+
+  const handleResponse = useCallback(async (value: any) => {
     if (!currentQuestion) return;
     
     const newResponses = { ...responses, [currentQuestion.id]: value };
@@ -208,13 +250,6 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
       });
     }
 
-    // Validate current response
-    const error = validateResponse(currentQuestion, value);
-    if (error) {
-      setValidationErrors(prev => ({ ...prev, [currentQuestion.id]: error }));
-      return; // Don't auto-advance if there's a validation error
-    }
-
     // Check for validation pairs
     if (currentQuestion.validationPair) {
       const pairedValue = responses[currentQuestion.validationPair];
@@ -226,17 +261,9 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
       }
     }
 
-    // Auto-advance only for select-type questions, not for text input or multiselect
-    if (currentQuestion.type === 'boolean' || currentQuestion.type === 'select' || currentQuestion.type === 'scale') {
-      setTimeout(() => {
-        if (currentQuestionIndex < totalQuestions - 1) {
-          setCurrentQuestionIndex(prev => prev + 1);
-        } else {
-          handleSectionComplete();
-        }
-      }, 300);
-    }
-  };
+    // Use unified navigation for consistent auto-advance behavior
+    await navigation.handleResponse(value);
+  }, [currentQuestion, responses, validationErrors, navigation]);
 
   const handleSectionComplete = () => {
     if (!validateCurrentSection()) {
@@ -566,7 +593,13 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
     : 0;
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+    <HealthQuestionnaireErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Smart Health Questionnaire error:', error, errorInfo);
+        // Could send to error tracking service here
+      }}
+      resetKeys={[userId, progressiveResults]}
+    >
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
       <div className="max-w-4xl mx-auto space-y-6 px-4" role="main" aria-label="Questionário de saúde">
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
@@ -607,14 +640,18 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
               {Math.round(overallProgress)}% completo
             </span>
           </div>
-          <Progress 
-            value={overallProgress} 
-            className="h-3" 
-            aria-label={`Progresso do questionário: ${Math.round(overallProgress)}% completo`}
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(overallProgress)}
+          {/* Standardized Progress Tracking */}
+          <StandardizedProgress
+            currentStep={currentQuestionIndex + 1}
+            totalSteps={totalQuestions}
+            completedSteps={currentQuestionIndex}
+            currentDomain={currentSection?.id}
+            completedDomains={Object.keys(sectionProgress).filter(id => sectionProgress[id] === 100)}
+            showStepNumbers={true}
+            showDomainInfo={true}
+            showTimeEstimate={true}
+            showDetailedProgress={false}
+            className="mb-4"
           />
           
           {/* Section Progress */}
@@ -740,22 +777,21 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
                     </Button>
                   )}
                   
-                  {/* Show Next button for questions that don't auto-advance */}
-                  {(currentQuestion?.type === 'text' || 
-                    currentQuestion?.type === 'number' || 
-                    currentQuestion?.type === 'multiselect' || 
-                    currentQuestion?.type === 'date') && (
-                    <Button
-                      onClick={handleNextQuestion}
-                      disabled={currentQuestion?.required && (!responses[currentQuestion.id] || validationErrors[currentQuestion.id])}
-                      aria-label={currentQuestionIndex < totalQuestions - 1 
-                        ? "Ir para a próxima pergunta" 
-                        : "Finalizar seção"}
-                    >
-                      {currentQuestionIndex < totalQuestions - 1 ? 'Próximo' : 'Finalizar'}
-                      <ChevronRight className="w-4 h-4 ml-1" aria-hidden="true" />
-                    </Button>
-                  )}
+                  {/* Standardized Navigation Buttons */}
+                  <NavigationButtons
+                    onNext={navigation.handleNext}
+                    onPrevious={navigation.handlePrevious}
+                    canGoNext={navigation.getNavigationState().canNavigateNext}
+                    canGoPrevious={navigation.getNavigationState().canNavigatePrevious}
+                    isNavigating={navigation.getNavigationState().isNavigating}
+                    showAutoAdvance={navigation.shouldAutoAdvance}
+                    autoAdvanceDelay={navigation.config.autoAdvanceDelay}
+                    remainingTime={navigation.getNavigationState().remainingAutoAdvanceTime}
+                    nextLabel={currentQuestionIndex < totalQuestions - 1 ? 'Continuar' : 'Finalizar Seção'}
+                    previousLabel="Voltar"
+                    isLastQuestion={currentQuestionIndex === totalQuestions - 1}
+                    className="mt-4"
+                  />
                 </div>
               </nav>
             </div>
@@ -806,6 +842,13 @@ export function SmartHealthQuestionnaire({ onComplete, userId, progressiveResult
       )}
       </div>
     </div>
-    </ErrorBoundary>
+    </HealthQuestionnaireErrorBoundary>
+  );
+}
+
+// Main component export with error boundary wrapper
+export function SmartHealthQuestionnaire(props: SmartHealthQuestionnaireProps) {
+  return (
+    <SmartHealthQuestionnaireInner {...props} />
   );
 }

@@ -26,7 +26,7 @@ export function BadgeDisplay({
   const [activeTab, setActiveTab] = useState<'earned' | 'available'>('earned');
 
   useEffect(() => {
-    if (!badges.earned.length && !badges.available.length) {
+    if (!badges?.earned?.length && !badges?.available?.length) {
       fetchBadges();
     }
   }, [badges, fetchBadges]);
@@ -66,7 +66,7 @@ export function BadgeDisplay({
     }
   };
 
-  const displayBadges = activeTab === 'earned' ? badges.earned : badges.available;
+  const displayBadges = activeTab === 'earned' ? (badges?.earned || []) : (badges?.available || []);
   const visibleBadges = displayBadges.slice(0, maxVisible);
 
   return (
@@ -76,7 +76,7 @@ export function BadgeDisplay({
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-lg">Conquistas</h3>
           <Badge variant="secondary">
-            {badges.earned.length} conquistadas
+            {badges?.earned?.length || 0} conquistadas
           </Badge>
         </div>
 
@@ -91,7 +91,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Conquistadas ({badges.earned.length})
+              Conquistadas ({badgesData?.earned?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('available')}
@@ -101,7 +101,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Disponíveis ({badges.available.length})
+              Disponíveis ({badgesData?.available?.length || 0})
             </button>
           </div>
         )}

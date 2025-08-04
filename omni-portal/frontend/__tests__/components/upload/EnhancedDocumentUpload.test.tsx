@@ -60,16 +60,29 @@ const createMockFile = (name: string, size: number, type: string): File => {
 
 describe('EnhancedDocumentUpload', () => {
   const defaultProps = {
-    userId: 'test-user-123',
-    onComplete: jest.fn(),
-    onProgress: jest.fn()
+    documentType: {
+      id: 'rg',
+      name: 'RG',
+      required: true,
+      type: 'identity'
+    },
+    onUploadComplete: jest.fn(),
+    onUploadProgress: jest.fn()
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (useGamification as jest.Mock).mockReturnValue({
+    (useGamification as unknown as jest.Mock).mockReturnValue({
       addPoints: mockAddPoints,
-      unlockBadge: mockUnlockBadge
+      unlockBadge: mockUnlockBadge,
+      progress: null,
+      stats: null,
+      badges: { earned: [], available: [] },
+      leaderboard: [],
+      activityFeed: [],
+      dashboardSummary: null,
+      isLoading: false,
+      error: null
     });
   });
 
@@ -453,9 +466,7 @@ describe('EnhancedDocumentUpload', () => {
       });
       
       const props = {
-        ...defaultProps,
-        requiredDocuments: ['rg', 'cpf', 'proof_of_residence'],
-        uploadedDocuments: ['cpf', 'proof_of_residence']
+        ...defaultProps
       };
       
       render(<EnhancedDocumentUpload {...props} />);

@@ -318,12 +318,23 @@ export interface GamificationBadge {
 }
 
 export interface LeaderboardEntry {
-  userId: string;
-  username: string;
-  points: number;
-  rank: number;
-  achievements: Achievement[];
+  // Frontend expected fields
+  userId?: string;
+  username?: string;
+  points?: number;
+  rank?: number;
+  achievements?: Achievement[];
   avatar?: string;
+  
+  // Backend API fields (actual response format)
+  beneficiary_id?: number;
+  name?: string;
+  total_points?: number;
+  current_level?: number;
+  level_name?: string;
+  badges_count?: number;
+  engagement_score?: number;
+  badges?: any[];
 }
 
 export interface GamificationStats {

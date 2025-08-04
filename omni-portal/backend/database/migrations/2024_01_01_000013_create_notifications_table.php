@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::create('notifications', function (Blueprint $table) {
             $table->id();
             $table->string('type');
-            $table->morphs('notifiable'); // notifiable_type and notifiable_id
+            $table->string('notifiable_type');
+            $table->string('notifiable_id');
             $table->text('data'); // JSON data for the notification
             $table->timestamp('read_at')->nullable();
             $table->string('channel')->default('database'); // 'database', 'email', 'sms', 'push'
@@ -26,7 +27,8 @@ return new class extends Migration
             $table->json('metadata')->nullable(); // Additional metadata
             $table->timestamps();
             
-            // Indexes (morphs() already creates notifiable_type + notifiable_id index)
+            // Custom indexes to avoid SQLite conflicts with morphs()
+            $table->index(['notifiable_type', 'notifiable_id'], 'notifications_notifiable_index');
             $table->index('read_at');
             $table->index('channel');
             $table->index('priority');

@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useApi } from '@/hooks/useApi';
+import api from '@/services/api';
 import { HIPAAVideoService } from '@/lib/video-conferencing/HIPAAVideoService';
 import { VideoChat } from './VideoChat';
+import { useCancellableRequest } from '@/lib/async-utils';
 
 // Type definitions for video conferencing
 interface Participant {
@@ -77,45 +79,72 @@ export function VideoConferencing({
   const hipaaVideoServiceRef = useRef<HIPAAVideoService | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const mountedRef = useRef(true);
+  const { makeRequest, cancelAll } = useCancellableRequest();
 
-  // API hook
-  const { post, get } = useApi();
+  // API hook for state management
+  const { data, error: apiError, isLoading } = useApi();
 
-  // Initialize video session
+  // Initialize video session with cancellation support
   const initializeSession = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    const request = makeRequest(
+      async (signal: AbortSignal) => {
+        if (mountedRef.current) {
+          setIsConnecting(true);
+          setError(null);
+        }
+
+        // Create or join video session
+        const response = await api.post('/api/video/sessions', {
+          interview_id: interviewId,
+          participants: [
+            {
+              id: participantInfo.id,
+              name: participantInfo.name,
+              role: participantInfo.role
+            }
+          ],
+          record_session: true,
+          enable_chat: true,
+          enable_screen_share: true
+        });
+
+        if (signal.aborted) {
+          throw new Error('Session initialization cancelled');
+        }
+
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to create session');
+        }
+
+        return response.session;
+      },
+      { timeout: 15000 }
+    );
+    
     try {
-      setIsConnecting(true);
-      setError(null);
-
-      // Create or join video session
-      const response = await post('/api/video/sessions', {
-        interview_id: interviewId,
-        participants: [
-          {
-            id: participantInfo.id,
-            name: participantInfo.name,
-            role: participantInfo.role
-          }
-        ],
-        record_session: true,
-        enable_chat: true,
-        enable_screen_share: true
-      });
-
-      if (response.success) {
-        setSession(response.session);
-        await setupWebRTC(response.session);
-      } else {
-        throw new Error(response.message || 'Failed to create session');
+      const sessionData = await request.promise;
+      
+      if (mountedRef.current && !request.isCancelled()) {
+        setSession(sessionData);
+        await setupWebRTC(sessionData);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to initialize session';
-      setError(errorMessage);
-      onError?.(errorMessage);
+      if (mountedRef.current && !request.isCancelled()) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize session';
+        if (!errorMessage.includes('cancelled')) {
+          setError(errorMessage);
+          onError?.(errorMessage);
+        }
+      }
     } finally {
-      setIsConnecting(false);
+      if (mountedRef.current && !request.isCancelled()) {
+        setIsConnecting(false);
+      }
     }
-  }, [interviewId, participantInfo, post, onError]);
+  }, [interviewId, participantInfo, onError, makeRequest]);
 
   // Setup WebRTC connection with HIPAA compliance
   const setupWebRTC = async (sessionData: VideoSession) => {
@@ -241,40 +270,65 @@ export function VideoConferencing({
     }
   }, [localAudio]);
 
-  // Start screen sharing
+  // Start screen sharing with cancellation support
   const startScreenShare = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    const request = makeRequest(
+      async (signal: AbortSignal) => {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: true
+        });
+
+        if (signal.aborted) {
+          // Clean up stream if cancelled
+          screenStream.getTracks().forEach(track => track.stop());
+          throw new Error('Screen sharing cancelled');
+        }
+
+        return screenStream;
+      },
+      { timeout: 10000 }
+    );
+    
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: true
-      });
-
-      screenStreamRef.current = screenStream;
+      const screenStream = await request.promise;
       
-      if (screenShareRef.current) {
-        screenShareRef.current.srcObject = screenStream;
+      if (mountedRef.current && !request.isCancelled()) {
+        screenStreamRef.current = screenStream;
+        
+        if (screenShareRef.current) {
+          screenShareRef.current.srcObject = screenStream;
+        }
+
+        // Replace video track in HIPAA service
+        if (hipaaVideoServiceRef.current) {
+          const videoTrack = screenStream.getVideoTracks()[0];
+          await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
+        }
+
+        setIsScreenSharing(true);
+
+        // Handle screen share end
+        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+          if (mountedRef.current) {
+            stopScreenShare();
+          }
+        });
       }
-
-      // Replace video track in HIPAA service
-      if (hipaaVideoServiceRef.current) {
-        const videoTrack = screenStream.getVideoTracks()[0];
-        await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
-      }
-
-      setIsScreenSharing(true);
-
-      // Handle screen share end
-      screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-        stopScreenShare();
-      });
-
     } catch (err) {
-      setError('Failed to start screen sharing');
+      if (mountedRef.current && !request.isCancelled()) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to start screen sharing';
+        if (!errorMessage.includes('cancelled')) {
+          setError(errorMessage);
+        }
+      }
     }
-  }, []);
+  }, [makeRequest]);
 
   // Stop screen sharing
   const stopScreenShare = useCallback(async () => {
@@ -301,7 +355,7 @@ export function VideoConferencing({
       await hipaaVideoServiceRef.current.startRecording();
 
       // Notify server
-      const response = await post(`/api/video/sessions/${session.sessionId}/recording/start`, {
+      const response = await api.post(`/api/video/sessions/${session.sessionId}/recording/start`, {
         name: `Consultation_${new Date().toISOString().slice(0, 19)}`,
         include_audio: true,
         include_video: true,
@@ -314,7 +368,7 @@ export function VideoConferencing({
     } catch (err) {
       setError('Failed to start encrypted recording');
     }
-  }, [session, post]);
+  }, [session]);
 
   // Stop recording
   const stopRecording = useCallback(async () => {
@@ -325,7 +379,7 @@ export function VideoConferencing({
       await hipaaVideoServiceRef.current.stopRecording();
 
       // Notify server
-      const response = await post(`/api/video/sessions/${session.sessionId}/recording/stop`);
+      const response = await api.post(`/api/video/sessions/${session.sessionId}/recording/stop`);
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to stop recording');
@@ -333,52 +387,87 @@ export function VideoConferencing({
     } catch (err) {
       setError('Failed to stop recording');
     }
-  }, [session, post]);
+  }, [session]);
 
-  // End session
+  // End session with proper cleanup
   const endSession = useCallback(async () => {
-    try {
-      if (!session) return;
+    if (!session || !mountedRef.current) return;
 
-      // Stop recording if active
-      if (isRecording) {
-        await stopRecording();
-      }
-
-      // Clean up HIPAA video service
-      if (hipaaVideoServiceRef.current) {
-        hipaaVideoServiceRef.current.destroy();
-      }
-
-      // Stop all media streams
-      [localStreamRef.current, screenStreamRef.current].forEach(stream => {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+    const request = makeRequest(
+      async (signal: AbortSignal) => {
+        // Stop recording if active
+        if (isRecording) {
+          await stopRecording();
         }
-      });
 
-      // End session on server
-      const response = await post(`/api/video/sessions/${session.sessionId}/end`);
+        if (signal.aborted) {
+          throw new Error('Session end cancelled');
+        }
 
-      if (response.success) {
-        onSessionEnd?.(response.session);
+        // End session on server
+        const response = await api.post(`/api/video/sessions/${session.sessionId}/end`);
+        
+        return response;
+      },
+      { timeout: 10000 }
+    );
+    
+    try {
+      const response = await request.promise;
+      
+      if (mountedRef.current && !request.isCancelled()) {
+        if (response.success) {
+          onSessionEnd?.(response.session);
+        }
       }
-
-      setIsConnected(false);
-      setSession(null);
-
     } catch (err) {
-      setError('Failed to end session properly');
-    }
-  }, [session, isRecording, stopRecording, post, onSessionEnd]);
+      if (mountedRef.current && !request.isCancelled()) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to end session properly';
+        if (!errorMessage.includes('cancelled')) {
+          setError(errorMessage);
+        }
+      }
+    } finally {
+      // Always clean up resources, even if server call fails
+      if (mountedRef.current) {
+        // Clean up HIPAA video service
+        if (hipaaVideoServiceRef.current) {
+          try {
+            hipaaVideoServiceRef.current.destroy();
+          } catch (error) {
+            console.warn('Error destroying HIPAA service:', error);
+          }
+          hipaaVideoServiceRef.current = null;
+        }
 
-  // Session duration timer
+        // Stop all media streams
+        [localStreamRef.current, screenStreamRef.current].forEach(stream => {
+          if (stream) {
+            stream.getTracks().forEach(track => {
+              try {
+                track.stop();
+              } catch (error) {
+                console.warn('Error stopping track:', error);
+              }
+            });
+          }
+        });
+
+        setIsConnected(false);
+        setSession(null);
+      }
+    }
+  }, [session, isRecording, stopRecording, onSessionEnd, makeRequest]);
+
+  // Session duration timer with proper cleanup
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (isConnected) {
+    if (isConnected && mountedRef.current) {
       interval = setInterval(() => {
-        setSessionDuration(prev => prev + 1);
+        if (mountedRef.current) {
+          setSessionDuration(prev => prev + 1);
+        }
       }, 1000);
     }
 
@@ -389,22 +478,46 @@ export function VideoConferencing({
     };
   }, [isConnected]);
 
-  // Initialize session on component mount
+  // Initialize session on component mount with proper cleanup
   useEffect(() => {
+    mountedRef.current = true;
     initializeSession();
 
-    // Cleanup on unmount
+    // Comprehensive cleanup on unmount
     return () => {
+      mountedRef.current = false;
+      
+      // Cancel all pending requests
+      cancelAll();
+      
+      // Cleanup video service
       if (hipaaVideoServiceRef.current) {
-        hipaaVideoServiceRef.current.destroy();
+        try {
+          hipaaVideoServiceRef.current.destroy();
+        } catch (error) {
+          console.warn('Error destroying video service:', error);
+        }
+        hipaaVideoServiceRef.current = null;
       }
+      
+      // Stop all media streams
       [localStreamRef.current, screenStreamRef.current].forEach(stream => {
         if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (error) {
+              console.warn('Error stopping track:', error);
+            }
+          });
         }
       });
+      
+      // Clear refs
+      localStreamRef.current = null;
+      screenStreamRef.current = null;
     };
-  }, [initializeSession]);
+  }, [initializeSession, cancelAll]);
 
   // Format session duration
   const formatDuration = (seconds: number): string => {
@@ -545,6 +658,9 @@ export function VideoConferencing({
             size="lg"
             onClick={toggleAudio}
             className="rounded-full w-12 h-12"
+            aria-label={localAudio ? "Mute microphone" : "Unmute microphone"}
+            aria-pressed={localAudio}
+            role="button"
           >
             {localAudio ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
           </Button>
@@ -555,6 +671,9 @@ export function VideoConferencing({
             size="lg"
             onClick={toggleVideo}
             className="rounded-full w-12 h-12"
+            aria-label={localVideo ? "Turn off camera" : "Turn on camera"}
+            aria-pressed={localVideo}
+            role="button"
           >
             {localVideo ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
           </Button>
@@ -565,6 +684,9 @@ export function VideoConferencing({
             size="lg"
             onClick={isScreenSharing ? stopScreenShare : startScreenShare}
             className="rounded-full w-12 h-12"
+            aria-label={isScreenSharing ? "Stop screen sharing" : "Start screen sharing"}
+            aria-pressed={isScreenSharing}
+            role="button"
           >
             {isScreenSharing ? <MonitorOff className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
           </Button>
@@ -587,6 +709,9 @@ export function VideoConferencing({
             size="lg"
             onClick={() => setShowChat(!showChat)}
             className="rounded-full w-12 h-12"
+            aria-label={showChat ? "Hide chat" : "Show chat"}
+            aria-pressed={showChat}
+            role="button"
           >
             <MessageCircle className="w-6 h-6" />
           </Button>

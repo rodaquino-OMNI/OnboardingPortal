@@ -27,6 +27,10 @@ class GamificationService
         'onboarding_completed' => 200,
         'daily_login' => 5,
         'streak_bonus' => 10, // Per day of streak
+        'telemedicine_scheduled' => 225, // Balanced points for telemedicine (150 * 1.5 = balanced reward)
+        'telemedicine_completed' => 500,
+        'telemedicine_preparation' => 100,
+        'punctuality_bonus' => 50,
     ];
 
     /**
@@ -103,10 +107,23 @@ class GamificationService
                 $streakDays = $metadata['streak_days'] ?? 0;
                 $basePoints = min($streakDays * self::POINTS['streak_bonus'], 100); // Cap at 100
                 break;
+                
+            case 'telemedicine_scheduled':
+            case 'telemedicine_completed':
+            case 'telemedicine_preparation':
+                // Use base points from metadata if provided, otherwise default
+                $basePoints = $metadata['base_points'] ?? self::POINTS[$action];
+                break;
         }
         
-        // Apply any multipliers
-        $multiplier = $metadata['multiplier'] ?? 1.0;
+        // Calculate multipliers properly (completion bonus + additional multiplier)
+        $completionMultiplier = 1.0;
+        if ($metadata['is_completion_reward'] ?? false) {
+            $completionMultiplier = 1.5; // 50% bonus for completion rewards
+        }
+        
+        $additionalMultiplier = $metadata['multiplier'] ?? 1.0;
+        $multiplier = $completionMultiplier * $additionalMultiplier;
         
         return (int) round($basePoints * $multiplier);
     }

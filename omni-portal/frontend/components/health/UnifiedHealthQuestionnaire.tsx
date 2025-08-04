@@ -1,18 +1,23 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { BaseHealthQuestionnaire, QuestionnaireConfig } from './unified/BaseHealthQuestionnaire';
 import { QuestionRendererFeatureDefinition } from './unified/QuestionRenderer';
-import { AIAssistantFeatureDefinition } from './unified/features/AIAssistantFeature';
+// AI Assistant feature removed for clean clinical UX
 import { GamificationFeatureDefinition } from './unified/features/GamificationFeature';
 import { ClinicalDecisionFeature } from './unified/features/ClinicalDecisionFeature';
 import { ProgressiveScreeningFeature } from './unified/features/ProgressiveScreeningFeature';
 import { AccessibilityFeature } from './unified/features/AccessibilityFeature';
 import { HEALTH_QUESTIONNAIRE_SECTIONS } from '@/lib/health-questionnaire-v2';
+import { healthAPI } from '@/lib/api/health';
+import { useGamification } from '@/hooks/useGamification';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle, Loader2 } from 'lucide-react';
 
 interface UnifiedHealthQuestionnaireProps {
   onComplete: (data: any) => void;
+  onProgressUpdate?: (progress: number) => void;
   userId?: string;
   mode?: 'standard' | 'conversational' | 'clinical' | 'gamified';
   features?: {
@@ -55,24 +60,24 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
 
 export function UnifiedHealthQuestionnaire({
   onComplete,
+  onProgressUpdate,
   userId,
   mode = 'standard',
   features = {},
   theme = 'light'
 }: UnifiedHealthQuestionnaireProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const startTimeRef = useRef(new Date());
+  const { fetchProgress, fetchBadges } = useGamification();
   // Configure features based on mode and explicit settings
   const getEnabledFeatures = () => {
     const baseFeatures = [QuestionRendererFeatureDefinition];
 
     // AI Assistant Feature
     if (features.ai !== false && (mode === 'conversational' || mode === 'standard')) {
-      baseFeatures.push({
-        ...AIAssistantFeatureDefinition,
-        config: {
-          ...AIAssistantFeatureDefinition.config,
-          personality: mode === 'conversational' ? 'empathetic' : 'friendly'
-        }
-      });
+      // AI Assistant feature removed for clean clinical UX
     }
 
     // Gamification Feature
@@ -151,8 +156,8 @@ export function UnifiedHealthQuestionnaire({
     }
   };
 
-  // Handle completion with enriched data
-  const handleComplete = (data: any) => {
+  // Handle completion with enriched data and backend submission
+  const handleComplete = async (data: any) => {
     const enrichedData = {
       ...data,
       userId,
@@ -162,13 +167,58 @@ export function UnifiedHealthQuestionnaire({
       version: '2.0.0'
     };
 
-    // Clear persisted state
-    if (config.persistence?.enabled) {
-      const key = config.persistence.key || 'questionnaire-state';
-      localStorage.removeItem(key);
+    setIsSubmitting(true);
+    setSubmitError(null);
+    
+    try {
+      // Prepare submission data
+      const submissionData = healthAPI.prepareSubmissionData(
+        {
+          responses: enrichedData,
+          completedDomains: Object.keys(data).filter(key => key.startsWith('domain_')),
+          riskScores: {},
+          validationPairs: {},
+          fraudScore: 0,
+          sessionId: `session-${Date.now()}`,
+          userId: userId || 'anonymous'
+        },
+        mode === 'clinical' ? 'smart' : 'unified',
+        startTimeRef.current
+      );
+      
+      // Submit to backend
+      const result = await healthAPI.submitQuestionnaire(submissionData);
+      
+      // Update gamification state if enabled
+      if (features.gamification !== false && result.gamification_rewards) {
+        await Promise.all([
+          fetchProgress(),
+          fetchBadges()
+        ]);
+      }
+      
+      setSubmitSuccess(true);
+      
+      // Clear persisted state
+      if (config.persistence?.enabled) {
+        const key = config.persistence.key || 'questionnaire-state';
+        localStorage.removeItem(key);
+      }
+      
+      // Call parent onComplete with full results
+      onComplete({
+        ...enrichedData,
+        submission_result: result
+      });
+    } catch (error) {
+      console.error('[UnifiedHealthQuestionnaire] Submission error:', error);
+      setSubmitError('Erro ao enviar questionário. Por favor, tente novamente.');
+      
+      // Still call onComplete to allow navigation even on error
+      onComplete(enrichedData);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onComplete(enrichedData);
   };
 
   return (
@@ -177,9 +227,37 @@ export function UnifiedHealthQuestionnaire({
       onReset={() => window.location.reload()}
     >
       <div className={`unified-health-questionnaire theme-${theme}`}>
+        {/* Show submission status */}
+        {(isSubmitting || submitError || submitSuccess) && (
+          <div className="mb-4">
+            {isSubmitting && (
+              <Alert>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertDescription>
+                  Enviando suas respostas...
+                </AlertDescription>
+              </Alert>
+            )}
+            {submitError && (
+              <Alert variant="destructive">
+                <AlertDescription>{submitError}</AlertDescription>
+              </Alert>
+            )}
+            {submitSuccess && (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Questionário enviado com sucesso!
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
+        
         <BaseHealthQuestionnaire
           config={config}
           onComplete={handleComplete}
+          onProgressUpdate={onProgressUpdate}
         />
       </div>
     </ErrorBoundary>

@@ -195,17 +195,17 @@ describe('UnifiedHealthFlow Integration Tests', () => {
         if (result.type === 'question') {
           // Answer questions with moderate/high risk responses
           if (result.question?.type === 'boolean') {
-            result = await flow.processResponse(result.question.id, true);
+            result = await flow.processResponse(result.question?.id, true);
           } else if (result.question?.type === 'scale') {
-            result = await flow.processResponse(result.question.id, 7);
+            result = await flow.processResponse(result.question?.id, 7);
           } else if (result.question?.type === 'select') {
-            const options = result.question.options || [];
-            const highRiskOption = options.find(o => o.riskScore && o.riskScore > 2) || options[0];
-            result = await flow.processResponse(result.question.id, highRiskOption.value);
+            const options = result.question?.options || [];
+            const highRiskOption! = options.find(o => o.riskScore && o.riskScore > 2) || options[0];
+            result = await flow.processResponse(result.question?.id, highRiskOption!.value);
           } else if (result.question?.type === 'multiselect') {
-            result = await flow.processResponse(result.question.id, ['diabetes', 'hypertension']);
+            result = await flow.processResponse(result.question?.id, ['diabetes', 'hypertension']);
           } else {
-            result = await flow.processResponse(result.question.id, 'test response');
+            result = await flow.processResponse(result.question?.id, 'test response');
           }
         } else {
           result = await flow.processResponse('_continue', true);
@@ -288,7 +288,7 @@ describe('UnifiedHealthFlow Integration Tests', () => {
       // Complete flow
       while (result.type !== 'complete') {
         if (result.type === 'question') {
-          result = await flow.processResponse(result.question.id, false);
+          result = await flow.processResponse(result.question?.id, false);
         } else {
           result = await flow.processResponse('_continue', true);
         }
@@ -324,7 +324,7 @@ describe('UnifiedHealthFlow Integration Tests', () => {
       // Complete flow
       while (result.type !== 'complete') {
         if (result.type === 'question') {
-          result = await flow.processResponse(result.question.id, 'test');
+          result = await flow.processResponse(result.question?.id, 'test');
         } else {
           result = await flow.processResponse('_continue', true);
         }
@@ -346,16 +346,16 @@ describe('UnifiedHealthFlow Integration Tests', () => {
         
         if (result.type === 'question') {
           if (result.question?.type === 'boolean') {
-            result = await flow.processResponse(result.question.id, false);
+            result = await flow.processResponse(result.question?.id, false);
           } else if (result.question?.type === 'scale') {
-            result = await flow.processResponse(result.question.id, 5);
+            result = await flow.processResponse(result.question?.id, 5);
           } else if (result.question?.type === 'select') {
-            const firstOption = result.question.options?.[0];
-            result = await flow.processResponse(result.question.id, firstOption?.value || 'test');
+            const firstOption = result.question?.options?.[0];
+            result = await flow.processResponse(result.question?.id, firstOption?.value || 'test');
           } else if (result.question?.type === 'multiselect') {
-            result = await flow.processResponse(result.question.id, ['none']);
+            result = await flow.processResponse(result.question?.id, ['none']);
           } else {
-            result = await flow.processResponse(result.question.id, 'test');
+            result = await flow.processResponse(result.question?.id, 'test');
           }
         } else {
           result = await flow.processResponse('_continue', true);
@@ -382,7 +382,7 @@ describe('UnifiedHealthFlow Integration Tests', () => {
         timeEstimates.push(result.estimatedTimeRemaining);
         
         if (result.type === 'question') {
-          result = await flow.processResponse(result.question.id, false);
+          result = await flow.processResponse(result.question?.id, false);
         } else {
           result = await flow.processResponse('_continue', true);
         }
@@ -412,13 +412,13 @@ describe('UnifiedHealthFlow Integration Tests', () => {
       while (result.type !== 'complete') {
         if (result.type === 'question') {
           if (result.question?.id === 'chronic_conditions') {
-            result = await flow.processResponse(result.question.id, ['diabetes', 'heart_disease']);
+            result = await flow.processResponse(result.question?.id, ['diabetes', 'heart_disease']);
           } else if (result.question?.id === 'exercise_frequency') {
-            result = await flow.processResponse(result.question.id, 0);
+            result = await flow.processResponse(result.question?.id, 0);
           } else if (result.question?.id === 'smoking_status') {
-            result = await flow.processResponse(result.question.id, 'current');
+            result = await flow.processResponse(result.question?.id, 'current');
           } else {
-            result = await flow.processResponse(result.question.id, true);
+            result = await flow.processResponse(result.question?.id, true);
           }
         } else {
           result = await flow.processResponse('_continue', true);

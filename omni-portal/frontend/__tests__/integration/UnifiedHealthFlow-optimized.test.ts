@@ -302,7 +302,7 @@ describe('UnifiedHealthFlow Optimized Integration Tests', () => {
       // Complete remaining flow quickly
       while (result.type !== 'complete') {
         if (result.type === 'question') {
-          result = await flow.processResponse(result.question.id, 'test');
+          result = await flow.processResponse(result.question?.id || '', 'test');
         } else {
           result = await flow.processResponse('_continue', true);
         }
@@ -322,7 +322,7 @@ describe('UnifiedHealthFlow Optimized Integration Tests', () => {
       // Track progress through first few steps only
       for (let i = 0; i < 5 && result.type !== 'complete'; i++) {
         if (result.type === 'question') {
-          result = await flow.processResponse(result.question.id, false);
+          result = await flow.processResponse(result.question?.id || '', false);
         } else {
           result = await flow.processResponse('_continue', true);
         }
@@ -330,7 +330,7 @@ describe('UnifiedHealthFlow Optimized Integration Tests', () => {
       }
       
       // Progress should increase
-      expect(progressValues[progressValues.length - 1]).toBeGreaterThanOrEqual(progressValues[0]);
+      expect(progressValues[progressValues.length - 1]).toBeGreaterThanOrEqual(progressValues[0] || 0);
     });
 
     test.concurrent('should estimate remaining time correctly', async () => {
@@ -358,7 +358,7 @@ describe('UnifiedHealthFlow Optimized Integration Tests', () => {
       while (result.type !== 'complete') {
         if (result.type === 'question') {
           let response;
-          switch (result.question.id) {
+          switch (result.question?.id) {
             case 'chronic_conditions':
               response = ['diabetes', 'heart_disease'];
               break;
@@ -373,7 +373,7 @@ describe('UnifiedHealthFlow Optimized Integration Tests', () => {
                         result.question?.type === 'scale' ? 7 :
                         result.question?.type === 'multiselect' ? ['diabetes'] : 'test';
           }
-          result = await flow.processResponse(result.question.id, response);
+          result = await flow.processResponse(result.question?.id || '', response);
         } else {
           result = await flow.processResponse('_continue', true);
         }

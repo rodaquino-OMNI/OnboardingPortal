@@ -121,7 +121,7 @@ export function DashboardOverview() {
       {/* Primary Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
-          title="Total Users"
+          title="Total de Usuários"
           value={dashboard.summary.total_users}
           icon={UsersIcon}
           color="blue"
@@ -132,14 +132,14 @@ export function DashboardOverview() {
           href="/admin/users"
         />
         <MetricCard
-          title="Active Users"
+          title="Usuários Ativos"
           value={dashboard.summary.active_users}
           icon={CheckCircleIcon}
           color="green"
-          subtitle={`${Math.round((dashboard.summary.active_users / dashboard.summary.total_users) * 100)}% of total`}
+          subtitle={`${Math.round((dashboard.summary.active_users / dashboard.summary.total_users) * 100)}% do total`}
         />
         <MetricCard
-          title="Pending Documents"
+          title="Documentos Pendentes"
           value={dashboard.summary.pending_documents}
           icon={ClockIcon}
           color="yellow"
@@ -147,7 +147,7 @@ export function DashboardOverview() {
           alert={dashboard.summary.pending_documents > 50}
         />
         <MetricCard
-          title="System Alerts"
+          title="Alertas do Sistema"
           value={dashboard.summary.system_alerts}
           icon={ExclamationTriangleIcon}
           color="red"

@@ -39,10 +39,12 @@ export default function WelcomePage() {
   ];
 
   return (
-    <div className="text-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
       {/* Hero Section with Gradient Background */}
       <div className="mb-12 relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-50 rounded-3xl -z-10 opacity-50"></div>
+        <div className="absolute inset-0 bg-white/30 backdrop-blur-sm rounded-3xl -z-10"></div>
         <div className="py-12">
           <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl animate-pulse">
             <Rocket className="w-10 h-10 text-white" />
@@ -57,13 +59,13 @@ export default function WelcomePage() {
       </div>
 
       {/* Steps Grid with Modern Cards */}
-      <div className="grid md:grid-cols-2 gap-6 mb-10">
+      <div className="grid md:grid-cols-2 gap-6 mb-10 max-w-4xl mx-auto">
         {steps.map((step, index) => {
           const Icon = step.icon;
           return (
             <div 
               key={index} 
-              className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 group cursor-pointer transform hover:-translate-y-1"
+              className="card-modern p-6 sm:p-8 shadow-lg hover:shadow-xl transition-all duration-300 group cursor-pointer transform hover:-translate-y-1"
             >
               <div className="flex items-start gap-5">
                 <div className={`w-14 h-14 bg-gradient-to-br ${step.gradient} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -90,8 +92,8 @@ export default function WelcomePage() {
       </div>
 
       {/* Time Estimation Card */}
-      <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 shadow-lg border border-gray-200 mb-10 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full -translate-y-16 translate-x-16 opacity-30"></div>
+      <div className="card-modern p-6 sm:p-8 mb-10 relative overflow-hidden max-w-2xl mx-auto">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full -translate-y-16 translate-x-16 opacity-20"></div>
         <div className="relative">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Clock className="w-6 h-6 text-gray-700" />
@@ -118,6 +120,8 @@ export default function WelcomePage() {
         Começar Onboarding
         <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
       </Button>
+        </div>
+      </div>
     </div>
   );
 }

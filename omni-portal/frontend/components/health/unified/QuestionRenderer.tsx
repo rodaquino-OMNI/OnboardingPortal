@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { ChevronRight, CheckCircle, Info, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,6 +10,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useQuestionnaire, QuestionnaireFeature } from './BaseHealthQuestionnaire';
 import { HealthQuestion, QuestionValue } from '@/types/health';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ErrorBoundary, useErrorHandler } from '../ErrorBoundary';
+import { useUnifiedNavigation, NAVIGATION_PROFILES } from '@/hooks/useUnifiedNavigation';
+import { ChronicConditionSelector } from '../structured/ChronicConditionSelector';
+import { MedicationSelector } from '../structured/MedicationSelector';
+import { ContactForm } from '../structured/ContactForm';
+import { SurgeryHistorySelector } from '../structured/SurgeryHistorySelector';
 
 interface QuestionRendererConfig {
   animations: boolean;
@@ -17,9 +23,11 @@ interface QuestionRendererConfig {
   showProgress: boolean;
   showValidation: boolean;
   accessibility: boolean;
+  navigationProfile: 'conservative' | 'standard' | 'fast' | 'clinical';
+  onProgressUpdate?: (progress: number) => void;
 }
 
-export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }) {
+const QuestionRendererInner = memo(function QuestionRendererInner({ config, onProgressUpdate }: { config?: QuestionRendererConfig; onProgressUpdate?: (progress: number) => void }) {
   const {
     state,
     getCurrentSection,
@@ -34,56 +42,187 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
 
   const [localValue, setLocalValue] = useState<QuestionValue>(null);
   const [showError, setShowError] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string>('');
+  const { captureError } = useErrorHandler();
 
   const currentSection = getCurrentSection();
-  const currentQuestion = getCurrentQuestion();
   const visibleQuestions = getVisibleQuestions();
+  
+  // TECHNICAL EXCELLENCE FIX 5: Add bounds-safe question indexing with graceful fallbacks
+  const currentQuestion = useMemo(() => {
+    const question = getCurrentQuestion();
+    
+    // Enhanced bounds checking with graceful fallbacks
+    if (!question && visibleQuestions.length > 0) {
+      // If current question is null but we have visible questions, 
+      // check if we need to adjust the index
+      const safeIndex = Math.min(state.currentQuestionIndex, visibleQuestions.length - 1);
+      console.warn(`Question index bounds adjusted from ${state.currentQuestionIndex} to ${safeIndex}`);
+      return visibleQuestions[safeIndex] || null;
+    }
+    
+    return question;
+  }, [getCurrentQuestion, visibleQuestions, state.currentQuestionIndex]);
+  
   const progress = calculateProgress();
 
   const showAnimations = config?.animations !== false;
-  const autoAdvance = config?.autoAdvance !== false;
   const showProgressBar = config?.showProgress !== false;
+  
+  // TECHNICAL EXCELLENCE FIX 1: Unified navigation profile resolver with robust fallback handling
+  const resolveNavigationProfile = (profileName?: string): Partial<NavigationConfig> => {
+    // Priority order: provided config -> clinical (medical safety) -> standard (default)
+    const requestedProfile = profileName || 'clinical';
+    
+    // Validate profile exists, with multiple fallback layers for safety
+    if (NAVIGATION_PROFILES[requestedProfile]) {
+      return NAVIGATION_PROFILES[requestedProfile];
+    }
+    
+    // First fallback: clinical (medical safety priority)
+    if (NAVIGATION_PROFILES.clinical) {
+      console.warn(`Navigation profile '${requestedProfile}' not found, using clinical profile for safety`);
+      return NAVIGATION_PROFILES.clinical;
+    }
+    
+    // Second fallback: standard (should always exist)
+    if (NAVIGATION_PROFILES.standard) {
+      console.warn(`Clinical profile not found, using standard profile as fallback`);
+      return NAVIGATION_PROFILES.standard;
+    }
+    
+    // Final fallback: minimal safe configuration (prevents crashes)
+    console.error('No navigation profiles found, using minimal safe configuration');
+    return {
+      autoAdvance: false,
+      autoAdvanceDelay: 0,
+      autoAdvanceTypes: [],
+      requireConfirmation: true,
+      animationDuration: 300
+    };
+  };
 
-  // Reset local value when question changes
+  const selectedProfile = resolveNavigationProfile(config?.navigationProfile);
+
+  // Use unified navigation with proper profile resolution
+  const navigation = useUnifiedNavigation(
+    currentQuestion,
+    localValue,
+    selectedProfile,
+    {
+      onNext: nextQuestion,
+      onPrevious: previousQuestion,
+      onValidationError: (error: string) => {
+        console.error('Validation error:', error);
+        setValidationMessage(error);
+        setShowError(true);
+        // Ensure error is visible by forcing a re-render
+        setTimeout(() => {
+          setShowError(true);
+          setValidationMessage(error);
+        }, 100);
+      },
+      onProgress: (progress: number) => {
+        if (onProgressUpdate) {
+          onProgressUpdate(progress);
+        }
+      }
+    }
+  );
+
+  // TECHNICAL EXCELLENCE FIX 4: Reactive button state system with proper synchronization
+  const navigationState = useMemo(() => navigation.getNavigationState(), [navigation]);
+
+  // Reset local value when question changes with enhanced error clearing
   useEffect(() => {
     if (currentQuestion) {
-      setLocalValue(state.responses[currentQuestion.id] || null);
+      // CRITICAL FIX: Don't use || operator as it converts false to null!
+      const storedValue = state.responses[currentQuestion.id] !== undefined 
+        ? state.responses[currentQuestion.id] 
+        : null;
+      setLocalValue(storedValue);
+      
+      // Clear all error states when question changes
       setShowError(false);
+      setValidationMessage('');
+      
+      // Clear any validation errors in global state for this question
+      if (state.validationErrors[currentQuestion.id]) {
+        // The error will be cleared by the validation system
+      }
     }
-  }, [currentQuestion, state.responses]);
+  }, [currentQuestion?.id, state.responses]);
 
-  // Handle response submission
-  const handleResponse = (value: QuestionValue) => {
+  // TECHNICAL EXCELLENCE FIX 3: Unified validation error manager with consistent state handling
+  useEffect(() => {
     if (!currentQuestion) return;
 
-    setLocalValue(value);
-    setResponse(currentQuestion.id, value);
-
-    // Auto-advance for certain question types
-    if (autoAdvance && shouldAutoAdvance(currentQuestion)) {
-      setTimeout(() => {
-        handleNext();
-      }, 300);
+    const globalError = state.validationErrors[currentQuestion.id];
+    
+    // Single source of truth: prioritize global validation state
+    if (globalError) {
+      // Only update local state if global error is different (prevents infinite loops)
+      if (globalError !== validationMessage || !showError) {
+        setValidationMessage(globalError);
+        setShowError(true);
+        console.log('Validation error synchronized from global state:', globalError);
+      }
+    } else {
+      // Clear local error state when global state clears (atomic operation)
+      if (showError || validationMessage) {
+        setShowError(false);
+        setValidationMessage('');
+        console.log('Validation error cleared from global state');
+      }
     }
-  };
+  }, [currentQuestion?.id, state.validationErrors, validationMessage, showError]);
 
-  // Handle next button
-  const handleNext = () => {
-    if (!currentQuestion) return;
-
-    const error = validateQuestion(currentQuestion, localValue);
-    if (error && config?.showValidation !== false) {
-      setShowError(true);
-      return;
+  // Call onProgressUpdate when progress changes
+  useEffect(() => {
+    if (onProgressUpdate) {
+      onProgressUpdate(progress);
     }
+  }, [progress, onProgressUpdate]);
 
-    nextQuestion();
-  };
+  // Handle response submission with unified navigation
+  const handleResponse = useCallback(async (value: QuestionValue) => {
+    try {
+      if (!currentQuestion) return;
 
-  // Check if question should auto-advance
-  const shouldAutoAdvance = (question: HealthQuestion): boolean => {
-    return ['boolean', 'select', 'scale'].includes(question.type);
-  };
+      setLocalValue(value);
+      setResponse(currentQuestion.id, value);
+      
+      // Clear any existing error
+      setShowError(false);
+      setValidationMessage('');
+
+      // Use unified navigation for response handling
+      await navigation.handleResponse(value);
+    } catch (error) {
+      console.error('Error handling response:', error);
+      captureError(error as Error);
+    }
+  }, [currentQuestion, setResponse, navigation, captureError]);
+
+  // Handle next button with unified navigation
+  const handleNext = useCallback(async () => {
+    try {
+      await navigation.handleNext();
+    } catch (error) {
+      console.error('Error navigating to next question:', error);
+      captureError(error as Error);
+    }
+  }, [navigation, captureError]);
+
+  // Handle previous button with unified navigation
+  const handlePrevious = useCallback(() => {
+    try {
+      navigation.handlePrevious();
+    } catch (error) {
+      console.error('Error navigating to previous question:', error);
+      captureError(error as Error);
+    }
+  }, [navigation, captureError]);
 
   // Render question based on type
   const renderQuestionInput = () => {
@@ -95,22 +234,24 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
     switch (currentQuestion.type) {
       case 'boolean':
         return (
-          <div className="grid grid-cols-2 gap-4" role="radiogroup">
+          <div className="grid grid-cols-2 gap-4" role="radiogroup" aria-labelledby="question-text">
             <Button
               variant={value === true ? 'default' : 'outline'}
               onClick={() => handleResponse(true)}
-              className="py-8 text-lg transition-all hover:scale-105"
+              className="min-h-[48px] py-4 text-lg transition-all hover:scale-105 active:scale-95 touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               role="radio"
               aria-checked={value === true}
+              aria-describedby={currentQuestion.required ? 'required-indicator' : undefined}
             >
               Sim
             </Button>
             <Button
               variant={value === false ? 'default' : 'outline'}
               onClick={() => handleResponse(false)}
-              className="py-8 text-lg transition-all hover:scale-105"
+              className="min-h-[48px] py-4 text-lg transition-all hover:scale-105 active:scale-95 touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               role="radio"
               aria-checked={value === false}
+              aria-describedby={currentQuestion.required ? 'required-indicator' : undefined}
             >
               Não
             </Button>
@@ -120,22 +261,28 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
       case 'select':
         const options = getQuestionOptions(currentQuestion);
         return (
-          <div className="space-y-3" role="radiogroup">
+          <div className="space-y-3" role="radiogroup" aria-labelledby="question-text">
             {options.map((option, index) => (
               <Button
                 key={`${option.value}-${index}`}
                 variant={value === option.value ? 'default' : 'outline'}
                 onClick={() => handleResponse(option.value)}
-                className="w-full justify-start py-4 transition-all hover:scale-[1.02]"
+                className="w-full justify-start py-4 min-h-[48px] transition-all hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 role="radio"
                 aria-checked={value === option.value}
+                aria-describedby={option.description ? `option-desc-${index}` : undefined}
               >
-                {option.label}
-                {option.description && (
-                  <span className="text-sm text-gray-600 ml-2">
-                    {option.description}
-                  </span>
-                )}
+                <div className="text-left">
+                  <div>{option.label}</div>
+                  {option.description && (
+                    <div 
+                      id={`option-desc-${index}`}
+                      className="text-sm text-gray-600 mt-1"
+                    >
+                      {option.description}
+                    </div>
+                  )}
+                </div>
               </Button>
             ))}
           </div>
@@ -146,7 +293,7 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
         const selectedValues = (value as string[]) || [];
         
         return (
-          <div className="grid grid-cols-2 gap-3" role="group">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" role="group" aria-labelledby="question-text">
             {multiOptions.map((option, index) => {
               const isSelected = selectedValues.includes(option.value as string);
               return (
@@ -165,12 +312,16 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
                       handleResponse(updated);
                     }
                   }}
-                  className="justify-start"
+                  className="justify-start min-h-[48px] py-3 px-4 transition-all hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   role="checkbox"
                   aria-checked={isSelected}
+                  aria-describedby={`multiselect-hint-${index}`}
                 >
-                  {isSelected && <CheckCircle className="w-4 h-4 mr-2" />}
-                  {option.label}
+                  {isSelected && <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />}
+                  <span className="text-left">{option.label}</span>
+                  <span id={`multiselect-hint-${index}`} className="sr-only">
+                    {isSelected ? 'Selecionado' : 'Não selecionado'}. Toque para {isSelected ? 'desmarcar' : 'selecionar'}.
+                  </span>
                 </Button>
               );
             })}
@@ -246,6 +397,58 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
           </div>
         );
 
+      case 'chronic_conditions':
+        return (
+          <ChronicConditionSelector
+            onComplete={(conditions) => {
+              handleResponse(conditions);
+            }}
+            isProcessing={false}
+            initialValue={value as any || []}
+            title="Condições Crônicas de Saúde"
+            description="Selecione as condições que você tem ou já teve, e forneça detalhes estruturados sobre cada uma"
+          />
+        );
+
+      case 'medication_list':
+        return (
+          <MedicationSelector
+            onComplete={(medications) => {
+              handleResponse(medications);
+            }}
+            isProcessing={false}
+            initialValue={value as any || []}
+            title="Medicamentos Atuais"
+            description="Liste todos os medicamentos que você toma regularmente com detalhes estruturados"
+          />
+        );
+
+      case 'emergency_contact':
+        return (
+          <ContactForm
+            onComplete={(contact) => {
+              handleResponse(contact);
+            }}
+            isProcessing={false}
+            initialValue={value as any}
+            title="Contato de Emergência"
+            description="Informações do seu contato de emergência para situações médicas"
+          />
+        );
+
+      case 'surgery_history':
+        return (
+          <SurgeryHistorySelector
+            onComplete={(surgeries) => {
+              handleResponse(surgeries);
+            }}
+            isProcessing={false}
+            initialValue={value as any || []}
+            title="Histórico de Cirurgias"
+            description="Registre as cirurgias que você já fez com detalhes estruturados"
+          />
+        );
+
       default:
         return (
           <Alert>
@@ -270,9 +473,9 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
       ];
     }
     
-    return (question.options || []).map(opt => 
-      typeof opt === 'string' ? { value: opt, label: opt } : opt
-    );
+    return (question.options || []).map((opt) => {
+      return typeof opt === 'string' ? { value: opt, label: opt } : opt;
+    });
   };
 
   if (!currentQuestion || !currentSection) {
@@ -296,10 +499,10 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
       <AnimatePresence mode="wait">
         <motion.div
           key={`${state.currentSectionIndex}-${state.currentQuestionIndex}`}
-          initial={showAnimations ? { opacity: 0, x: 20 } : {}}
+          initial={showAnimations ? { opacity: 0, x: 10 } : {}}
           animate={{ opacity: 1, x: 0 }}
-          exit={showAnimations ? { opacity: 0, x: -20 } : {}}
-          transition={{ duration: 0.3 }}
+          exit={showAnimations ? { opacity: 0, x: -10 } : {}}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <Card className="p-8">
             {/* Question Header */}
@@ -316,10 +519,16 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
               </div>
 
               {/* Question Text */}
-              <h2 className="text-2xl font-semibold">
+              <h2 id="question-text" className="text-2xl font-semibold" tabIndex={-1}>
                 {currentQuestion.text}
                 {currentQuestion.required && (
-                  <span className="text-red-500 ml-1">*</span>
+                  <span 
+                    id="required-indicator" 
+                    className="text-red-500 ml-1" 
+                    aria-label="Campo obrigatório"
+                  >
+                    *
+                  </span>
                 )}
               </h2>
 
@@ -334,11 +543,11 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
               )}
 
               {/* Validation Error */}
-              {showError && state.validationErrors[currentQuestion.id] && (
-                <Alert variant="destructive">
-                  <AlertCircle className="w-4 h-4" />
-                  <AlertDescription>
-                    {state.validationErrors[currentQuestion.id]}
+              {(showError || state.validationErrors[currentQuestion.id]) && (
+                <Alert variant="destructive" className="bg-red-50 border-red-200">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <AlertDescription className="text-red-800 font-medium">
+                    {validationMessage || state.validationErrors[currentQuestion.id] || 'Erro de validação'}
                   </AlertDescription>
                 </Alert>
               )}
@@ -350,11 +559,13 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
             </div>
 
             {/* Navigation */}
-            <nav className="flex justify-between items-center">
+            <nav className="flex justify-between items-center pt-6 border-t" aria-label="Navegação do questionário">
               <Button
                 variant="ghost"
-                onClick={previousQuestion}
-                disabled={state.currentSectionIndex === 0 && state.currentQuestionIndex === 0}
+                onClick={handlePrevious}
+                disabled={navigationState.canNavigatePrevious === false}
+                className="min-h-[48px] px-6 touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label="Voltar para a pergunta anterior"
               >
                 Voltar
               </Button>
@@ -366,15 +577,49 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
                   </Button>
                 )}
 
-                {(!autoAdvance || !shouldAutoAdvance(currentQuestion)) && (
-                  <Button onClick={handleNext}>
-                    {state.currentQuestionIndex < visibleQuestions.length - 1
-                      ? 'Próximo'
-                      : state.currentSectionIndex < state.sectionProgress.length - 1
-                        ? 'Próxima Seção'
-                        : 'Finalizar'}
-                    <ChevronRight className="w-4 h-4 ml-1" />
+                {(!navigation.shouldAutoAdvance || navigationState.isNavigating) ? (
+                  <Button 
+                    onClick={handleNext}
+                    disabled={navigationState.isNavigating || !navigationState.canNavigateNext}
+                    className="min-h-[44px] touch-manipulation"
+                  >
+                    {navigationState.isNavigating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Processando...
+                      </>
+                    ) : (
+                      <>
+                        {state.currentQuestionIndex < visibleQuestions.length - 1
+                          ? 'Próximo'
+                          : state.currentSectionIndex < (state.sections?.length || 0) - 1
+                            ? 'Próxima Seção'
+                            : 'Finalizar'}
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </>
+                    )}
                   </Button>
+                ) : (
+                  // TECHNICAL EXCELLENCE FIX 2: Centralized auto-advance coordinator with conflict prevention
+                  <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-2 text-sm text-blue-700">
+                      <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+                      Avançando automaticamente...
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        // Cancel any pending auto-advance to prevent timing conflicts
+                        navigation.cancelNavigation();
+                        handleNext();
+                      }}
+                      className="text-blue-700 hover:text-blue-900 px-2 py-1 h-auto"
+                      disabled={navigationState.isNavigating}
+                    >
+                      {navigationState.isNavigating ? 'Processando...' : 'Avançar agora'}
+                    </Button>
+                  </div>
                 )}
               </div>
             </nav>
@@ -383,7 +628,35 @@ export function QuestionRenderer({ config }: { config?: QuestionRendererConfig }
       </AnimatePresence>
     </div>
   );
-}
+});
+
+// Main component wrapped with error boundary
+export const QuestionRenderer = memo(function QuestionRenderer(props: { config?: QuestionRendererConfig; onProgressUpdate?: (progress: number) => void }) {
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Question renderer error:', error, errorInfo);
+        // Could also send to error tracking service
+      }}
+      resetKeys={[props.config]}
+      resetOnPropsChange={true}
+      fallback={
+        <div className="p-8 text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-lg font-medium mb-2">Erro no Questionário</h3>
+          <p className="text-gray-600 mb-4">
+            Houve um problema ao carregar esta pergunta. Por favor, tente recarregar a página.
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      }
+    >
+      <QuestionRendererInner {...props} />
+    </ErrorBoundary>
+  );
+});
 
 // Export feature definition
 export const QuestionRendererFeatureDefinition: QuestionnaireFeature = {
@@ -397,6 +670,7 @@ export const QuestionRendererFeatureDefinition: QuestionnaireFeature = {
     autoAdvance: true,
     showProgress: true,
     showValidation: true,
-    accessibility: true
+    accessibility: true,
+    navigationProfile: 'clinical' // Default to clinical profile for safety
   }
 };

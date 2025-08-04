@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { UnifiedHealthQuestionnaire } from '@/components/health/UnifiedHealthQuestionnaire';
+import { HealthNavigationHeader, SessionRestorationBanner } from '@/components/health/HealthNavigationHeader';
+import { HealthAssessmentComplete } from '@/components/health/HealthAssessmentComplete';
+import { useHealthSessionPersistence } from '@/hooks/useHealthSessionPersistence';
+import '@/styles/health-questionnaire-mobile.css';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
-import { Brain, Heart, Route, Activity, Shield } from 'lucide-react';
+import { HealthAssessmentResults } from '@/lib/unified-health-flow';
+import { Activity } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
 export default function HealthQuestionnairePage() {
@@ -13,18 +18,127 @@ export default function HealthQuestionnairePage() {
   const { user } = useAuth();
   useGamification(); // Using the hook to trigger loading even if not destructuring
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [questionnaireProgress, setQuestionnaireProgress] = useState(0);
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(15); // Default 15 minutes
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [healthResults, setHealthResults] = useState<HealthAssessmentResults | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState(new Date());
+
+  // Session persistence
+  const {
+    session,
+    isLoading: isLoadingSession,
+    updateResponse,
+    updateProgress,
+    saveSession,
+    clearSession,
+    hasExistingSession,
+    getSessionStats
+  } = useHealthSessionPersistence({
+    userId: user?.id || `guest-${Date.now()}`,
+    autoSaveInterval: 10000, // Auto-save every 10 seconds
+    onAutoSave: (success) => {
+      if (!success) {
+        console.warn('Auto-save failed');
+      }
+    },
+    onRestoreSession: (restoredSession) => {
+      setQuestionnaireProgress(restoredSession.progress);
+      setEstimatedTimeRemaining(restoredSession.metadata.estimatedTimeRemaining || 15);
+    }
+  });
+
+  // Initialize session start time and check for existing session
+  useEffect(() => {
+    setSessionStartTime(new Date());
+    
+    const checkExistingSession = async () => {
+      if (user?.id) {
+        const hasSession = await hasExistingSession();
+        setShowRestoreBanner(hasSession && !session);
+      }
+    };
+    
+    checkExistingSession();
+  }, [user?.id, hasExistingSession, session]);
+
+  // Update estimated time based on progress
+  useEffect(() => {
+    if (questionnaireProgress > 0) {
+      const stats = getSessionStats();
+      if (stats?.sessionDuration && questionnaireProgress > 10) {
+        // Calculate estimated time based on current pace
+        const timePerPercent = stats.sessionDuration / questionnaireProgress;
+        const remainingTime = Math.ceil(timePerPercent * (100 - questionnaireProgress));
+        setEstimatedTimeRemaining(Math.max(1, remainingTime));
+      }
+    }
+  }, [questionnaireProgress, getSessionStats]);
 
   const handleComplete = async (results: unknown) => {
-    console.log('Questionnaire results:', results); // Use the results parameter
+    console.log('Questionnaire results:', results);
     try {
       setIsSubmitting(true);
-      // Navigate to next step after successful completion
-      router.push('/document-upload');
+      
+      // Cast results to HealthAssessmentResults type
+      const healthAssessmentResults = results as HealthAssessmentResults;
+      
+      // Store results and show completion screen
+      setHealthResults(healthAssessmentResults);
+      setIsCompleted(true);
+      
+      // Clear the saved session as questionnaire is complete
+      await clearSession();
+      
     } catch (error) {
       console.error('Error handling completion:', error);
+      // Still show completion screen even if there's an error
+      setIsCompleted(true);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleNavigateHome = () => {
+    router.push('/home');
+  };
+
+  const handleNavigateNext = () => {
+    router.push('/document-upload');
+  };
+
+  const handleProgressUpdate = (progress: number) => {
+    setQuestionnaireProgress(progress);
+    // Update session with current progress
+    if (session) {
+      updateProgress(
+        session.currentSectionIndex,
+        session.currentQuestionIndex,
+        progress,
+        estimatedTimeRemaining
+      );
+    }
+  };
+
+  const handleSaveAndExit = async (): Promise<boolean> => {
+    try {
+      return await saveSession();
+    } catch (error) {
+      console.error('Failed to save session:', error);
+      return false;
+    }
+  };
+
+  const handleRestoreSession = () => {
+    setShowRestoreBanner(false);
+    // Session will be automatically restored by the hook
+  };
+
+  const handleStartNewSession = async () => {
+    await clearSession();
+    setShowRestoreBanner(false);
+    setQuestionnaireProgress(0);
   };
 
   if (isSubmitting) {
@@ -49,53 +163,67 @@ export default function HealthQuestionnairePage() {
     );
   }
 
+  // Show completion screen if questionnaire is finished
+  if (isCompleted && healthResults) {
+    return (
+      <HealthAssessmentComplete
+        healthResults={healthResults}
+        userName={user?.name || 'Usuário'}
+        userAge={user?.age || 25}
+        sessionStartTime={sessionStartTime}
+        onNavigateHome={handleNavigateHome}
+        onNavigateNext={handleNavigateNext}
+      />
+    );
+  }
+
   // Check if it's first time for user onboarding flow
   const isFirstTime = user?.registration_step !== 'completed';
   console.log('First time user:', isFirstTime); // Use the variable to avoid warning
 
-  return (
-    <div className="space-y-8">
-      {/* Enhanced Header */}
-      <div className="text-center mb-10">
-        <div className="flex items-center justify-center gap-5 mb-6">
-          <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg">
-            <Heart className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 font-['Inter']">Avaliação de Saúde Inteligente</h1>
-            <p className="text-gray-600 font-['Inter'] mt-1">Passo 2 de 4</p>
-          </div>
-        </div>
-        
-        {/* Feature Pills */}
-        <div className="flex flex-wrap justify-center gap-3 mb-6">
-          <div className="px-4 py-2 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center gap-2">
-            <Brain className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-medium text-purple-700 font-['Inter']">IA Clínica</span>
-          </div>
-          <div className="px-4 py-2 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-full flex items-center gap-2">
-            <Route className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-700 font-['Inter']">PHQ-9 & GAD-7</span>
-          </div>
-          <div className="px-4 py-2 bg-gradient-to-r from-green-100 to-emerald-100 rounded-full flex items-center gap-2">
-            <Shield className="w-4 h-4 text-green-600" />
-            <span className="text-sm font-medium text-green-700 font-['Inter']">Detecção de Fraude</span>
-          </div>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className="relative max-w-2xl mx-auto">
-          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-purple-500 to-pink-600 rounded-full shadow-sm" style={{ width: '50%' }}></div>
-          </div>
-          <div className="mt-2 text-sm text-gray-500 font-['Inter']">50% concluído</div>
+  // Show loading state for session
+  if (isLoadingSession) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando questionário...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="space-y-6">
+      {/* Navigation Header with Dashboard Button and Auto-Save */}
+      <HealthNavigationHeader
+        progress={questionnaireProgress}
+        onSave={handleSaveAndExit}
+        title="Avaliação de Saúde Inteligente"
+        subtitle="Passo 2 de 4 - Informações de saúde mental e bem-estar"
+        estimatedTimeRemaining={estimatedTimeRemaining}
+        showHomeButton={true}
+        showSaveButton={true}
+      />
+
+      {/* Session Restoration Banner */}
+      {showRestoreBanner && session && (
+        <SessionRestorationBanner
+          lastSavedAt={session.lastSavedAt}
+          progress={session.progress}
+          onRestore={handleRestoreSession}
+          onStartNew={handleStartNewSession}
+        />
+      )}
+
       
       {/* Unified Health Assessment with Feature Toggle */}
-      <Card className="p-2 shadow-xl border-0 rounded-2xl bg-white overflow-hidden">
+      <Card className="health-questionnaire p-2 shadow-xl border-0 rounded-2xl bg-white/95 backdrop-blur-sm overflow-hidden card-modern">
         <UnifiedHealthQuestionnaire 
           onComplete={handleComplete}
+          onProgressUpdate={handleProgressUpdate}
           userId={user?.id}
           mode="standard"
           features={{
@@ -107,6 +235,8 @@ export default function HealthQuestionnairePage() {
           }}
         />
       </Card>
+        </div>
+      </div>
     </div>
   );
 }

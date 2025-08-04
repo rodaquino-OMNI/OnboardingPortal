@@ -55,17 +55,17 @@ body {
     @apply shadow-md border-gray-200;
   }
 
-  /* Action Button Styles */
+  /* Action Button Styles - Updated for consistency */
   .action-button {
-    @apply relative overflow-hidden transition-all duration-300 bg-white hover:bg-gray-50;
+    @apply relative overflow-hidden transition-all duration-300 bg-white hover:bg-gray-50 touch-target-48;
   }
   
   .action-button:hover {
-    @apply shadow-lg transform -translate-y-0.5;
+    @apply shadow-lg transform -translate-y-1;
   }
 
   .action-button-icon {
-    @apply w-10 h-10 rounded-lg flex items-center justify-center mb-3 transition-all duration-300;
+    @apply w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-all duration-300;
   }
 
   .action-button:hover .action-button-icon {
@@ -79,6 +79,30 @@ body {
 
   .section-title {
     @apply text-lg font-semibold text-gray-900 tracking-tight;
+  }
+
+  /* Mobile Touch Targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] touch-target-44;
+  }
+
+  .touch-friendly-button {
+    @apply min-h-[48px] touch-target-48 px-4 py-3;
+  }
+
+  /* Mobile-first responsive improvements */
+  @media (max-width: 640px) {
+    .dashboard-title {
+      @apply text-2xl;
+    }
+    
+    .section-title {
+      @apply text-base;
+    }
+    
+    .card-modern {
+      @apply p-4;
+    }
   }
 
   @keyframes fadeIn {

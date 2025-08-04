@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\DocumentReviewController;
 use App\Http\Controllers\Api\InterviewController;
 use App\Http\Controllers\Api\InterviewSlotController;
+use App\Http\Controllers\Api\TelemedicineSchedulingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -65,6 +66,7 @@ Route::prefix('register')->group(function () {
         Route::post('/step2', [RegisterController::class, 'step2']);
         Route::post('/step3', [RegisterController::class, 'step3']);
         Route::get('/progress', [RegisterController::class, 'progress']);
+        Route::get('/validate-profile', [RegisterController::class, 'validateProfileCompletion']);
         Route::delete('/cancel', [RegisterController::class, 'cancel']);
     });
 });
@@ -168,6 +170,14 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
         Route::post('/{interview}/start', [App\Http\Controllers\Api\InterviewController::class, 'start']); // Healthcare professionals only
         Route::post('/{interview}/complete', [App\Http\Controllers\Api\InterviewController::class, 'complete']); // Healthcare professionals only
         Route::post('/{interview}/rate', [App\Http\Controllers\Api\InterviewController::class, 'rateInterview']); // Rate completed interview
+    });
+
+    // Telemedicine Scheduling System (Completion Reward)
+    Route::prefix('telemedicine')->group(function () {
+        Route::get('/eligibility', [TelemedicineSchedulingController::class, 'checkEligibility']); // Check if user is eligible for telemedicine
+        Route::get('/appointment-types', [TelemedicineSchedulingController::class, 'getAppointmentTypes']); // Get available telemedicine appointment types
+        Route::get('/available-slots', [TelemedicineSchedulingController::class, 'getAvailableSlots']); // Get available telemedicine slots
+        Route::post('/book', [TelemedicineSchedulingController::class, 'bookAppointment']); // Book telemedicine appointment
     });
 
     // Interview Slots management (Healthcare professionals and admins only)
