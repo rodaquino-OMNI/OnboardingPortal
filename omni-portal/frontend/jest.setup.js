@@ -1,13 +1,14 @@
 import '@testing-library/jest-dom'
 import 'jest-axe/extend-expect'
 
-// Polyfill fetch for test environment (required for MSW and API calls)
-import { TextEncoder, TextDecoder } from 'util'
-global.TextEncoder = TextEncoder
-global.TextDecoder = TextDecoder
+// Polyfill fetch and text encoding for test environment (required for MSW and API calls)
+const { TextEncoder, TextDecoder } = require('util')
 
-// Fetch polyfill for Node.js test environment
-global.fetch = require('node-fetch')
+// Use whatwg-fetch polyfill for Jest environment
+require('whatwg-fetch')
+
+global.TextEncoder = TextEncoder  
+global.TextDecoder = TextDecoder
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
@@ -24,6 +25,60 @@ global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
 }
+
+// Mock HTMLCanvasElement.getContext for jsPDF and other canvas operations
+HTMLCanvasElement.prototype.getContext = jest.fn(() => {
+  return {
+    fillStyle: '',
+    strokeStyle: '',
+    font: '',
+    textAlign: '',
+    textBaseline: '',
+    globalAlpha: 1,
+    globalCompositeOperation: '',
+    lineWidth: 1,
+    lineCap: '',
+    lineJoin: '',
+    miterLimit: 10,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    shadowBlur: 0,
+    shadowColor: '',
+    save: jest.fn(),
+    restore: jest.fn(),
+    scale: jest.fn(),
+    rotate: jest.fn(),
+    translate: jest.fn(),
+    transform: jest.fn(),
+    setTransform: jest.fn(),
+    createLinearGradient: jest.fn(),
+    createRadialGradient: jest.fn(),
+    createPattern: jest.fn(),
+    clearRect: jest.fn(),
+    fillRect: jest.fn(),
+    strokeRect: jest.fn(),
+    beginPath: jest.fn(),
+    closePath: jest.fn(),
+    moveTo: jest.fn(),
+    lineTo: jest.fn(),
+    quadraticCurveTo: jest.fn(),
+    bezierCurveTo: jest.fn(),
+    arcTo: jest.fn(),
+    rect: jest.fn(),
+    arc: jest.fn(),
+    fill: jest.fn(),
+    stroke: jest.fn(),
+    clip: jest.fn(),
+    isPointInPath: jest.fn(),
+    drawImage: jest.fn(),
+    fillText: jest.fn(),
+    strokeText: jest.fn(),
+    measureText: jest.fn(() => ({ width: 0 })),
+    createImageData: jest.fn(),
+    getImageData: jest.fn(() => ({ data: [] })),
+    putImageData: jest.fn(),
+  };
+});
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -84,10 +139,7 @@ window.location = {
 // Mock act for async operations
 global.act = require('react').act
 
-// Add TextEncoder/TextDecoder for MSW
-const { TextEncoder, TextDecoder } = require('util')
-global.TextEncoder = TextEncoder
-global.TextDecoder = TextDecoder
+// TextEncoder/TextDecoder already defined above
 
 // Add polyfills for MSW
 if (typeof global.Request === 'undefined') {

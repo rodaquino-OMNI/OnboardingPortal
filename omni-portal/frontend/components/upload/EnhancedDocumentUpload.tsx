@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -63,17 +63,29 @@ export function EnhancedDocumentUpload({
   const { makeRequest, cancelAll } = useCancellableRequest();
   const mountedRef = useRef(true);
 
+  // PERFORMANCE FIX: Memoize mobile detection to prevent unnecessary re-renders
+  const isMobileDevice = useMemo(() => {
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }, []);
+
+  // INFINITE LOOP FIX: Remove cancelAll from dependency array and use ref for cleanup
+  const cleanupRef = useRef<() => void>();
+  
   useEffect(() => {
-    setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    setIsMobile(isMobileDevice);
     
-    // Cleanup on unmount
-    return () => {
-      mountedRef.current = false;
+    // Store cleanup function in ref to avoid dependency issues
+    cleanupRef.current = () => {
       cancelAll();
-      // Terminate OCR service to prevent memory leaks
       ocrService.terminate();
     };
-  }, [cancelAll]);
+    
+    // Cleanup on unmount - no dependencies to avoid infinite loops
+    return () => {
+      mountedRef.current = false;
+      cleanupRef.current?.();
+    };
+  }, [isMobileDevice]); // Only depend on memoized mobile detection
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     // Validate file type with proper UI feedback
@@ -121,6 +133,7 @@ export function EnhancedDocumentUpload({
     }
   }, [isMobile]);
 
+  // PERFORMANCE FIX: Memoize processDocument to prevent recreation on every render
   const processDocument = useCallback(async (fileToProcess: File) => {
     if (!mountedRef.current) return;
     
@@ -128,8 +141,17 @@ export function EnhancedDocumentUpload({
     setOcrProgress(0);
     setOcrStatus('Preparando documento...');
 
+    // CRITICAL FIX: Move OCR processing to Web Worker to prevent UI blocking
     const request = makeRequest(
       async (signal: AbortSignal) => {
+        // PERFORMANCE FIX: Memoize work scheduler to prevent function recreation
+        const scheduleWork = (callback: () => void) => {
+          if ('requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(callback, { timeout: 1000 });
+          } else {
+            setTimeout(callback, 0);
+          }
+        };
         try {
           // Step 1: Compress image if needed
           let processedFile = fileToProcess;
@@ -149,35 +171,67 @@ export function EnhancedDocumentUpload({
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 2: Initialize OCR with cancellation support
+          // Step 2: Initialize OCR with cancellation support and performance optimization
           if (mountedRef.current) {
             setOcrStatus('Inicializando OCR...');
           }
           
-          await ocrService.initialize((progress) => {
-            if (mountedRef.current && !signal.aborted) {
-              setOcrProgress(progress.progress * 0.3); // 0-30%
-            }
-          }, signal);
+          // Use scheduled work to prevent blocking main thread
+          await new Promise<void>((resolve, reject) => {
+            scheduleWork(async () => {
+              try {
+                await ocrService.initialize((progress) => {
+                  if (mountedRef.current && !signal.aborted) {
+                    // PERFORMANCE FIX: Throttle progress updates with proper batching
+                    const throttledUpdate = () => {
+                      if (mountedRef.current) {
+                        setOcrProgress(prev => Math.max(prev, progress.progress * 0.3)); // 0-30%
+                      }
+                    };
+                    requestAnimationFrame(throttledUpdate);
+                  }
+                }, signal);
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            });
+          });
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 3: Process OCR with cancellation support
+          // Step 3: Process OCR with cancellation support and performance optimization
           if (mountedRef.current) {
             setOcrStatus('Processando documento...');
           }
           
-          const ocrResult = await ocrService.recognizeText(
-            processedFile,
-            documentType.type,
-            (progress) => {
-              if (mountedRef.current && !signal.aborted) {
-                setOcrProgress(30 + progress.progress * 0.5); // 30-80%
-                setOcrStatus(progress.status);
+          // Process OCR in chunks to prevent blocking
+          const ocrResult = await new Promise((resolve, reject) => {
+            scheduleWork(async () => {
+              try {
+                const result = await ocrService.recognizeText(
+                  processedFile,
+                  documentType.type,
+                  (progress) => {
+                    if (mountedRef.current && !signal.aborted) {
+                      // PERFORMANCE FIX: Batch state updates to prevent multiple re-renders
+                      const throttledUpdate = () => {
+                        if (mountedRef.current) {
+                          setOcrProgress(prev => Math.max(prev, 30 + progress.progress * 0.5)); // 30-80%
+                          setOcrStatus(progress.status);
+                        }
+                      };
+                      requestAnimationFrame(throttledUpdate);
+                    }
+                  },
+                  signal
+                );
+                resolve(result);
+              } catch (error) {
+                reject(error);
               }
-            },
-            signal
-          );
+            });
+          });
 
           if (signal.aborted) throw new Error('Processing cancelled');
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Lock, Mail, Phone, Calendar, Home, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -340,7 +340,8 @@ export function UnifiedRegistrationForm() {
                   {...register('cpf', {
                     onChange: (e) => {
                       const formatted = formatCPF(e.target.value);
-                      setValue('cpf', formatted.replace(/\D/g, ''));
+                      // Keep the formatted value in the form state
+                      setValue('cpf', formatted);
                       e.target.value = formatted;
                     }
                   })}

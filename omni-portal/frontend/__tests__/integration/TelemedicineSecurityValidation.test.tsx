@@ -87,7 +87,7 @@ const server = setupServer(
     // Check for XSS attempts
     if (body.notes && body.notes.includes('<script>')) {
       // Should sanitize, not reject completely
-      return res(ctx.json({
+      return HttpResponse.json(({
         success: true,
         data: {
           interview: {

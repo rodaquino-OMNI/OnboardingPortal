@@ -37,42 +37,32 @@ export default function LoginForm() {
       clearError();
       setSessionLimitError(null);
       
-      // Try to login - handle different response types
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: data.login,
-          password: data.password 
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
+      // Use unified auth context for login
+      const result = await login(data);
+      
+      if (!result.success) {
         // Handle session limit error
         if (result.error === 'SESSION_LIMIT_EXCEEDED') {
-          setSessionLimitError(result);
+          // Fetch session details separately
+          const sessionResponse = await fetch('/api/auth/sessions');
+          const sessionData = await sessionResponse.json();
+          setSessionLimitError(sessionData);
           return;
         }
-        throw new Error(result.error || 'Login failed');
-      }
-
-      // Handle 2FA requirement
-      if (result.requires_2fa) {
-        setRequires2FA(true);
-        setSessionToken(result.session_token);
+        
+        // Handle 2FA requirement
+        if (result.requires_2fa) {
+          setRequires2FA(true);
+          setSessionToken(result.session_token || '');
+          return;
+        }
+        
+        // Other errors are handled by the auth context
         return;
       }
 
       // Normal login success
-      await login(data);
       setShowSuccess(true);
-      
-      // Store token if provided
-      if (result.access_token) {
-        localStorage.setItem('access_token', result.access_token);
-      }
       
       // Redirect after success animation
       setTimeout(() => {
@@ -106,10 +96,7 @@ export default function LoginForm() {
       const result = await response.json();
 
       if (response.ok) {
-        // Store token and user data
-        if (result.access_token) {
-          localStorage.setItem('access_token', result.access_token);
-        }
+        // Token is now handled securely by AuthContext
         
         // Show success message with user name
         const welcomeElement = document.createElement('div');
@@ -249,6 +236,7 @@ export default function LoginForm() {
           type="submit"
           fullWidth
           isLoading={isSubmitting}
+          disabled={isSubmitting}
           className="relative"
         >
           Entrar

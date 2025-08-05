@@ -26,9 +26,20 @@ export function middleware(request: NextRequest) {
     '/register',
     '/forgot-password',
     '/callback',
+    '/welcome',
+    '/company-info',
+    '/health-questionnaire',
+    '/document-upload',
+    '/interview-schedule',
+    '/telemedicine-schedule',
+    '/completion',
     '/api',
     '/_next',
-    '/favicon.ico'
+    '/favicon.ico',
+    '/sw.js',
+    '/manifest.json',
+    '/icons',
+    '/tesseract'
   ];
 
   // Check if the current path is public

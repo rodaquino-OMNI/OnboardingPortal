@@ -107,6 +107,13 @@ export const useAuth = create<AuthState>()(
                 isLoading: false,
               });
             }
+            
+            // Return success result
+            return {
+              success: true,
+              user: response.user,
+              requires_2fa: false
+            };
           } catch (error) {
             if (!request.isCancelled()) {
               const appError = error as AppError;
@@ -115,7 +122,13 @@ export const useAuth = create<AuthState>()(
                 isLoading: false,
               });
             }
-            throw error;
+            
+            // Return error result
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : 'Erro ao fazer login',
+              requires_2fa: false
+            };
           }
         },
 

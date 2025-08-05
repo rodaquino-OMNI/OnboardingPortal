@@ -7,9 +7,11 @@ use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use App\Events\UserAction;
+use App\Events\DocumentProcessed;
 use App\Listeners\AwardPoints;
 use App\Listeners\CheckBadges;
 use App\Listeners\CheckLevelUp;
+use App\Listeners\ProcessDocumentGamification;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -26,6 +28,9 @@ class EventServiceProvider extends ServiceProvider
             AwardPoints::class,
             CheckBadges::class,
             CheckLevelUp::class,
+        ],
+        DocumentProcessed::class => [
+            ProcessDocumentGamification::class,
         ],
     ];
 

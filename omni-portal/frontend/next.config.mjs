@@ -36,18 +36,6 @@ const nextConfig = {
   
   // Bundle analyzer and webpack optimizations
   webpack: (config, { isServer }) => {
-    // Temporarily disable bundle analyzer for now
-    /* if (process.env.ANALYZE === 'true') {
-      const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
-      config.plugins.push(
-        new BundleAnalyzerPlugin({
-          analyzerMode: 'static',
-          reportFilename: isServer ? '../analyze/server.html' : './analyze/client.html',
-          openAnalyzer: false,
-        })
-      );
-    } */
-
     // Fix webpack module resolution for @hookform packages
     config.resolve = {
       ...config.resolve,
@@ -68,33 +56,26 @@ const nextConfig = {
       }
     });
 
-    // Optimize chunk splitting for form libraries
+    // CRITICAL FIX: Simplified chunk splitting to prevent missing module errors
     if (!isServer) {
       config.optimization = {
         ...config.optimization,
         splitChunks: {
-          ...config.optimization.splitChunks,
           chunks: 'all',
+          minSize: 20000,
+          maxSize: 244000,
           cacheGroups: {
-            ...config.optimization.splitChunks?.cacheGroups,
-            hookform: {
-              name: 'vendor-hookform',
-              test: /[\\/]node_modules[\\/]@hookform[\\/]/,
-              priority: 30,
+            vendor: {
+              name: 'vendor',
+              test: /[\\/]node_modules[\\/]/,
+              priority: 10,
               chunks: 'all',
               enforce: true,
             },
-            reactHookForm: {
-              name: 'vendor-react-hook-form',
-              test: /[\\/]node_modules[\\/]react-hook-form[\\/]/,
-              priority: 25,
-              chunks: 'all',
-              enforce: true,
-            },
-            zod: {
-              name: 'vendor-zod',
-              test: /[\\/]node_modules[\\/]zod[\\/]/,
-              priority: 25,
+            common: {
+              name: 'common',
+              minChunks: 2,
+              priority: 5,
               chunks: 'all',
               enforce: true,
             },
@@ -148,6 +129,8 @@ const withPWAConfig = withPWA({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  // Disable PWA during build to prevent hanging
+  buildExcludes: [/middleware-manifest\.json$/],
   workboxOptions: {
     runtimeCaching: [
       {

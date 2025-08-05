@@ -1,4 +1,6 @@
-import { createWorker, Worker, RecognizeResult, createScheduler, Scheduler } from 'tesseract.js';
+import { Worker, RecognizeResult, createScheduler, Scheduler } from 'tesseract.js';
+import { createTesseractWorker } from './tesseract-runtime-loader';
+import { OCRWorkerManager } from './web-worker-ocr';
 import { compressImage } from './image-optimizer';
 import type { OCRResult, OCRBlock, BoundingBox, ExtractedDocumentData, DocumentValidation } from '@/types/ocr';
 import { makeCancellable, type CancellableRequest } from './async-utils';
@@ -12,10 +14,12 @@ export interface OCRProgress {
 
 export class OCRService {
   private worker: Worker | null = null;
+  private workerManager: OCRWorkerManager | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private activeRequests = new Set<CancellableRequest<any>>();
+  private useWebWorker = typeof Worker !== 'undefined';
 
   async initialize(onProgress?: (progress: OCRProgress) => void, signal?: AbortSignal): Promise<void> {
     if (this.isInitialized) return;
@@ -51,9 +55,10 @@ export class OCRService {
     }
 
     try {
-      // Technical Excellence: Pure local implementation without any CDN fallbacks
-      // All files are served locally from public/tesseract directory
-      this.worker = await createWorker('por+eng', 1, {
+      // Technical Excellence: Lazy loading implementation with runtime download
+      // Files are downloaded only when OCR is actually used, preventing build hangs
+      this.worker = await createTesseractWorker({
+        langs: ['por', 'eng'],
         logger: (m: { status: string; progress: number }) => {
           // Check cancellation before progress updates
           if (signal?.aborted) return;
@@ -64,11 +69,7 @@ export class OCRService {
               progress: m.progress,
             });
           }
-        },
-        // Explicit local paths - Next.js serves files from public/ directory
-        workerPath: `${window.location.origin}/tesseract/worker.min.js`,
-        langPath: `${window.location.origin}/tesseract/lang-data`,
-        corePath: `${window.location.origin}/tesseract/tesseract-core.wasm.js`,
+        }
       });
 
       // Check cancellation after worker creation

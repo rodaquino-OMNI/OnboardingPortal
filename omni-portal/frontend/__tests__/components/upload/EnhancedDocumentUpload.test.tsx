@@ -20,32 +20,13 @@ jest.mock('@/lib/ocr-service', () => ({
       confidence: 95,
       errors: [],
       warnings: []
-    }))
+    })),
+    terminate: jest.fn(() => Promise.resolve())
   }
 }));
 jest.mock('@/lib/image-optimizer', () => ({
   compressImage: jest.fn((file) => Promise.resolve(file)),
   validateImageQuality: jest.fn(() => Promise.resolve({ isValid: true, issues: [] }))
-}));
-jest.mock('@/lib/ocr-service', () => ({
-  ocrService: {
-    processDocument: jest.fn(() => Promise.resolve({
-      text: 'Sample OCR text',
-      confidence: 0.95,
-      fields: {
-        name: 'João Silva',
-        document_number: '12.345.678-9'
-      }
-    }))
-  }
-}));
-jest.mock('@/lib/image-optimizer', () => ({
-  compressImage: jest.fn((file) => Promise.resolve(file)),
-  validateImageQuality: jest.fn(() => ({
-    isValid: true,
-    issues: [],
-    quality: 0.9
-  }))
 }));
 
 const mockAddPoints = jest.fn();

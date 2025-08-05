@@ -11,30 +11,34 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Create telemedicine appointment types table
-        Schema::create('telemedicine_appointment_types', function (Blueprint $table) {
-            $table->id();
-            $table->string('name'); // 'Initial Consultation', 'Follow-up', 'Urgent Care', 'Mental Health', etc.
-            $table->string('slug')->unique();
-            $table->text('description')->nullable();
-            $table->integer('default_duration_minutes')->default(30);
-            $table->decimal('base_price', 10, 2)->default(0.00);
-            $table->json('required_documents')->nullable(); // Document types required for this appointment type
-            $table->json('preparation_checklist')->nullable(); // What patient needs to prepare
-            $table->boolean('requires_prescription_review')->default(false);
-            $table->boolean('allows_emergency_booking')->default(false);
-            $table->integer('advance_booking_days')->default(30); // How far in advance can be booked
-            $table->integer('minimum_notice_hours')->default(24); // Minimum hours before appointment
-            $table->json('specializations_required')->nullable(); // Required healthcare professional specializations
-            $table->boolean('is_active')->default(true);
-            $table->timestamps();
+        // Check if telemedicine_appointment_types table already exists
+        if (!Schema::hasTable('telemedicine_appointment_types')) {
+            // Create telemedicine appointment types table
+            Schema::create('telemedicine_appointment_types', function (Blueprint $table) {
+                $table->id();
+                $table->string('name'); // 'Initial Consultation', 'Follow-up', 'Urgent Care', 'Mental Health', etc.
+                $table->string('slug')->unique();
+                $table->text('description')->nullable();
+                $table->integer('default_duration_minutes')->default(30);
+                $table->decimal('base_price', 10, 2)->default(0.00);
+                $table->json('required_documents')->nullable(); // Document types required for this appointment type
+                $table->json('preparation_checklist')->nullable(); // What patient needs to prepare
+                $table->boolean('requires_prescription_review')->default(false);
+                $table->boolean('allows_emergency_booking')->default(false);
+                $table->integer('advance_booking_days')->default(30); // How far in advance can be booked
+                $table->integer('minimum_notice_hours')->default(24); // Minimum hours before appointment
+                $table->json('specializations_required')->nullable(); // Required healthcare professional specializations
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
 
-            $table->index(['is_active', 'slug']);
-            $table->index('allows_emergency_booking');
-        });
+                $table->index(['is_active', 'slug']);
+                $table->index('allows_emergency_booking');
+            });
+        }
 
         // Create telemedicine availability templates
-        Schema::create('telemedicine_availability_templates', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_availability_templates')) {
+            Schema::create('telemedicine_availability_templates', function (Blueprint $table) {
             $table->id();
             $table->foreignId('healthcare_professional_id')->constrained('users')->onDelete('cascade');
             $table->string('name'); // 'Weekday Morning', 'Weekend Schedule', etc.
@@ -46,10 +50,12 @@ return new class extends Migration
 
             $table->index(['healthcare_professional_id', 'is_active']);
             $table->index(['healthcare_professional_id', 'is_default']);
-        });
+            });
+        }
 
         // Create telemedicine recurring appointments
-        Schema::create('telemedicine_recurring_appointments', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_recurring_appointments')) {
+            Schema::create('telemedicine_recurring_appointments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('beneficiary_id')->constrained()->onDelete('cascade');
             $table->foreignId('healthcare_professional_id')->constrained('users')->onDelete('cascade');
@@ -71,10 +77,12 @@ return new class extends Migration
             $table->index(['beneficiary_id', 'status']);
             $table->index(['healthcare_professional_id', 'status']);
             $table->index(['series_start_date', 'series_end_date']);
-        });
+            });
+        }
 
         // Create telemedicine waitlist
-        Schema::create('telemedicine_waitlist', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_waitlist')) {
+            Schema::create('telemedicine_waitlist', function (Blueprint $table) {
             $table->id();
             $table->foreignId('beneficiary_id')->constrained()->onDelete('cascade');
             $table->foreignId('appointment_type_id')->constrained('telemedicine_appointment_types')->onDelete('cascade');
@@ -97,10 +105,12 @@ return new class extends Migration
             $table->index(['status', 'urgency_level', 'earliest_date']);
             $table->index(['beneficiary_id', 'status']);
             $table->index('expires_at');
-        });
+            });
+        }
 
         // Add telemedicine-specific fields to existing interviews table
-        Schema::table('interviews', function (Blueprint $table) {
+        if (Schema::hasTable('interviews') && !Schema::hasColumn('interviews', 'appointment_type_id')) {
+            Schema::table('interviews', function (Blueprint $table) {
             $table->foreignId('appointment_type_id')->nullable()->constrained('telemedicine_appointment_types')->onDelete('set null')->after('interview_type');
             $table->foreignId('recurring_appointment_id')->nullable()->constrained('telemedicine_recurring_appointments')->onDelete('set null')->after('appointment_type_id');
             $table->boolean('is_telemedicine')->default(true)->after('recurring_appointment_id');
@@ -131,10 +141,12 @@ return new class extends Migration
             $table->index(['appointment_type_id', 'scheduled_at']);
             $table->index(['consultation_outcome', 'scheduled_at']);
             $table->index(['requires_in_person_followup', 'suggested_followup_date']);
-        });
+            });
+        }
 
         // Add telemedicine-specific fields to interview_slots table
-        Schema::table('interview_slots', function (Blueprint $table) {
+        if (Schema::hasTable('interview_slots') && !Schema::hasColumn('interview_slots', 'supported_appointment_types')) {
+            Schema::table('interview_slots', function (Blueprint $table) {
             $table->json('supported_appointment_types')->nullable()->after('interview_type'); // Which appointment types this slot supports
             $table->boolean('is_telemedicine_enabled')->default(true)->after('supported_appointment_types');
             $table->json('technology_requirements')->nullable()->after('is_telemedicine_enabled'); // Browser, device requirements
@@ -146,10 +158,12 @@ return new class extends Migration
 
             $table->index(['is_telemedicine_enabled', 'is_available']);
             $table->index(['allows_urgent_booking', 'date']);
-        });
+            });
+        }
 
         // Create telemedicine session quality metrics
-        Schema::create('telemedicine_session_metrics', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_session_metrics')) {
+            Schema::create('telemedicine_session_metrics', function (Blueprint $table) {
             $table->id();
             $table->foreignId('interview_id')->constrained()->onDelete('cascade');
             $table->foreignId('video_session_id')->nullable()->constrained('video_sessions')->onDelete('set null');
@@ -172,10 +186,12 @@ return new class extends Migration
             $table->index(['interview_id']);
             $table->index(['session_completed_successfully', 'created_at']);
             $table->index(['overall_technical_score', 'created_at']);
-        });
+            });
+        }
 
         // Create telemedicine notifications queue
-        Schema::create('telemedicine_notifications', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_notifications')) {
+            Schema::create('telemedicine_notifications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('interview_id')->constrained()->onDelete('cascade');
             $table->foreignId('recipient_user_id')->constrained('users')->onDelete('cascade');
@@ -205,10 +221,12 @@ return new class extends Migration
             $table->index(['status', 'scheduled_for']);
             $table->index(['interview_id', 'notification_type']);
             $table->index(['recipient_user_id', 'status']);
-        });
+            });
+        }
 
         // Create gamification rewards for telemedicine
-        Schema::create('telemedicine_gamification_rules', function (Blueprint $table) {
+        if (!Schema::hasTable('telemedicine_gamification_rules')) {
+            Schema::create('telemedicine_gamification_rules', function (Blueprint $table) {
             $table->id();
             $table->string('rule_name');
             $table->string('trigger_event'); // 'appointment_completed', 'checklist_completed', etc.
@@ -222,7 +240,8 @@ return new class extends Migration
 
             $table->index(['trigger_event', 'is_active']);
             $table->index('is_active');
-        });
+            });
+        }
     }
 
     /**

@@ -18,9 +18,10 @@ class DocumentProcessed
     /**
      * Create a new event instance.
      */
-    public function __construct(Document $document, ?array $ocrResult = null)
+    public function __construct(Document $document, ?array $ocrResult = null, ?array $gamificationData = null)
     {
         $this->document = $document;
         $this->ocrResult = $ocrResult ?? $document->ocr_data ?? [];
+        $this->gamificationData = $gamificationData;
     }
 }

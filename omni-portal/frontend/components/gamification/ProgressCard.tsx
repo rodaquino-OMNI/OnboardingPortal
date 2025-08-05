@@ -3,7 +3,7 @@
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
-import { useEffect } from 'react';
+import { useEffect, memo, useMemo } from 'react';
 import { Trophy, Star, TrendingUp, Flame } from 'lucide-react';
 
 interface ProgressCardProps {
@@ -11,7 +11,8 @@ interface ProgressCardProps {
   showDetails?: boolean;
 }
 
-export function ProgressCard({ className, showDetails = true }: ProgressCardProps) {
+// CRITICAL FIX: Add React.memo to prevent unnecessary re-renders
+const ProgressCard = memo(function ProgressCard({ className, showDetails = true }: ProgressCardProps) {
   const { 
     progress, 
     stats, 
@@ -21,15 +22,38 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
     fetchStats 
   } = useGamification();
 
-  useEffect(() => {
-    try {
-      if (!progress) fetchProgress().catch(console.error);
-      if (!stats) fetchStats().catch(console.error);
-    } catch (error) {
-      console.error('Error fetching gamification data:', error);
-    }
-  }, [progress, stats, fetchProgress, fetchStats]);
+  // ARCHITECTURAL FIX: Removed individual fetching to prevent render-phase state updates
+  // Data loading is now centralized in parent component (home/page.tsx)
+  // This eliminates concurrent Zustand store updates during render phase
 
+  // CRITICAL FIX: Move useMemo BEFORE conditional returns to ensure hooks are always called in the same order
+  const calculatedData = useMemo(() => {
+    // Safe extraction with null checks and defaults - ensure we get number, not object
+    const currentLevel = (
+      (typeof stats?.current_level === 'number' ? stats.current_level : stats?.current_level?.number) ||
+      (typeof stats?.level === 'number' ? stats.level : stats?.level?.number) ||
+      progress?.current_level?.number ||
+      1
+    );
+    const nextLevel = currentLevel + 1;
+    const totalPoints = (
+      (typeof stats?.totalPoints === 'number' ? stats.totalPoints : 0) ||
+      (typeof progress?.total_points === 'number' ? progress.total_points : 0) ||
+      0
+    );
+    const experienceToNext = (
+      (typeof stats?.experienceToNext === 'number' ? stats.experienceToNext : 0) ||
+      (typeof progress?.next_level?.points_remaining === 'number' ? progress.next_level.points_remaining : 0) ||
+      (1000 - (totalPoints % 1000))
+    );
+    const progressPercentage = Math.min(((totalPoints % 1000) / 1000) * 100, 100);
+    
+    return { currentLevel, nextLevel, totalPoints, experienceToNext, progressPercentage };
+  }, [stats, progress]);
+  
+  const { currentLevel, nextLevel, totalPoints, experienceToNext, progressPercentage } = calculatedData;
+
+  // Conditional returns AFTER all hooks
   if (isLoadingProgress || isLoadingStats) {
     return (
       <div className={`card-modern p-6 ${className || ''}`}>
@@ -47,31 +71,11 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
       <div className={`card-modern p-6 ${className || ''}`}>
         <div className="text-center text-gray-500">
           <Trophy className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>No progress data available</p>
+          <p>Nenhum dado de progresso disponível</p>
         </div>
       </div>
     );
   }
-
-  // Safe extraction with null checks and defaults - ensure we get number, not object
-  const currentLevel = (
-    (typeof stats?.current_level === 'number' ? stats.current_level : stats?.current_level?.number) ||
-    (typeof stats?.level === 'number' ? stats.level : stats?.level?.number) ||
-    progress?.current_level?.number ||
-    1
-  );
-  const nextLevel = currentLevel + 1;
-  const totalPoints = (
-    (typeof stats?.totalPoints === 'number' ? stats.totalPoints : 0) ||
-    (typeof progress?.total_points === 'number' ? progress.total_points : 0) ||
-    0
-  );
-  const experienceToNext = (
-    (typeof stats?.experienceToNext === 'number' ? stats.experienceToNext : 0) ||
-    (typeof progress?.next_level?.points_remaining === 'number' ? progress.next_level.points_remaining : 0) ||
-    (1000 - (totalPoints % 1000))
-  );
-  const progressPercentage = Math.min(((totalPoints % 1000) / 1000) * 100, 100);
 
   return (
     <div className={`card-modern p-6 ${className || ''}`}>
@@ -88,9 +92,9 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
               </span>
             </div>
             <div>
-              <h3 className="section-title">Level {currentLevel}</h3>
+              <h3 className="section-title">Nível {currentLevel}</h3>
               <p className="text-sm text-gray-600">
-                {(totalPoints || 0).toLocaleString()} points
+                {(totalPoints || 0).toLocaleString()} pontos
               </p>
             </div>
           </div>
@@ -104,10 +108,10 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">
-              Progress to Level {nextLevel}
+              Progresso para Nível {nextLevel}
             </span>
             <span className="font-medium">
-              {(experienceToNext || 0).toLocaleString()} points to go
+              Faltam {(experienceToNext || 0).toLocaleString()} pontos
             </span>
           </div>
           <Progress 
@@ -115,7 +119,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
             className="h-3"
           />
           <p className="text-xs text-gray-500 text-center">
-            {(progressPercentage || 0).toFixed(1)}% complete
+            {(progressPercentage || 0).toFixed(1)}% completo
           </p>
         </div>
 
@@ -131,7 +135,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
                    0}
                 </span>
               </div>
-              <p className="text-xs text-gray-600">Day Streak</p>
+              <p className="text-xs text-gray-600">Dias Consecutivos</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1 mb-1">
@@ -140,7 +144,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
                   {(typeof stats?.achievementsUnlocked === 'number' ? stats.achievementsUnlocked : 0) || 0}
                 </span>
               </div>
-              <p className="text-xs text-gray-600">Badges Earned</p>
+              <p className="text-xs text-gray-600">Conquistas Obtidas</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1 mb-1">
@@ -149,7 +153,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
                   {Math.floor((totalPoints || 0) / 100)}
                 </span>
               </div>
-              <p className="text-xs text-gray-600">Tasks Done</p>
+              <p className="text-xs text-gray-600">Tarefas Concluídas</p>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1 mb-1">
@@ -158,7 +162,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
                   {typeof currentLevel === 'number' ? currentLevel : 1}
                 </span>
               </div>
-              <p className="text-xs text-gray-600">Level</p>
+              <p className="text-xs text-gray-600">Nível</p>
             </div>
           </div>
         )}
@@ -166,15 +170,17 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
         {/* Next Level Preview */}
         {showDetails && (
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 mt-4">
-            <h4 className="font-medium text-sm mb-2">Next Level Rewards:</h4>
+            <h4 className="font-medium text-sm mb-2">Recompensas do Próximo Nível:</h4>
             <div className="text-xs text-gray-600 space-y-1">
-              <p>• Level {nextLevel} Badge Unlocked</p>
-              <p>• {((currentLevel || 1) * 1000).toLocaleString()} points required</p>
-              <p>• New features and benefits unlocked</p>
+              <p>• Conquista Nível {nextLevel} Desbloqueada</p>
+              <p>• {((currentLevel || 1) * 1000).toLocaleString()} pontos necessários</p>
+              <p>• Novos recursos e benefícios desbloqueados</p>
             </div>
           </div>
         )}
       </div>
     </div>
   );
-}
+});
+
+export { ProgressCard };

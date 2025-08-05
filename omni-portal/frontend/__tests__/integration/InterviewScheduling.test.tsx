@@ -89,14 +89,14 @@ const server = setupServer(
 
   // Check slot availability (real-time)
   http.get('/api/interviews/slots/:slotId/availability', ({ request }) => {
-    const { slotId } = req.params;
+    const { slotId } = params;
     
     // Simulate real-time availability check
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      ({
         slot_id: slotId,
         available: Math.random() > 0.1, // 90% still available
-        last_checked: new Date().toISOString(),
+        last_checked: new Date().toISOString()
       })
     );
   }),
@@ -117,8 +117,8 @@ const server = setupServer(
         }, { status: 409 });
     }
     
-    return res(
-      ctx.json<ScheduledInterview>({
+    return HttpResponse.json(
+({
         id: 'interview-123',
         slot_id,
         user_id: 'user-123',
@@ -132,7 +132,7 @@ const server = setupServer(
 
   // Reschedule interview
   http.put('/api/interviews/:interviewId/reschedule', async ({ request }) => {
-    const { interviewId } = req.params;
+    const { interviewId } = params;
     const { new_slot_id, reason } = await request.json();
     
     return HttpResponse.json({
@@ -150,11 +150,11 @@ const server = setupServer(
 
   // Cancel interview
   http.delete('/api/interviews/:interviewId', async ({ request }) => {
-    const { interviewId } = req.params;
+    const { interviewId } = params;
     const { reason } = await request.json();
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      ({
         success: true,
         interview: {
           id: interviewId,
@@ -195,18 +195,18 @@ const server = setupServer(
 
   // Send notifications
   http.post('/api/interviews/:interviewId/notify', async ({ request }) => {
-    const { interviewId } = req.params;
+    const { interviewId } = params;
     const { type, channels } = await request.json();
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      ({
         success: true,
         notifications: {
           email: channels.includes('email'),
           sms: channels.includes('sms'),
-          push: channels.includes('push'),
+          push: channels.includes('push')
         },
-        sent_at: new Date().toISOString(),
+        sent_at: new Date().toISOString()
       })
     );
   })

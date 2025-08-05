@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useGamification } from '@/hooks/useGamification';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo, useMemo, useCallback } from 'react';
 import { Trophy, Star, Crown, Diamond } from 'lucide-react';
 import type { GamificationBadge } from '@/types';
 
@@ -13,7 +13,8 @@ interface BadgeDisplayProps {
   showAvailable?: boolean;
 }
 
-export function BadgeDisplay({ 
+// CRITICAL FIX: Add React.memo to prevent unnecessary re-renders
+const BadgeDisplay = memo(function BadgeDisplay({ 
   className, 
   maxVisible = 6, 
   showAvailable = true 
@@ -25,12 +26,39 @@ export function BadgeDisplay({
   } = useGamification();
   const [activeTab, setActiveTab] = useState<'earned' | 'available'>('earned');
 
-  useEffect(() => {
-    if (!badges?.earned?.length && !badges?.available?.length) {
-      fetchBadges();
-    }
-  }, [badges, fetchBadges]);
+  // ARCHITECTURAL FIX: Removed individual fetching to prevent render-phase state updates
+  // Data loading is now centralized in parent component (home/page.tsx)
+  // This eliminates "Cannot update a component while rendering" warnings
 
+  // CRITICAL FIX: Move ALL hooks BEFORE any conditional returns
+  const getRarityIcon = useCallback((rarity: GamificationBadge['rarity']) => {
+    switch (rarity) {
+      case 'common': return <Trophy className="w-4 h-4" />;
+      case 'rare': return <Star className="w-4 h-4" />;
+      case 'epic': return <Crown className="w-4 h-4" />;
+      case 'legendary': return <Diamond className="w-4 h-4" />;
+      default: return <Trophy className="w-4 h-4" />;
+    }
+  }, []);
+
+  const getRarityColor = useCallback((rarity: GamificationBadge['rarity']) => {
+    switch (rarity) {
+      case 'common': return 'bg-gray-100 text-gray-600 border-gray-300';
+      case 'rare': return 'bg-blue-100 text-blue-600 border-blue-300';
+      case 'epic': return 'bg-purple-100 text-purple-600 border-purple-300';
+      case 'legendary': return 'bg-yellow-100 text-yellow-600 border-yellow-300';
+      default: return 'bg-gray-100 text-gray-600 border-gray-300';
+    }
+  }, []);
+
+  // CRITICAL FIX: Memoize badge calculations to prevent unnecessary filtering
+  const { displayBadges, visibleBadges } = useMemo(() => {
+    const display = activeTab === 'earned' ? (badges?.earned || []) : (badges?.available || []);
+    const visible = display.slice(0, maxVisible);
+    return { displayBadges: display, visibleBadges: visible };
+  }, [activeTab, badges, maxVisible]);
+
+  // Conditional returns AFTER all hooks
   if (isLoadingBadges) {
     return (
       <Card className={`p-6 ${className}`}>
@@ -45,29 +73,6 @@ export function BadgeDisplay({
       </Card>
     );
   }
-
-  const getRarityIcon = (rarity: GamificationBadge['rarity']) => {
-    switch (rarity) {
-      case 'common': return <Trophy className="w-4 h-4" />;
-      case 'rare': return <Star className="w-4 h-4" />;
-      case 'epic': return <Crown className="w-4 h-4" />;
-      case 'legendary': return <Diamond className="w-4 h-4" />;
-      default: return <Trophy className="w-4 h-4" />;
-    }
-  };
-
-  const getRarityColor = (rarity: GamificationBadge['rarity']) => {
-    switch (rarity) {
-      case 'common': return 'bg-gray-100 text-gray-600 border-gray-300';
-      case 'rare': return 'bg-blue-100 text-blue-600 border-blue-300';
-      case 'epic': return 'bg-purple-100 text-purple-600 border-purple-300';
-      case 'legendary': return 'bg-yellow-100 text-yellow-600 border-yellow-300';
-      default: return 'bg-gray-100 text-gray-600 border-gray-300';
-    }
-  };
-
-  const displayBadges = activeTab === 'earned' ? (badges?.earned || []) : (badges?.available || []);
-  const visibleBadges = displayBadges.slice(0, maxVisible);
 
   return (
     <Card className={`p-6 ${className}`}>
@@ -91,7 +96,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Conquistadas ({badgesData?.earned?.length || 0})
+              Conquistadas ({badges?.earned?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('available')}
@@ -101,7 +106,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Disponíveis ({badgesData?.available?.length || 0})
+              Disponíveis ({badges?.available?.length || 0})
             </button>
           </div>
         )}
@@ -189,4 +194,6 @@ export function BadgeDisplay({
       </div>
     </Card>
   );
-}
+});
+
+export { BadgeDisplay };

@@ -168,15 +168,15 @@ export function GamificationTester() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <Trophy className="w-5 h-5" />
-              Gamification Integration Test
+              Teste de Integração de Gamificação
             </h2>
             <div className="flex gap-2">
               <Button onClick={refreshData} variant="outline" size="sm">
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh Data
+                Atualizar Dados
               </Button>
               <Button onClick={runAllTests} size="sm">
-                Run All Tests
+                Executar Todos os Testes
               </Button>
             </div>
           </div>
@@ -185,9 +185,9 @@ export function GamificationTester() {
             <Alert>
               <AlertCircle className="w-4 h-4" />
               <AlertDescription>
-                Error: {error}
+                Erro: {error}
                 <Button onClick={clearError} variant="link" size="sm" className="ml-2">
-                  Clear
+                  Limpar
                 </Button>
               </AlertDescription>
             </Alert>
@@ -196,10 +196,10 @@ export function GamificationTester() {
           {/* Test Results */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { key: 'API Integration', label: 'API Integration' },
-              { key: 'Real-time Updates', label: 'Real-time Updates' },
-              { key: 'Error Handling', label: 'Error Handling' },
-              { key: 'Data Persistence', label: 'Data Persistence' }
+              { key: 'API Integration', label: 'Integração com API' },
+              { key: 'Real-time Updates', label: 'Atualizações em Tempo Real' },
+              { key: 'Error Handling', label: 'Tratamento de Erros' },
+              { key: 'Data Persistence', label: 'Persistência de Dados' }
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center gap-2 p-3 border rounded-lg">
                 {getTestIcon(testResults[key])}
@@ -211,37 +211,37 @@ export function GamificationTester() {
           {/* Live Data Display */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Progress</h3>
+              <h3 className="font-medium mb-2">Progresso</h3>
               <div className="space-y-1 text-sm">
-                <div>Points: {progress?.total_points || 0}</div>
-                <div>Level: {progress?.current_level?.number || 1}</div>
-                <div>Streak: {progress?.streak_days || 0} days</div>
+                <div>Pontos: {progress?.total_points || 0}</div>
+                <div>Nível: {progress?.current_level?.number || 1}</div>
+                <div>Sequência: {progress?.streak_days || 0} dias</div>
               </div>
             </div>
 
             <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Badges</h3>
+              <h3 className="font-medium mb-2">Conquistas</h3>
               <div className="space-y-1 text-sm">
-                <div>Earned: {badges?.earned?.length || 0}</div>
-                <div>Available: {badges?.available?.length || 0}</div>
+                <div>Obtidas: {badges?.earned?.length || 0}</div>
+                <div>Disponíveis: {badges?.available?.length || 0}</div>
               </div>
             </div>
 
             <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Activity</h3>
+              <h3 className="font-medium mb-2">Atividade</h3>
               <div className="space-y-1 text-sm">
-                <div>Feed Items: {activityFeed?.length || 0}</div>
-                <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
+                <div>Itens do Feed: {activityFeed?.length || 0}</div>
+                <div>Carregando: {isLoading ? 'Sim' : 'Não'}</div>
               </div>
             </div>
           </div>
 
           {/* API Call Logs */}
           <div className="space-y-2">
-            <h3 className="font-medium">API Call Logs</h3>
+            <h3 className="font-medium">Logs de Chamadas da API</h3>
             <div className="bg-gray-50 p-4 rounded-lg max-h-48 overflow-y-auto">
               {apiCallLogs.length === 0 ? (
-                <p className="text-gray-500 text-sm">No logs yet. Run tests to see API activity.</p>
+                <p className="text-gray-500 text-sm">Nenhum log ainda. Execute os testes para ver a atividade da API.</p>
               ) : (
                 <div className="space-y-1">
                   {apiCallLogs.map((log, index) => (

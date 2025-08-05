@@ -31,6 +31,17 @@ class GamificationService
         'telemedicine_completed' => 500,
         'telemedicine_preparation' => 100,
         'punctuality_bonus' => 50,
+        
+        // OCR Processing Points (NEW)
+        'ocr_processing_completed' => 75,     // Base points for successful OCR processing
+        'ocr_high_confidence' => 25,          // Bonus for >90% confidence
+        'ocr_medium_confidence' => 15,        // Bonus for >80% confidence
+        'ocr_quality_excellent' => 35,        // Bonus for excellent quality processing
+        'ocr_quality_good' => 20,             // Bonus for good quality processing
+        'ocr_validation_success' => 40,       // Bonus for passing all validation checks
+        'ocr_validation_partial' => 20,       // Bonus for passing most validation checks
+        'ocr_progressive_quality' => 50,      // Progressive reward for consistent quality
+        'ocr_complex_document' => 30,         // Bonus for processing complex documents (medical, forms)
     ];
 
     /**
@@ -114,6 +125,11 @@ class GamificationService
                 // Use base points from metadata if provided, otherwise default
                 $basePoints = $metadata['base_points'] ?? self::POINTS[$action];
                 break;
+                
+            // OCR Processing Points with Confidence-Based Scoring
+            case 'ocr_processing_completed':
+                $basePoints = $this->calculateOCRPoints($metadata);
+                break;
         }
         
         // Calculate multipliers properly (completion bonus + additional multiplier)
@@ -160,6 +176,55 @@ class GamificationService
         }
         
         $progress->save();
+    }
+
+    /**
+     * Calculate OCR processing points with confidence-based scoring and quality bonuses
+     */
+    protected function calculateOCRPoints(array $metadata): int
+    {
+        $basePoints = self::POINTS['ocr_processing_completed'];
+        $bonusPoints = 0;
+        
+        // Confidence-based bonuses
+        $confidence = $metadata['confidence'] ?? 0;
+        if ($confidence >= 90) {
+            $bonusPoints += self::POINTS['ocr_high_confidence'];
+        } elseif ($confidence >= 80) {
+            $bonusPoints += self::POINTS['ocr_medium_confidence'];
+        }
+        
+        // Quality-based bonuses
+        $quality = $metadata['quality'] ?? 0;
+        if ($quality >= 95) {
+            $bonusPoints += self::POINTS['ocr_quality_excellent'];
+        } elseif ($quality >= 85) {
+            $bonusPoints += self::POINTS['ocr_quality_good'];
+        }
+        
+        // Validation success bonuses
+        $validationStatus = $metadata['validation_status'] ?? 'unknown';
+        switch ($validationStatus) {
+            case 'passed':
+                $bonusPoints += self::POINTS['ocr_validation_success'];
+                break;
+            case 'passed_with_warnings':
+                $bonusPoints += self::POINTS['ocr_validation_partial'];
+                break;
+        }
+        
+        // Progressive quality reward (for users with consistent high-quality processing)
+        if ($metadata['progressive_bonus'] ?? false) {
+            $bonusPoints += self::POINTS['ocr_progressive_quality'];
+        }
+        
+        // Complex document bonus
+        $documentType = $metadata['document_type'] ?? '';
+        if (in_array($documentType, ['laudo_medico', 'formulario', 'comprovante_residencia'])) {
+            $bonusPoints += self::POINTS['ocr_complex_document'];
+        }
+        
+        return $basePoints + $bonusPoints;
     }
 
     /**

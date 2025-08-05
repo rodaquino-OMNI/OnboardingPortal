@@ -73,18 +73,18 @@ const server = setupServer(
   }),
 
   http.put('/api/privacy/consents/:consentId', async ({ request }) => {
-    const { consentId } = req.params;
+    const { consentId } = params;
     const { granted } = await request.json();
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         success: true,
         consent: {
           id: consentId,
           granted,
-          updated_at: new Date().toISOString(),
-        },
-      })
+          updated_at: new Date().toISOString()
+        }
+      }
     );
   }),
 
@@ -100,42 +100,42 @@ const server = setupServer(
   http.post('/api/privacy/export/request', async ({ request }) => {
     const { categories, format } = await request.json();
     
-    return res(
-      ctx.json<DataExportRequest>({
+    return HttpResponse.json(
+{
         id: 'export-123',
         requested_at: new Date().toISOString(),
         status: 'pending',
-        data_categories: categories,
-      })
+        data_categories: categories
+      }
     );
   }),
 
   http.get('/api/privacy/export/:exportId/status', ({ request }) => {
-    const { exportId } = req.params;
+    const { exportId } = params;
     
     // Simulate processing stages
     const stage = sessionStorage.getItem(`export-${exportId}-stage`) || 'processing';
     
     if (stage === 'completed') {
-      return res(
-        ctx.json({
+      return HttpResponse.json(
+        {
           id: exportId,
           status: 'completed',
           download_url: `https://secure-download.example.com/${exportId}`,
           expires_at: new Date(Date.now() + 86400000).toISOString(),
           file_size: '25.4 MB',
-          checksum: 'sha256:abcdef123456',
-        })
+          checksum: 'sha256:abcdef123456'
+        }
       );
     }
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         id: exportId,
         status: stage,
         progress: stage === 'processing' ? 45 : 0,
-        estimated_completion: new Date(Date.now() + 300000).toISOString(),
-      })
+        estimated_completion: new Date(Date.now() + 300000).toISOString()
+      }
     );
   }),
 
@@ -166,13 +166,13 @@ const server = setupServer(
       return HttpResponse.json({ error: 'Must confirm understanding of consequences' }, { status: 400 });
     }
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         success: true,
         deletion_scheduled: new Date(Date.now() + 30 * 86400000).toISOString(),
         grace_period_days: 30,
-        cancellation_token: 'cancel-token-123',
-      })
+        cancellation_token: 'cancel-token-123'
+      }
     );
   }),
 
@@ -190,8 +190,8 @@ const server = setupServer(
   }),
 
   http.get('/api/privacy/account/deletion-impact', ({ request }) => {
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         impact: {
           data_to_be_deleted: [
             'Personal information',
@@ -214,8 +214,8 @@ const server = setupServer(
             { service: 'Health Portal', status: 'Will be deleted' },
             { service: 'Document Vault', status: 'Will be deleted' },
           ],
-        },
-      })
+        }
+      }
     );
   }),
 
@@ -244,12 +244,12 @@ const server = setupServer(
   http.put('/api/privacy/settings', async ({ request }) => {
     const settings = await request.json();
     
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         success: true,
         settings,
-        applied_at: new Date().toISOString(),
-      })
+        applied_at: new Date().toISOString()
+      }
     );
   }),
 
@@ -290,44 +290,43 @@ const server = setupServer(
     
     return HttpResponse.json({
         activities: category 
-          ? activities.filter(a => a.data_categories.includes(category);
+          ? activities.filter(a => a.data_categories.includes(category))
           : activities,
         total: activities.length,
         page,
-        pages: Math.ceil(activities.length / 10),
-      })
-    );
+        pages: Math.ceil(activities.length / 10)
+      });
   }),
 
   // Cross-service data consistency
   http.get('/api/privacy/data-map', ({ request }) => {
-    return res(
-      ctx.json({
+    return HttpResponse.json(
+      {
         services: [
           {
             name: 'Authentication Service',
             data_held: ['Email', 'Password Hash', 'Session Tokens'],
-            last_accessed: new Date().toISOString(),
+            last_accessed: new Date().toISOString()
           },
           {
             name: 'Health Service',
             data_held: ['Health Assessments', 'Medical History', 'Risk Scores'],
-            last_accessed: new Date(Date.now() - 86400000).toISOString(),
+            last_accessed: new Date(Date.now() - 86400000).toISOString()
           },
           {
             name: 'Document Service',
             data_held: ['Uploaded Documents', 'OCR Results', 'Metadata'],
-            last_accessed: new Date(Date.now() - 172800000).toISOString(),
+            last_accessed: new Date(Date.now() - 172800000).toISOString()
           },
           {
             name: 'Gamification Service',
             data_held: ['Points', 'Badges', 'Activity History'],
-            last_accessed: new Date(Date.now() - 3600000).toISOString(),
+            last_accessed: new Date(Date.now() - 3600000).toISOString()
           },
         ],
-      })
+      }
     );
-  })
+  }),
 );
 
 beforeAll(() => server.listen());

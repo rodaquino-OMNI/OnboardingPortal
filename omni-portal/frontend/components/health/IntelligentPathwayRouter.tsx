@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Route, Users, Brain, Heart, Shield, Zap, 
   Clock, TrendingUp, AlertTriangle, CheckCircle,
@@ -82,7 +82,8 @@ export function IntelligentPathwayRouter({
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [currentPathway, setCurrentPathway] = useState<'enhanced' | 'clinical' | 'hybrid' | null>(null);
   const [pathwayReasoning, setPathwayReasoning] = useState<string[]>([]);
-  const [intelligenceEngine] = useState(new PathwayIntelligenceEngine());
+  // PERFORMANCE FIX: Use useMemo to prevent expensive engine recreation on every render
+  const intelligenceEngine = useMemo(() => new PathwayIntelligenceEngine(), []);
   
   // Intelligent Analysis on Mount
   const analyzeOptimalPathway = useCallback(async () => {

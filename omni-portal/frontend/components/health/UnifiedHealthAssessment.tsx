@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -20,7 +20,7 @@ import {
   Home,
   Pill
 } from 'lucide-react';
-import { ScaleQuestion } from './ScaleQuestion';
+import { TouchFriendlySlider } from './TouchFriendlySlider';
 import {
   UnifiedHealthFlow,
   type FlowResult,
@@ -33,14 +33,17 @@ interface UnifiedHealthAssessmentProps {
   onComplete: (results: HealthAssessmentResults) => void;
   onDomainChange?: (domain: string) => void;
   onProgressUpdate?: (progress: number) => void;
+  onGamificationEvent?: (event: any) => void;
 }
 
 function UnifiedHealthAssessmentInner({ 
   onComplete, 
   onDomainChange,
-  onProgressUpdate
+  onProgressUpdate,
+  onGamificationEvent
 }: UnifiedHealthAssessmentProps) {
-  const [flow] = useState(new UnifiedHealthFlow());
+  // CRITICAL PERFORMANCE FIX: Use useMemo to prevent expensive object recreation on every render
+  const flow = useMemo(() => new UnifiedHealthFlow(), []);
   const [currentQuestion, setCurrentQuestion] = useState<HealthQuestion | null>(null);
   const [flowResult, setFlowResult] = useState<FlowResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -79,22 +82,22 @@ function UnifiedHealthAssessmentInner({
     }
   };
 
-  const addBotMessage = (content: string, domain?: string) => {
+  const addBotMessage = useCallback((content: string, domain?: string) => {
     setConversationHistory(prev => [...prev, {
       type: 'bot',
       content,
       timestamp: new Date(),
       domain
     }]);
-  };
+  }, [setConversationHistory]);
 
-  const addUserMessage = (content: string) => {
+  const addUserMessage = useCallback((content: string) => {
     setConversationHistory(prev => [...prev, {
       type: 'user',
       content,
       timestamp: new Date()
     }]);
-  };
+  }, [setConversationHistory]);
 
   const handleResponse = async (value: any) => {
     if (!currentQuestion) return;
@@ -122,6 +125,16 @@ function UnifiedHealthAssessmentInner({
     // Update progress whenever we get a new flow result
     if (result.progress !== undefined) {
       onProgressUpdate?.(result.progress);
+    }
+
+    // Handle gamification events if present
+    if ((result as any).gamificationEvent && onGamificationEvent) {
+      onGamificationEvent((result as any).gamificationEvent);
+      
+      // Also check for global gamification hooks (for testing)
+      if (typeof window !== 'undefined' && (window as any).gamificationHooks?.triggerEvent) {
+        (window as any).gamificationHooks.triggerEvent((result as any).gamificationEvent);
+      }
     }
 
     switch (result.type) {
@@ -155,7 +168,7 @@ function UnifiedHealthAssessmentInner({
     }
   };
 
-  const formatResponseForDisplay = (question: HealthQuestion, value: any): string => {
+  const formatResponseForDisplay = useCallback((question: HealthQuestion, value: any): string => {
     if (question.type === 'scale') {
       const option = question.options?.find(opt => opt.value === value);
       return `${value} ${option?.emoji || ''}`;
@@ -180,7 +193,7 @@ function UnifiedHealthAssessmentInner({
     }
     
     return value.toString();
-  };
+  }, []);
 
   const renderQuestion = () => {
     if (!currentQuestion || isProcessing) return null;
@@ -188,7 +201,7 @@ function UnifiedHealthAssessmentInner({
     switch (currentQuestion.type) {
       case 'scale':
         return (
-          <ScaleQuestion 
+          <TouchFriendlySlider 
             question={currentQuestion}
             onComplete={handleResponse}
             isProcessing={isProcessing}

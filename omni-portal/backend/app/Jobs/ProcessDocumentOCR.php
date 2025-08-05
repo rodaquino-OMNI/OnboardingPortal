@@ -110,8 +110,17 @@ class ProcessDocumentOCR implements ShouldQueue
                 'error_message' => null,
             ]);
 
-            // Dispatch events for post-processing
-            event(new \App\Events\DocumentProcessed($this->document));
+            // Prepare gamification data for event
+            $gamificationData = [
+                'confidence' => $result['average_confidence'] ?? 0,
+                'quality' => $result['quality_metrics']['overall_quality'] ?? 0,
+                'validation_status' => $validationResults['status'] ?? 'unknown',
+                'document_type' => $this->document->type,
+                'processing_successful' => true,
+            ];
+
+            // Dispatch events for post-processing with OCR result and gamification data
+            event(new \App\Events\DocumentProcessed($this->document, $result, $gamificationData));
 
             Log::info('OCR processing completed successfully', [
                 'document_id' => $this->document->id,
@@ -144,6 +153,14 @@ class ProcessDocumentOCR implements ShouldQueue
                 'error_message' => 'OCR processing failed: ' . $e->getMessage(),
                 'processed_at' => now(),
             ]);
+
+            // Prepare gamification data for failure event
+            $gamificationData = [
+                'processing_successful' => false,
+                'failure_reason' => $e->getMessage(),
+                'attempt' => $this->attempts(),
+                'document_type' => $this->document->type,
+            ];
 
             // Dispatch failure event
             event(new \App\Events\DocumentProcessingFailed($this->document, $e));

@@ -1,8 +1,5 @@
 import { z } from 'zod';
 
-// CPF validation regex
-const cpfRegex = /^\d{3}\.\d{3}\.\d{3}-\d{2}$/;
-
 // Password requirements
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
@@ -16,8 +13,33 @@ export const registerSchema = z.object({
   fullName: z.string().min(1, 'Campo obrigatório').min(3, 'Nome completo deve ter pelo menos 3 caracteres'),
   cpf: z.string()
     .min(1, 'Campo obrigatório')
-    .regex(cpfRegex, 'CPF inválido. Use o formato: 000.000.000-00')
-    .transform(val => val.replace(/\D/g, '')),
+    .transform(val => val.replace(/\D/g, ''))
+    .refine(val => val.length === 11, 'CPF deve ter 11 dígitos')
+    .refine(val => {
+      // Validate CPF checksum
+      if (!val || val.length !== 11) return false;
+      
+      // Check if all digits are the same
+      if (/^(\d)\1+$/.test(val)) return false;
+      
+      // Calculate first digit
+      let sum = 0;
+      for (let i = 0; i < 9; i++) {
+        sum += parseInt(val.charAt(i)) * (10 - i);
+      }
+      let firstDigit = 11 - (sum % 11);
+      if (firstDigit >= 10) firstDigit = 0;
+      
+      // Calculate second digit
+      sum = 0;
+      for (let i = 0; i < 10; i++) {
+        sum += parseInt(val.charAt(i)) * (11 - i);
+      }
+      let secondDigit = 11 - (sum % 11);
+      if (secondDigit >= 10) secondDigit = 0;
+      
+      return firstDigit === parseInt(val.charAt(9)) && secondDigit === parseInt(val.charAt(10));
+    }, 'CPF inválido'),
   birthDate: z.string().min(1, 'Campo obrigatório'),
   phone: z.string().min(1, 'Campo obrigatório').min(10, 'Telefone inválido'),
   

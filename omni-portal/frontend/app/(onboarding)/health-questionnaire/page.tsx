@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { UnifiedHealthQuestionnaire } from '@/components/health/UnifiedHealthQuestionnaire';
 import { HealthNavigationHeader, SessionRestorationBanner } from '@/components/health/HealthNavigationHeader';
@@ -23,7 +23,8 @@ export default function HealthQuestionnairePage() {
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(15); // Default 15 minutes
   const [isCompleted, setIsCompleted] = useState(false);
   const [healthResults, setHealthResults] = useState<HealthAssessmentResults | null>(null);
-  const [sessionStartTime, setSessionStartTime] = useState(new Date());
+  // PERFORMANCE FIX: Use useMemo to prevent Date object recreation on every render
+  const sessionStartTime = useMemo(() => new Date(), []);
 
   // Session persistence
   const {
