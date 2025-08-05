@@ -3,11 +3,11 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
 import { useEffect, useState } from 'react';
-import { getDemoOnboardingProgress } from '@/lib/onboarding-demo';
 import { 
   Calendar, 
   Lock, 
@@ -16,7 +16,11 @@ import {
   Trophy, 
   Sparkles,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Gift,
+  Crown,
+  Target,
+  Zap
 } from 'lucide-react';
 
 interface OnboardingProgress {
@@ -31,81 +35,61 @@ interface OnboardingProgress {
 }
 
 const UNLOCK_REQUIREMENTS = {
-  MINIMUM_POINTS: 250,
+  MINIMUM_POINTS: 500,  // Increased to make it more valuable
   PROFILE_POINTS: 50,
-  DOCUMENTS_POINTS: 100, // 2 required documents × 50 points each
-  HEALTH_POINTS: 100     // Adjusted to match total requirement of 250 points
+  DOCUMENTS_POINTS: 100,
+  HEALTH_POINTS: 100
 };
 
 export default function InterviewUnlockCard() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
-  const { progress, fetchAll } = useGamification();
+  const { progress, stats, fetchAll, isLoadingProgress } = useGamification();
   
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false);
+  const [hovering, setHovering] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
       checkOnboardingProgress();
-      fetchAll(); // Load gamification data
+      fetchAll();
     }
   }, [isAuthenticated, fetchAll]);
 
   const checkOnboardingProgress = async () => {
     try {
-      setIsLoading(true);
-      
-      // Get demo progress for testing
-      const demoProgress = getDemoOnboardingProgress();
-      
-      // Check completion status with fallbacks (combine real + demo data)
-      const profileComplete = !!(user?.name && user?.email) || demoProgress.profileComplete;
-      const documentsUploaded = !!localStorage.getItem('documents_uploaded') || demoProgress.documentsUploaded;
-      const healthQuestionnaireCompleted = !!localStorage.getItem('health_questionnaire_completed') || demoProgress.healthQuestionnaireCompleted;
+      // Use ONLY real data - no demo contamination
+      const profileComplete = !!(user?.name && user?.email);
+      const documentsUploaded = !!localStorage.getItem('documents_uploaded');
+      const healthQuestionnaireCompleted = !!localStorage.getItem('health_questionnaire_completed');
 
-      // Calculate points based on completion
-      let totalPoints = 0;
+      // Calculate points from real gamification system only
+      const realPoints = progress?.total_points || 0;
+      const isUnlocked = realPoints >= UNLOCK_REQUIREMENTS.MINIMUM_POINTS;
+      const pointsNeeded = Math.max(0, UNLOCK_REQUIREMENTS.MINIMUM_POINTS - realPoints);
+      const completionPercentage = Math.min(100, (realPoints / UNLOCK_REQUIREMENTS.MINIMUM_POINTS) * 100);
+
+      // Build missing steps with point values
       const missingSteps: string[] = [];
-
-      if (profileComplete) {
-        totalPoints += UNLOCK_REQUIREMENTS.PROFILE_POINTS;
-      } else {
-        missingSteps.push('Complete seu perfil pessoal');
+      if (!profileComplete) {
+        missingSteps.push('Complete seu perfil (+50 pontos)');
       }
-
-      if (documentsUploaded) {
-        totalPoints += UNLOCK_REQUIREMENTS.DOCUMENTS_POINTS;
-      } else {
-        missingSteps.push('Envie seus documentos');
+      if (!documentsUploaded) {
+        missingSteps.push('Envie seus documentos (+100 pontos)');
       }
-
-      if (healthQuestionnaireCompleted) {
-        totalPoints += UNLOCK_REQUIREMENTS.HEALTH_POINTS;
-      } else {
-        missingSteps.push('Responda o questionário de saúde');
+      if (!healthQuestionnaireCompleted) {
+        missingSteps.push('Questionário de saúde (+100 pontos)');
       }
-
-      // Add gamification points if available
-      if (progress?.total_points) {
-        totalPoints += progress.total_points;
+      if (realPoints < 200) {
+        missingSteps.push('Ganhe mais pontos com atividades diárias');
       }
-      
-      // Add demo points for testing
-      if (demoProgress.totalPoints > 0) {
-        totalPoints += demoProgress.totalPoints;
-      }
-
-      const isUnlocked = totalPoints >= UNLOCK_REQUIREMENTS.MINIMUM_POINTS;
-      const pointsNeeded = Math.max(0, UNLOCK_REQUIREMENTS.MINIMUM_POINTS - totalPoints);
-      const completionPercentage = Math.min(100, (totalPoints / UNLOCK_REQUIREMENTS.MINIMUM_POINTS) * 100);
 
       setOnboardingProgress({
         profileComplete,
         documentsUploaded,
         healthQuestionnaireCompleted,
-        totalPoints,
+        totalPoints: realPoints,
         completionPercentage,
         isUnlocked,
         pointsNeeded,
@@ -113,15 +97,15 @@ export default function InterviewUnlockCard() {
       });
 
       // Trigger unlock animation if just unlocked
-      if (isUnlocked && !showUnlockAnimation) {
+      const wasUnlocked = localStorage.getItem('premium_consultation_unlocked');
+      if (isUnlocked && !wasUnlocked) {
         setShowUnlockAnimation(true);
-        setTimeout(() => setShowUnlockAnimation(false), 3000);
+        localStorage.setItem('premium_consultation_unlocked', 'true');
+        setTimeout(() => setShowUnlockAnimation(false), 4000);
       }
 
     } catch (error) {
       console.error('Error checking onboarding progress:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -129,36 +113,36 @@ export default function InterviewUnlockCard() {
     if (onboardingProgress?.isUnlocked) {
       router.push('/telemedicine-schedule');
     } else {
-      // Navigate to next incomplete step
-      if (!onboardingProgress?.profileComplete) {
-        router.push('/welcome');
-      } else if (!onboardingProgress?.documentsUploaded) {
-        router.push('/document-upload');
-      } else if (!onboardingProgress?.healthQuestionnaireCompleted) {
-        router.push('/health-questionnaire');
-      }
+      // Show modal or tooltip with requirements
+      router.push('/rewards');
     }
   };
 
-  const getActionMessage = () => {
-    if (!onboardingProgress) return 'Carregando...';
+  const getMotivationalMessage = () => {
+    if (!onboardingProgress) return '';
     
-    if (onboardingProgress.isUnlocked) {
-      return '🎉 DESBLOQUEADO! Sua consulta premium está disponível';
+    const percentage = onboardingProgress.completionPercentage;
+    
+    if (percentage === 0) {
+      return 'Comece sua jornada e desbloqueie recompensas exclusivas!';
+    } else if (percentage < 25) {
+      return 'Ótimo começo! Continue assim para desbloquear benefícios premium.';
+    } else if (percentage < 50) {
+      return 'Você está no caminho certo! Metade do caminho para sua consulta exclusiva.';
+    } else if (percentage < 75) {
+      return 'Impressionante! Você está quase lá, continue conquistando pontos!';
+    } else if (percentage < 100) {
+      return `Incrível! Faltam apenas ${onboardingProgress.pointsNeeded} pontos para desbloquear!`;
+    } else {
+      return '🎉 Parabéns! Sua consulta premium está disponível!';
     }
-    
-    if (onboardingProgress.pointsNeeded <= 50) {
-      return `Faltam apenas ${onboardingProgress.pointsNeeded} pontos para desbloquear!`;
-    }
-    
-    return 'Complete as etapas para ganhar pontos e desbloquear';
   };
 
-  if (isLoading) {
+  if (isLoadingProgress) {
     return (
-      <div className="card-modern p-6 h-full flex flex-col items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-3"></div>
-        <span className="text-sm text-gray-600">Verificando progresso...</span>
+      <div className="card-modern p-6 h-full flex flex-col items-center justify-center min-h-[280px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mb-4"></div>
+        <span className="text-sm text-gray-600">Verificando seus pontos...</span>
       </div>
     );
   }
@@ -167,146 +151,182 @@ export default function InterviewUnlockCard() {
   const completionPercentage = onboardingProgress?.completionPercentage ?? 0;
 
   return (
-    <Card className={`
-      relative overflow-hidden transition-all duration-500 cursor-pointer
-      ${isUnlocked 
-        ? 'bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200 shadow-lg hover:shadow-xl' 
-        : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-      }
-      ${showUnlockAnimation ? 'animate-pulse shadow-2xl' : ''}
-    `}>
-      {/* Unlock Animation Overlay */}
-      {showUnlockAnimation && (
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-400/20 to-blue-400/20 animate-ping z-10"></div>
-      )}
-      
-      {/* Sparkle Effects for Unlocked State */}
+    <Card 
+      className={`
+        relative overflow-hidden transition-all duration-500 cursor-pointer min-h-[280px]
+        ${isUnlocked 
+          ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105' 
+          : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:border-purple-300 hover:shadow-lg'
+        }
+        ${showUnlockAnimation ? 'animate-pulse shadow-purple-500/50' : ''}
+      `}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      {/* Premium Banner */}
+      <div className="absolute top-0 left-0 right-0">
+        <div className={`
+          text-center py-2 text-xs font-bold tracking-wide
+          ${isUnlocked 
+            ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900' 
+            : 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-700'
+          }
+        `}>
+          {isUnlocked ? '⭐ PREMIUM DESBLOQUEADO ⭐' : '🔒 RECOMPENSA EXCLUSIVA'}
+        </div>
+      </div>
+
+      {/* Sparkle Effects */}
       {isUnlocked && (
         <>
-          <Sparkles className="absolute top-2 right-2 w-4 h-4 text-yellow-400 animate-pulse" />
-          <Sparkles className="absolute bottom-2 left-2 w-3 h-3 text-purple-400 animate-pulse delay-1000" />
+          <Sparkles className="absolute top-8 right-4 w-6 h-6 text-yellow-300 animate-pulse" />
+          <Star className="absolute bottom-4 left-4 w-5 h-5 text-yellow-200 animate-pulse delay-500" />
+          <Crown className="absolute top-12 left-6 w-4 h-4 text-pink-300 animate-bounce delay-1000" />
         </>
       )}
 
       <div 
-        className="p-6 h-full flex flex-col items-center justify-center relative z-20"
+        className="p-6 pt-10 h-full flex flex-col items-center justify-between relative z-10"
         onClick={handleUnlockClick}
       >
-        {/* Icon Section */}
+        {/* Main Icon */}
         <div className={`
-          w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-all duration-300
-          ${isUnlocked 
-            ? 'bg-gradient-to-r from-purple-100 to-blue-100 group-hover:from-purple-200 group-hover:to-blue-200' 
-            : 'bg-gray-200'
-          }
+          relative mb-4 transition-all duration-300
+          ${hovering ? 'transform scale-110' : ''}
         `}>
-          {isUnlocked ? (
-            <div className="relative">
-              <Calendar className="w-8 h-8 text-purple-600" />
-              <Trophy className="absolute -top-1 -right-1 w-4 h-4 text-yellow-500" />
-            </div>
-          ) : (
-            <div className="relative">
-              <Calendar className="w-8 h-8 text-gray-400" />
-              <Lock className="absolute -bottom-1 -right-1 w-4 h-4 text-gray-500 bg-white rounded-full p-0.5" />
-            </div>
-          )}
+          <div className={`
+            w-20 h-20 rounded-full flex items-center justify-center
+            ${isUnlocked 
+              ? 'bg-white/20 backdrop-blur-sm border-2 border-white/40' 
+              : 'bg-purple-100 border-2 border-purple-200'
+            }
+          `}>
+            {isUnlocked ? (
+              <Gift className="w-10 h-10 text-white drop-shadow-lg" />
+            ) : (
+              <div className="relative">
+                <Gift className="w-10 h-10 text-purple-500" />
+                <Lock className="absolute -bottom-2 -right-2 w-5 h-5 text-gray-600 bg-white rounded-full p-0.5 shadow-lg" />
+              </div>
+            )}
+          </div>
+          
+          {/* Points Badge */}
+          <Badge className={`
+            absolute -top-2 -right-2 px-2 py-1 text-xs font-bold
+            ${isUnlocked 
+              ? 'bg-green-500 text-white border-green-600' 
+              : 'bg-purple-500 text-white border-purple-600'
+            }
+          `}>
+            {onboardingProgress?.totalPoints || 0} pts
+          </Badge>
         </div>
 
-        {/* Title Section */}
-        <div className="text-center mb-4">
+        {/* Title and Description */}
+        <div className="text-center mb-4 flex-1">
           <h3 className={`
-            font-bold text-lg mb-2
-            ${isUnlocked ? 'text-purple-800' : 'text-gray-600'}
+            font-bold text-xl mb-2
+            ${isUnlocked ? 'text-white' : 'text-gray-800'}
           `}>
-            {isUnlocked ? 'Consulta Premium' : 'Entrevista Personalizada'}
+            Consulta Premium
           </h3>
           
           <p className={`
-            text-sm leading-tight
-            ${isUnlocked ? 'text-purple-700' : 'text-gray-500'}
+            text-sm mb-3
+            ${isUnlocked ? 'text-white/90' : 'text-gray-600'}
           `}>
-            {isUnlocked 
-              ? 'Consulta exclusiva com concierge de saúde especializado'
-              : 'Desbloqueie sua entrevista e consulta personalizada ao acumular pontos'
-            }
+            Acesso exclusivo a concierge de saúde personalizado e benefícios premium
           </p>
+
+          {/* Benefits List */}
+          <div className={`
+            text-xs space-y-1
+            ${isUnlocked ? 'text-white/80' : 'text-gray-500'}
+          `}>
+            <div className="flex items-center justify-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              <span>Atendimento prioritário 24/7</span>
+            </div>
+            <div className="flex items-center justify-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              <span>Especialistas exclusivos</span>
+            </div>
+            <div className="flex items-center justify-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              <span>Sem filas de espera</span>
+            </div>
+          </div>
         </div>
 
         {/* Progress Section */}
         {!isUnlocked && (
           <div className="w-full mb-4">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs text-gray-600">Progresso</span>
-              <span className="text-xs font-medium text-gray-700">
+              <span className="text-xs font-medium text-gray-600">
+                Progresso para desbloquear
+              </span>
+              <span className="text-xs font-bold text-purple-600">
                 {Math.round(completionPercentage)}%
               </span>
             </div>
             <Progress 
               value={completionPercentage} 
-              className="h-2 bg-gray-200"
+              className="h-3 bg-gray-200"
             />
-            <div className="text-center mt-2">
-              <span className="text-xs text-gray-600">
-                {onboardingProgress?.pointsNeeded} pontos restantes
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-xs text-gray-500">
+                {onboardingProgress?.totalPoints || 0} pontos
+              </span>
+              <span className="text-xs font-medium text-purple-600">
+                Meta: {UNLOCK_REQUIREMENTS.MINIMUM_POINTS} pontos
               </span>
             </div>
           </div>
         )}
 
-        {/* Status Message */}
+        {/* Motivational Message */}
         <div className={`
-          text-center text-xs p-3 rounded-lg mb-4 w-full
+          text-center text-xs p-2 rounded-lg mb-3 w-full
           ${isUnlocked 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+            ? 'bg-white/20 text-white font-medium' 
+            : 'bg-purple-50 text-purple-700'
           }
         `}>
-          {getActionMessage()}
+          {getMotivationalMessage()}
         </div>
 
-        {/* Missing Steps (Locked State) */}
-        {!isUnlocked && onboardingProgress?.missingSteps && onboardingProgress.missingSteps.length > 0 && (
-          <div className="w-full space-y-2 mb-4">
-            <span className="text-xs font-medium text-gray-700">Para desbloquear:</span>
-            {onboardingProgress.missingSteps.slice(0, 2).map((step, index) => (
-              <div key={index} className="flex items-center gap-2 text-xs text-gray-600">
-                <AlertCircle className="w-3 h-3 text-yellow-500" />
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Action Button */}
+        {/* CTA Button */}
         <Button
           className={`
-            w-full text-sm font-medium transition-all duration-300
+            w-full font-bold transition-all duration-300 group
             ${isUnlocked
-              ? 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105'
-              : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
+              ? 'bg-white text-purple-600 hover:bg-gray-100 shadow-lg transform hover:scale-105'
+              : 'bg-purple-500 hover:bg-purple-600 text-white'
             }
           `}
-          disabled={!isUnlocked && isLoading}
         >
           {isUnlocked ? (
-            <div className="flex items-center gap-2">
-              <Unlock className="w-4 h-4" />
-              <span>Agendar Consulta</span>
-              <Star className="w-4 h-4" />
+            <div className="flex items-center justify-center gap-2">
+              <Calendar className="w-4 h-4" />
+              <span>Agendar Consulta Premium</span>
+              <Zap className="w-4 h-4 text-yellow-500 group-hover:animate-pulse" />
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4" />
-              <span>Desbloquear ({onboardingProgress?.pointsNeeded || 0} pts)</span>
+            <div className="flex items-center justify-center gap-2">
+              <Target className="w-4 h-4" />
+              <span>Ver Como Desbloquear</span>
+              <span className="text-xs opacity-75">
+                ({onboardingProgress?.pointsNeeded || 0} pts restantes)
+              </span>
             </div>
           )}
         </Button>
 
-        {/* Premium Badge for Unlocked */}
-        {isUnlocked && (
-          <div className="absolute top-0 right-0 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">
-            PREMIUM
+        {/* Quick Tips for Locked State */}
+        {!isUnlocked && onboardingProgress?.missingSteps && (
+          <div className="mt-2 text-xs text-gray-500 text-center">
+            <span className="font-medium">Dica:</span> {onboardingProgress.missingSteps[0]}
           </div>
         )}
       </div>

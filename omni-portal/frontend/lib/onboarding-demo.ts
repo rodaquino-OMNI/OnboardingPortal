@@ -11,6 +11,12 @@ export interface DemoSettings {
 }
 
 export const setDemoOnboardingProgress = (settings: Partial<DemoSettings>) => {
+  // Warn if using demo in production
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('⚠️ WARNING: Demo functions should not be used in production!');
+    return;
+  }
+
   const defaults: DemoSettings = {
     profileComplete: false,
     documentsUploaded: false,

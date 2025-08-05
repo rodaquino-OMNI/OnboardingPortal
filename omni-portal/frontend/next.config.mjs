@@ -56,29 +56,36 @@ const nextConfig = {
       }
     });
 
-    // CRITICAL FIX: Simplified chunk splitting to prevent missing module errors
+    // CRITICAL FIX: Optimized chunk splitting for stability
     if (!isServer) {
       config.optimization = {
         ...config.optimization,
         splitChunks: {
           chunks: 'all',
           minSize: 20000,
-          maxSize: 244000,
+          maxSize: 1000000, // 1MB - prevents too many small chunks
           cacheGroups: {
             vendor: {
-              name: 'vendor',
+              name(module) {
+                // Generate stable chunk names
+                const packageName = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)?.[1];
+                return packageName ? `vendor-${packageName.replace('@', '').replace('/', '-')}` : 'vendor';
+              },
               test: /[\\/]node_modules[\\/]/,
               priority: 10,
-              chunks: 'all',
-              enforce: true,
+              reuseExistingChunk: true,
             },
             common: {
               name: 'common',
               minChunks: 2,
               priority: 5,
-              chunks: 'all',
-              enforce: true,
+              reuseExistingChunk: true,
             },
+            default: {
+              minChunks: 2,
+              priority: -20,
+              reuseExistingChunk: true,
+            }
           }
         }
       };
@@ -124,32 +131,34 @@ const nextConfig = {
   },
 };
 
-const withPWAConfig = withPWA({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-  // Disable PWA during build to prevent hanging
-  buildExcludes: [/middleware-manifest\.json$/],
-  workboxOptions: {
-    runtimeCaching: [
-      {
-        urlPattern: /^https?.*/,
-        handler: 'NetworkFirst',
-        options: {
-          cacheName: 'https-calls',
-          networkTimeoutSeconds: 15,
-          expiration: {
-            maxEntries: 150,
-            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+// Only enable PWA in production to prevent development issues
+const withPWAConfig = process.env.NODE_ENV === 'production' 
+  ? withPWA({
+      dest: 'public',
+      register: true,
+      skipWaiting: true,
+      disable: false,
+      buildExcludes: [/middleware-manifest\.json$/],
+      workboxOptions: {
+        runtimeCaching: [
+          {
+            urlPattern: /^https?.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'https-calls',
+              networkTimeoutSeconds: 15,
+              expiration: {
+                maxEntries: 150,
+                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
           },
-          cacheableResponse: {
-            statuses: [0, 200],
-          },
-        },
+        ],
       },
-    ],
-  },
-});
+    })
+  : (config) => config; // In development, just return config without PWA
 
 export default withPWAConfig(nextConfig);

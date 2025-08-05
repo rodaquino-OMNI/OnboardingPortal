@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SkipLinks } from '@/components/ui/SkipLinks';
+import { ClearDemoData } from '@/components/ClearDemoData';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -38,6 +39,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans antialiased`}
       >
+        <ClearDemoData />
         <SkipLinks />
         <main id="main-content">{children}</main>
       </body>

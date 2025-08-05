@@ -218,10 +218,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Development Controls - Only show in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card className="card-modern p-4 mt-6 bg-gray-50 border-2 border-dashed border-gray-300">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">🎮 Interview Unlock Demo Controls</h3>
+      {/* Development Controls - Only show in development with explicit debug flag */}
+      {process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ENABLE_DEBUG_CONTROLS === 'true' && (
+        <Card className="card-modern p-4 mt-6 mb-4 mx-4 bg-yellow-50 border-2 border-dashed border-yellow-300">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">🎮 Development Controls</h3>
+            <Badge variant="outline" className="text-xs bg-yellow-100">DEBUG MODE</Badge>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             <Button
               size="sm"
@@ -265,7 +268,7 @@ export default function DashboardPage() {
             </Button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Click buttons to test different unlock states. Page will refresh to apply changes.
+            ⚠️ Debug controls enabled. Set NEXT_PUBLIC_ENABLE_DEBUG_CONTROLS=false to hide.
           </p>
         </Card>
       )}
