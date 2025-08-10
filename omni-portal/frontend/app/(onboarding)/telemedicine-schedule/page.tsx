@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, ChevronLeft, ChevronRight, Video, Award, Star, CheckCircle, AlertCircle, Users, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
 interface AppointmentType {
@@ -80,11 +80,7 @@ export default function TelemedicineSchedulePage() {
   const [isBooking, setIsBooking] = useState(false);
   const [step, setStep] = useState<'eligibility' | 'types' | 'slots' | 'confirmation'>('eligibility');
 
-  useEffect(() => {
-    checkEligibility();
-  }, []);
-
-  const checkEligibility = async () => {
+  const checkEligibility = useCallback(async () => {
     try {
       const response = await fetch('/api/telemedicine/eligibility', {
         method: 'GET',
@@ -120,7 +116,11 @@ export default function TelemedicineSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, isBooking]);
+
+  useEffect(() => {
+    checkEligibility();
+  }, [checkEligibility]);
 
   const loadAppointmentTypes = async () => {
     try {

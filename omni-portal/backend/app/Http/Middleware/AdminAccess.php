@@ -36,13 +36,23 @@ class AdminAccess
 
         $user = Auth::user();
 
-        // Check if user has admin roles
-        $adminRoles = $user->adminRoles()->where('is_active', true)->get();
+        // SAFE: Check Spatie roles first (working system)
+        $hasSpatieAdmin = $user->hasRole(['admin', 'super-admin', 'manager', 'hr', 'moderator']);
         
-        if ($adminRoles->isEmpty()) {
+        // SAFE: Check custom admin roles only if table exists and user doesn't have Spatie role
+        $hasCustomAdmin = false;
+        if (!$hasSpatieAdmin && \Schema::hasTable('admin_user_roles')) {
+            $adminRoles = $user->adminRoles()->where('is_active', true)->get();
+            $hasCustomAdmin = !$adminRoles->isEmpty();
+        }
+        
+        // Allow access if either system grants it
+        if (!$hasSpatieAdmin && !$hasCustomAdmin) {
             $this->logSecurityEvent($user, 'unauthorized_admin_access', [
                 'reason' => 'no_admin_roles',
                 'requested_path' => $request->path(),
+                'checked_spatie' => true,
+                'checked_custom' => \Schema::hasTable('admin_user_roles'),
             ]);
             
             return response()->json([

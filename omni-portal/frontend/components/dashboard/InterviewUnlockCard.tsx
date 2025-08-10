@@ -153,7 +153,7 @@ export default function InterviewUnlockCard() {
   return (
     <Card 
       className={`
-        relative overflow-hidden transition-all duration-500 cursor-pointer min-h-[280px]
+        relative overflow-hidden transition-all duration-500 cursor-pointer
         ${isUnlocked 
           ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105' 
           : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:border-purple-300 hover:shadow-lg'
@@ -186,34 +186,34 @@ export default function InterviewUnlockCard() {
       )}
 
       <div 
-        className="p-6 pt-10 h-full flex flex-col items-center justify-between relative z-10"
+        className="p-4 pt-8 flex flex-col items-center justify-center relative z-10"
         onClick={handleUnlockClick}
       >
         {/* Main Icon */}
         <div className={`
-          relative mb-4 transition-all duration-300
+          relative mb-3 transition-all duration-300
           ${hovering ? 'transform scale-110' : ''}
         `}>
           <div className={`
-            w-20 h-20 rounded-full flex items-center justify-center
+            w-16 h-16 rounded-full flex items-center justify-center
             ${isUnlocked 
               ? 'bg-white/20 backdrop-blur-sm border-2 border-white/40' 
               : 'bg-purple-100 border-2 border-purple-200'
             }
           `}>
             {isUnlocked ? (
-              <Gift className="w-10 h-10 text-white drop-shadow-lg" />
+              <Gift className="w-8 h-8 text-white drop-shadow-lg" />
             ) : (
               <div className="relative">
-                <Gift className="w-10 h-10 text-purple-500" />
-                <Lock className="absolute -bottom-2 -right-2 w-5 h-5 text-gray-600 bg-white rounded-full p-0.5 shadow-lg" />
+                <Gift className="w-8 h-8 text-purple-500" />
+                <Lock className="absolute -bottom-1 -right-1 w-4 h-4 text-gray-600 bg-white rounded-full p-0.5 shadow-lg" />
               </div>
             )}
           </div>
           
           {/* Points Badge */}
           <Badge className={`
-            absolute -top-2 -right-2 px-2 py-1 text-xs font-bold
+            absolute -top-1 -right-1 px-2 py-0.5 text-xs font-bold
             ${isUnlocked 
               ? 'bg-green-500 text-white border-green-600' 
               : 'bg-purple-500 text-white border-purple-600'
@@ -223,112 +223,54 @@ export default function InterviewUnlockCard() {
           </Badge>
         </div>
 
-        {/* Title and Description */}
-        <div className="text-center mb-4 flex-1">
-          <h3 className={`
-            font-bold text-xl mb-2
-            ${isUnlocked ? 'text-white' : 'text-gray-800'}
-          `}>
-            Consulta Premium
-          </h3>
-          
-          <p className={`
-            text-sm mb-3
-            ${isUnlocked ? 'text-white/90' : 'text-gray-600'}
-          `}>
-            Acesso exclusivo a concierge de saúde personalizado e benefícios premium
-          </p>
+        {/* Title Only - Minimal */}
+        <h3 className={`
+          font-bold text-base mb-3
+          ${isUnlocked ? 'text-white' : 'text-gray-800'}
+        `}>
+          Consulta Premium
+        </h3>
 
-          {/* Benefits List */}
-          <div className={`
-            text-xs space-y-1
-            ${isUnlocked ? 'text-white/80' : 'text-gray-500'}
-          `}>
-            <div className="flex items-center justify-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              <span>Atendimento prioritário 24/7</span>
-            </div>
-            <div className="flex items-center justify-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              <span>Especialistas exclusivos</span>
-            </div>
-            <div className="flex items-center justify-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              <span>Sem filas de espera</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Section */}
+        {/* Progress Section - Compact */}
         {!isUnlocked && (
-          <div className="w-full mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-medium text-gray-600">
-                Progresso para desbloquear
-              </span>
-              <span className="text-xs font-bold text-purple-600">
-                {Math.round(completionPercentage)}%
-              </span>
-            </div>
+          <div className="w-full mb-3">
             <Progress 
               value={completionPercentage} 
-              className="h-3 bg-gray-200"
+              className="h-2 bg-gray-200"
             />
-            <div className="flex justify-between items-center mt-2">
+            <div className="flex justify-between items-center mt-1">
               <span className="text-xs text-gray-500">
-                {onboardingProgress?.totalPoints || 0} pontos
+                {onboardingProgress?.totalPoints || 0}
               </span>
               <span className="text-xs font-medium text-purple-600">
-                Meta: {UNLOCK_REQUIREMENTS.MINIMUM_POINTS} pontos
+                {UNLOCK_REQUIREMENTS.MINIMUM_POINTS}
               </span>
             </div>
           </div>
         )}
 
-        {/* Motivational Message */}
-        <div className={`
-          text-center text-xs p-2 rounded-lg mb-3 w-full
-          ${isUnlocked 
-            ? 'bg-white/20 text-white font-medium' 
-            : 'bg-purple-50 text-purple-700'
-          }
-        `}>
-          {getMotivationalMessage()}
-        </div>
-
-        {/* CTA Button */}
+        {/* CTA Button - Clean */}
         <Button
           className={`
-            w-full font-bold transition-all duration-300 group
+            w-full font-semibold transition-all duration-300 text-sm py-2
             ${isUnlocked
-              ? 'bg-white text-purple-600 hover:bg-gray-100 shadow-lg transform hover:scale-105'
+              ? 'bg-white text-purple-600 hover:bg-gray-100 shadow-lg'
               : 'bg-purple-500 hover:bg-purple-600 text-white'
             }
           `}
         >
           {isUnlocked ? (
-            <div className="flex items-center justify-center gap-2">
-              <Calendar className="w-4 h-4" />
-              <span>Agendar Consulta Premium</span>
-              <Zap className="w-4 h-4 text-yellow-500 group-hover:animate-pulse" />
-            </div>
+            <>
+              <Calendar className="w-4 h-4 mr-1" />
+              Agendar
+            </>
           ) : (
-            <div className="flex items-center justify-center gap-2">
-              <Target className="w-4 h-4" />
-              <span>Ver Como Desbloquear</span>
-              <span className="text-xs opacity-75">
-                ({onboardingProgress?.pointsNeeded || 0} pts restantes)
-              </span>
-            </div>
+            <>
+              <Lock className="w-4 h-4 mr-1" />
+              {onboardingProgress?.pointsNeeded || 0} pts para desbloquear
+            </>
           )}
         </Button>
-
-        {/* Quick Tips for Locked State */}
-        {!isUnlocked && onboardingProgress?.missingSteps && (
-          <div className="mt-2 text-xs text-gray-500 text-center">
-            <span className="font-medium">Dica:</span> {onboardingProgress.missingSteps[0]}
-          </div>
-        )}
       </div>
     </Card>
   );

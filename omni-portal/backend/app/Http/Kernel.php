@@ -14,10 +14,9 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
-        \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
+        \Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
@@ -41,7 +40,6 @@ class Kernel extends HttpKernel
         'api' => [
             \App\Http\Middleware\ForceJsonResponse::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \App\Http\Middleware\CookieAuth::class, // Re-enabled for cookie-to-bearer conversion
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
@@ -68,14 +66,9 @@ class Kernel extends HttpKernel
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
-        'role' => \Spatie\Permission\Middlewares\RoleMiddleware::class,
-        'permission' => \Spatie\Permission\Middlewares\PermissionMiddleware::class,
-        'role_or_permission' => \Spatie\Permission\Middlewares\RoleOrPermissionMiddleware::class,
-        'registration.completed' => \App\Http\Middleware\EnsureRegistrationCompleted::class,
-        'account.active' => \App\Http\Middleware\EnsureAccountActive::class,
-        'video.security' => \App\Http\Middleware\VideoSecurityMiddleware::class,
-        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        'registration.completed' => \App\Http\Middleware\RegistrationStateValidator::class,
+        'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
         'admin.access' => \App\Http\Middleware\AdminAccess::class,
-        'lgpd.audit' => \App\Http\Middleware\LGPDAuditLogger::class,
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
     ];
 }

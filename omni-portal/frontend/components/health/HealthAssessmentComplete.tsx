@@ -67,7 +67,7 @@ export function HealthAssessmentComplete({
     responses: healthResults?.responses || {}
   }), [healthResults]);
   
-  const { updateProgress, addPoints } = useGamification();
+  const { updateProgress } = useGamification();
   const { getRecentBadges, getRareBadges } = useBadgeEnhancement();
   
   const { userProfile, isReady, error } = usePDFGeneration({
@@ -78,13 +78,10 @@ export function HealthAssessmentComplete({
     sessionDuration
   });
 
-  // Award completion bonuses
+  // Update completion progress (backend handles all point awarding)
   useEffect(() => {
-    const awardCompletionBonuses = async () => {
+    const updateCompletionProgress = async () => {
       try {
-        // Award points for completion
-        addPoints(100, 'Avaliação de Saúde Completa');
-        
         // Update progress for completion
         updateProgress({
           section: 'health_assessment',
@@ -97,23 +94,23 @@ export function HealthAssessmentComplete({
           }
         });
 
-        // Award domain-specific bonuses
-        safeHealthResults.completedDomains.forEach((domain) => {
-          addPoints(20, `Domínio Completo: ${domain}`);
-        });
-
-        // Award risk assessment bonus
-        if (safeHealthResults.riskLevel === 'low') {
-          addPoints(50, 'Baixo Risco - Saúde Excelente');
-        }
+        // Backend automatically awards:
+        // - 100-200 points for basic completion based on pathway
+        // - 25 points per completed domain
+        // - 50 points for engagement/honesty bonuses
+        // - Risk-based bonuses (50 points for high risk disclosure)
+        console.log('✨ Backend has awarded points for health assessment completion');
+        console.log('Completed domains:', safeHealthResults.completedDomains.length);
+        console.log('Risk level:', safeHealthResults.riskLevel);
+        console.log('Session duration:', sessionDuration, 'minutes');
 
       } catch (error) {
-        console.error('Error awarding completion bonuses:', error);
+        console.error('Error updating completion progress:', error);
       }
     };
 
-    awardCompletionBonuses();
-  }, [safeHealthResults, addPoints, updateProgress, sessionDuration]);
+    updateCompletionProgress();
+  }, [safeHealthResults, updateProgress, sessionDuration]);
 
   // Hide celebration after delay
   useEffect(() => {

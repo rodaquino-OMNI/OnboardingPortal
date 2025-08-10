@@ -50,10 +50,8 @@ export default function HealthQuestionnairePage() {
     }
   });
 
-  // Initialize session start time and check for existing session
+  // Check for existing session
   useEffect(() => {
-    setSessionStartTime(new Date());
-    
     const checkExistingSession = async () => {
       if (user?.id) {
         const hasSession = await hasExistingSession();
@@ -79,11 +77,15 @@ export default function HealthQuestionnairePage() {
 
   const handleComplete = async (results: unknown) => {
     console.log('Questionnaire results:', results);
+    console.log('Results type:', typeof results);
+    console.log('Results keys:', results ? Object.keys(results) : 'null');
+    
     try {
       setIsSubmitting(true);
       
       // Cast results to HealthAssessmentResults type
       const healthAssessmentResults = results as HealthAssessmentResults;
+      console.log('Casted healthAssessmentResults:', healthAssessmentResults);
       
       // Store results and show completion screen
       setHealthResults(healthAssessmentResults);
@@ -94,6 +96,7 @@ export default function HealthQuestionnairePage() {
       
     } catch (error) {
       console.error('Error handling completion:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
       // Still show completion screen even if there's an error
       setIsCompleted(true);
     } finally {
@@ -232,7 +235,7 @@ export default function HealthQuestionnairePage() {
             gamification: true,
             clinical: true,
             progressive: true,
-            accessibility: true
+            accessibility: false
           }}
         />
       </Card>

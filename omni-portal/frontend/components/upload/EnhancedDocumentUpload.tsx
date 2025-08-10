@@ -20,6 +20,7 @@ import { ocrService } from '@/lib/ocr-service';
 import { compressImage, validateImageQuality } from '@/lib/image-optimizer';
 import { cn } from '@/lib/utils';
 import { useCancellableRequest } from '@/lib/async-utils';
+import { ImageProcessingError } from './ImageProcessingError';
 import type { OCRData, DocumentValidation } from '@/types';
 
 interface DocumentUploadProps {
@@ -62,33 +63,35 @@ export function EnhancedDocumentUpload({
   const [isMobile, setIsMobile] = useState(false);
   const { makeRequest, cancelAll } = useCancellableRequest();
   const mountedRef = useRef(true);
+  const [isClient, setIsClient] = useState(false);
+  const [processingError, setProcessingError] = useState<{
+    message: string;
+    suggestions: string[];
+  } | null>(null);
 
-  // PERFORMANCE FIX: Memoize mobile detection to prevent unnecessary re-renders
   const isMobileDevice = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }, []);
 
-  // INFINITE LOOP FIX: Remove cancelAll from dependency array and use ref for cleanup
   const cleanupRef = useRef<() => void>();
   
   useEffect(() => {
+    setIsClient(true);
     setIsMobile(isMobileDevice);
     
-    // Store cleanup function in ref to avoid dependency issues
     cleanupRef.current = () => {
       cancelAll();
       ocrService.terminate();
     };
     
-    // Cleanup on unmount - no dependencies to avoid infinite loops
     return () => {
       mountedRef.current = false;
       cleanupRef.current?.();
     };
-  }, [isMobileDevice]); // Only depend on memoized mobile detection
+  }, [isMobileDevice]);
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
-    // Validate file type with proper UI feedback
     if (!selectedFile.type.match(/^image\/(jpeg|jpg|png)$/) && 
         !selectedFile.type.match(/^application\/pdf$/)) {
       setValidationResult({
@@ -100,7 +103,6 @@ export function EnhancedDocumentUpload({
       return;
     }
     
-    // Validate file size (10MB limit to match backend)
     if (selectedFile.size > 10 * 1024 * 1024) {
       setValidationResult({
         isValid: false,
@@ -111,7 +113,6 @@ export function EnhancedDocumentUpload({
       return;
     }
 
-    // Validate and compress image
     if (selectedFile.type.startsWith('image/')) {
       const validation = await validateImageQuality(selectedFile);
       
@@ -119,7 +120,6 @@ export function EnhancedDocumentUpload({
         console.warn('Image quality issues:', validation.issues);
       }
 
-      // Show preview
       const reader = new FileReader();
       reader.onload = (e) => setPreview(e.target?.result as string);
       reader.readAsDataURL(selectedFile);
@@ -127,42 +127,29 @@ export function EnhancedDocumentUpload({
 
     setFile(selectedFile);
     
-    // Auto-process on mobile for better UX
     if (isMobile && selectedFile.type.startsWith('image/')) {
-      setTimeout(() => processDocument(selectedFile), 500);
+      setTimeout(() => handleFileUpload(selectedFile), 500);
     }
   }, [isMobile]);
 
-  // PERFORMANCE FIX: Memoize processDocument to prevent recreation on every render
-  const processDocument = useCallback(async (fileToProcess: File) => {
-    if (!mountedRef.current) return;
-    
-    setIsProcessing(true);
-    setOcrProgress(0);
-    setOcrStatus('Preparando documento...');
+  const processFile = useCallback(async (
+    file: File,
+    signal: AbortSignal
+  ): Promise<UploadResult> => {
+    try {
+      setProcessingError(null);
 
-    // CRITICAL FIX: Move OCR processing to Web Worker to prevent UI blocking
-    const request = makeRequest(
-      async (signal: AbortSignal) => {
-        // PERFORMANCE FIX: Memoize work scheduler to prevent function recreation
-        const scheduleWork = (callback: () => void) => {
-          if ('requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(callback, { timeout: 1000 });
-          } else {
-            setTimeout(callback, 0);
-          }
-        };
-        try {
-          // Step 1: Compress image if needed
-          let processedFile = fileToProcess;
-          if (fileToProcess.type.startsWith('image/') && fileToProcess.size > 5 * 1024 * 1024) {
+      const request = makeRequest(
+        async (signal: AbortSignal) => {
+          let processedFile = file;
+          if (file.type.startsWith('image/') && file.size > 5 * 1024 * 1024) {
             if (signal.aborted) throw new Error('Processing cancelled');
             
             if (mountedRef.current) {
               setOcrStatus('Otimizando imagem...');
             }
             
-            processedFile = await compressImage(fileToProcess, {
+            processedFile = await compressImage(file, {
               maxWidth: 2048,
               maxHeight: 2048,
               quality: 0.9,
@@ -171,71 +158,36 @@ export function EnhancedDocumentUpload({
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 2: Initialize OCR with cancellation support and performance optimization
           if (mountedRef.current) {
             setOcrStatus('Inicializando OCR...');
           }
           
-          // Use scheduled work to prevent blocking main thread
-          await new Promise<void>((resolve, reject) => {
-            scheduleWork(async () => {
-              try {
-                await ocrService.initialize((progress) => {
-                  if (mountedRef.current && !signal.aborted) {
-                    // PERFORMANCE FIX: Throttle progress updates with proper batching
-                    const throttledUpdate = () => {
-                      if (mountedRef.current) {
-                        setOcrProgress(prev => Math.max(prev, progress.progress * 0.3)); // 0-30%
-                      }
-                    };
-                    requestAnimationFrame(throttledUpdate);
-                  }
-                }, signal);
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            });
-          });
+          await ocrService.initialize((progress) => {
+            if (mountedRef.current && !signal.aborted) {
+              setOcrProgress(prev => Math.max(prev, progress.progress * 0.3));
+            }
+          }, signal);
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 3: Process OCR with cancellation support and performance optimization
           if (mountedRef.current) {
             setOcrStatus('Processando documento...');
           }
           
-          // Process OCR in chunks to prevent blocking
-          const ocrResult = await new Promise((resolve, reject) => {
-            scheduleWork(async () => {
-              try {
-                const result = await ocrService.recognizeText(
-                  processedFile,
-                  documentType.type,
-                  (progress) => {
-                    if (mountedRef.current && !signal.aborted) {
-                      // PERFORMANCE FIX: Batch state updates to prevent multiple re-renders
-                      const throttledUpdate = () => {
-                        if (mountedRef.current) {
-                          setOcrProgress(prev => Math.max(prev, 30 + progress.progress * 0.5)); // 30-80%
-                          setOcrStatus(progress.status);
-                        }
-                      };
-                      requestAnimationFrame(throttledUpdate);
-                    }
-                  },
-                  signal
-                );
-                resolve(result);
-              } catch (error) {
-                reject(error);
+          const ocrResult = await ocrService.recognizeText(
+            processedFile,
+            documentType.type,
+            (progress) => {
+              if (mountedRef.current && !signal.aborted) {
+                setOcrProgress(prev => Math.max(prev, 30 + progress.progress * 0.5));
+                setOcrStatus(progress.status);
               }
-            });
-          });
+            },
+            signal
+          );
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 4: Validate if expected data provided
           let validation = null;
           if (expectedData && ocrResult.extractedData) {
             if (mountedRef.current) {
@@ -251,7 +203,6 @@ export function EnhancedDocumentUpload({
 
           if (signal.aborted) throw new Error('Processing cancelled');
 
-          // Step 5: Complete
           if (mountedRef.current) {
             setOcrProgress(100);
             setOcrStatus('Processamento concluído!');
@@ -266,68 +217,117 @@ export function EnhancedDocumentUpload({
           };
 
           return result;
-        } catch (error) {
-          if (signal.aborted) {
-            throw new Error('Processing cancelled');
-          }
-          throw error;
-        }
-      },
-      { timeout: 60000 } // 60-second timeout for document processing
-    );
+        },
+        { timeout: 60000 }
+      );
 
-    try {
-      const result = await request.promise;
-      
-      // Only update UI and call callbacks if component is still mounted and request wasn't cancelled
-      if (mountedRef.current && !request.isCancelled()) {
-        onUploadComplete(result);
-        onUploadProgress?.(100);
-      }
+      return await request.promise;
     } catch (error) {
-      // Only handle errors if component is still mounted and request wasn't cancelled
-      if (mountedRef.current && !request.isCancelled()) {
-        console.error('Document processing failed:', error);
-        
-        // Provide specific error messages based on error type
-        let errorMessage = 'Falha ao processar documento';
-        let recoveryHint = '';
-        
-        if (error instanceof Error) {
-          if (error.message.includes('cancelled')) {
-            return; // Don't show error for cancelled requests
-          } else if (error.message.includes('worker') || error.message.includes('OCR')) {
-            errorMessage = 'Erro ao inicializar processamento de texto';
-            recoveryHint = 'Tente recarregar a página e tentar novamente';
-          } else if (error.message.includes('NetworkError') || error.message.includes('Load failed') || error.message.includes('network') || error.message.includes('fetch')) {
-            errorMessage = 'Erro de conexão ao carregar OCR';
-            recoveryHint = 'Verifique sua conexão com a internet. O documento será enviado sem OCR.';
-          } else if (error.message.includes('quality')) {
-            errorMessage = 'Qualidade da imagem insuficiente';
-            recoveryHint = 'Tire uma nova foto com melhor iluminação';
+      if (signal.aborted) {
+        throw new Error('Processing cancelled');
+      }
+
+      console.error('File processing error:', error);
+      
+      let errorMessage = 'Could not process image';
+      let suggestions: string[] = [];
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        if (error.message.includes('API Error: 400')) {
+          try {
+            const apiErrorMatch = error.message.match(/Could not process image[^"]*/);
+            if (apiErrorMatch) {
+              errorMessage = apiErrorMatch[0];
+            }
+          } catch (parseError) {
+            errorMessage = 'Could not process image - please try again with a different image';
           }
         }
-        
-        setOcrStatus(errorMessage);
-        setValidationResult({
-          isValid: false,
-          errors: [errorMessage],
-          warnings: recoveryHint ? [recoveryHint] : [],
-          confidence: 0
-        });
-        
-        onUploadComplete({
-          file: fileToProcess,
-          status: 'error',
-          message: errorMessage,
-        });
+
+        if (errorMessage.includes('format') || errorMessage.includes('corrupted')) {
+          suggestions = [
+            'Verifique se o arquivo não está corrompido',
+            'Tente salvar a imagem em formato JPEG ou PNG',
+            'Fotografe o documento novamente'
+          ];
+        } else if (errorMessage.includes('quality') || errorMessage.includes('low')) {
+          suggestions = [
+            'Fotografe com melhor iluminação',
+            'Mantenha o documento plano e em foco',
+            'Evite sombras e reflexos no documento',
+            'Use uma câmera de maior resolução se possível'
+          ];
+        } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
+          suggestions = [
+            'Verifique sua conexão com a internet',
+            'Tente novamente em alguns instantes',
+            'Use uma imagem menor ou de menor qualidade'
+          ];
+        } else if (errorMessage.includes('large') || errorMessage.includes('size')) {
+          suggestions = [
+            'Comprima a imagem antes de enviar',
+            'Recorte a imagem para mostrar apenas o documento',
+            'Certifique-se de que o arquivo tem menos de 10MB'
+          ];
+        } else {
+          suggestions = [
+            'Tente fotografar o documento novamente',
+            'Certifique-se de que há boa iluminação',
+            'Entre em contato com o suporte se o problema persistir'
+          ];
+        }
       }
-    } finally {
-      if (mountedRef.current) {
+
+      setProcessingError({
+        message: errorMessage,
+        suggestions
+      });
+
+      throw new Error(errorMessage);
+    }
+  }, [documentType, expectedData, mountedRef]);
+
+  const handleFileUpload = useCallback(async (selectedFile: File) => {
+    try {
+      setProcessingError(null);
+      setOcrProgress(0);
+      setOcrStatus('Iniciando processamento...');
+      setIsProcessing(true);
+
+      const result = await processFile(selectedFile, new AbortController().signal);
+      
+      if (result) {
+        onUploadComplete(result);
         setIsProcessing(false);
       }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setIsProcessing(false);
     }
-  }, [documentType.type, expectedData, onUploadComplete, onUploadProgress, makeRequest]);
+  }, [processFile, onUploadComplete]);
+
+  const handleRetry = useCallback(() => {
+    if (file) {
+      setProcessingError(null);
+      setOcrProgress(0);
+      setOcrStatus('');
+      setValidationResult(null);
+      handleFileUpload(file);
+    }
+  }, [file]);
+
+  const handleUploadNew = useCallback(() => {
+    setFile(null);
+    setPreview(null);
+    setValidationResult(null);
+    setOcrProgress(0);
+    setProcessingError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -342,18 +342,14 @@ export function EnhancedDocumentUpload({
   }, []);
 
   const openCamera = useCallback(async () => {
-    // Check camera permissions first
     if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
       try {
-        // Request camera permission
         await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        // Permission granted, proceed with camera
         if (fileInputRef.current) {
           fileInputRef.current.setAttribute('capture', 'environment');
           fileInputRef.current.click();
         }
       } catch (error) {
-        // Handle permission denied or other errors
         setValidationResult({
           isValid: false,
           errors: ['Permissão de câmera negada. Por favor, habilite nas configurações do navegador.'],
@@ -362,7 +358,6 @@ export function EnhancedDocumentUpload({
         });
       }
     } else {
-      // Camera not supported
       if (fileInputRef.current) {
         fileInputRef.current.click();
       }
@@ -372,7 +367,6 @@ export function EnhancedDocumentUpload({
   return (
     <Card className="p-4 sm:p-6">
       <div className="space-y-4">
-        {/* Document Information */}
         <div className="border-b border-gray-200 pb-4">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -412,7 +406,6 @@ export function EnhancedDocumentUpload({
           </div>
         </div>
 
-        {/* Upload Area */}
         {!file ? (
           <div
             data-testid="drop-zone"
@@ -487,7 +480,6 @@ export function EnhancedDocumentUpload({
           </div>
         ) : (
           <div className="space-y-4">
-            {/* File Preview */}
             <div className="flex items-start gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
@@ -512,7 +504,6 @@ export function EnhancedDocumentUpload({
               )}
             </div>
 
-            {/* Image Preview */}
             {showPreview && preview && (
               <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
                 <img
@@ -523,7 +514,6 @@ export function EnhancedDocumentUpload({
               </div>
             )}
 
-            {/* OCR Progress */}
             {isProcessing && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -534,7 +524,6 @@ export function EnhancedDocumentUpload({
               </div>
             )}
 
-            {/* Validation Results */}
             {validationResult && !isProcessing && (
               <div className="space-y-2">
                 {validationResult.isValid ? (
@@ -564,27 +553,45 @@ export function EnhancedDocumentUpload({
               </div>
             )}
 
-            {/* Actions */}
+            {processingError && (
+              <ImageProcessingError
+                error={processingError.message}
+                suggestions={processingError.suggestions}
+                onRetry={file ? handleRetry : undefined}
+                onUploadNew={handleUploadNew}
+              />
+            )}
+
             <div className="flex gap-2">
-              {!isProcessing && !validationResult && (
+              {!isProcessing && !validationResult && isClient && (
                 <Button
-                  onClick={() => processDocument(file)}
-                  className="flex-1 min-h-[44px]"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (file) {
+                      handleFileUpload(file);
+                    } else {
+                      setValidationResult({
+                        isValid: false,
+                        errors: ['Por favor selecione um arquivo primeiro'],
+                        warnings: [],
+                        confidence: 0
+                      });
+                    }
+                  }}
+                  className="flex-1 min-h-[44px] bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all duration-300"
+                  disabled={isProcessing || !file || !isClient}
+                  type="button"
                 >
                   <FileText className="w-4 h-4 mr-2" />
-                  Processar Documento
+                  {isClient ? 'Processar Documento' : 'Carregando...'}
                 </Button>
               )}
               
               {!isProcessing && (
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setFile(null);
-                    setPreview(null);
-                    setValidationResult(null);
-                    setOcrProgress(0);
-                  }}
+                  onClick={handleUploadNew}
                   className="min-h-[44px]"
                 >
                   Trocar Arquivo

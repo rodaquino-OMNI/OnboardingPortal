@@ -66,6 +66,13 @@ export function UnifiedHealthQuestionnaire({
   features = {},
   theme = 'light'
 }: UnifiedHealthQuestionnaireProps) {
+  console.log('[UnifiedHealthQuestionnaire] Rendering with props:', {
+    userId,
+    mode,
+    features,
+    theme
+  });
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -134,6 +141,10 @@ export function UnifiedHealthQuestionnaire({
   };
 
   // Build configuration
+  console.log('[UnifiedHealthQuestionnaire] Loading sections:', HEALTH_QUESTIONNAIRE_SECTIONS?.length || 0, 'sections');
+  console.log('[UnifiedHealthQuestionnaire] First section:', HEALTH_QUESTIONNAIRE_SECTIONS?.[0]);
+  console.log('[UnifiedHealthQuestionnaire] Enabled features:', getEnabledFeatures().map(f => f.name));
+  
   const config: QuestionnaireConfig = {
     sections: HEALTH_QUESTIONNAIRE_SECTIONS,
     features: getEnabledFeatures(),
@@ -268,22 +279,22 @@ export function UnifiedHealthQuestionnaire({
 export const QuestionnairePresets = {
   standard: {
     mode: 'standard' as const,
-    features: { ai: true, gamification: true, progressive: true, accessibility: true }
+    features: { ai: true, gamification: true, progressive: true, accessibility: false }
   },
   conversational: {
     mode: 'conversational' as const,
-    features: { ai: true, gamification: false, progressive: true, accessibility: true }
+    features: { ai: true, gamification: false, progressive: true, accessibility: false }
   },
   clinical: {
     mode: 'clinical' as const,
-    features: { ai: false, gamification: false, clinical: true, progressive: true, accessibility: true }
+    features: { ai: false, gamification: false, clinical: true, progressive: true, accessibility: false }
   },
   gamified: {
     mode: 'gamified' as const,
-    features: { ai: true, gamification: true, progressive: false, accessibility: true }
+    features: { ai: true, gamification: true, progressive: false, accessibility: false }
   },
   minimal: {
     mode: 'standard' as const,
-    features: { ai: false, gamification: false, progressive: false, accessibility: true }
+    features: { ai: false, gamification: false, progressive: false, accessibility: false }
   }
 };

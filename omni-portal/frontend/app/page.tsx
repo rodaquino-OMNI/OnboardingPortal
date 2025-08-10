@@ -18,11 +18,16 @@ export default function Home() {
     setIsClient(true);
     // Check auth status when component mounts
     const initAuth = async () => {
-      await checkAuth();
-      setInitialLoad(false);
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.error('[HomePage] Auth check error:', error);
+      } finally {
+        setInitialLoad(false);
+      }
     };
     initAuth();
-  }, [checkAuth]);
+  }, []); // Remove checkAuth dependency to prevent infinite loop
 
   useEffect(() => {
     // Only redirect after auth check is complete and we're authenticated
@@ -31,8 +36,20 @@ export default function Home() {
     }
   }, [isClient, initialLoad, isAuthenticated, isLoading, router]);
 
-  // Show loading during initial auth check or SSR
-  if (!isClient || initialLoad || isLoading) {
+  // Add timeout to prevent infinite loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (initialLoad) {
+        console.warn('[HomePage] Auth check timeout, forcing load complete');
+        setInitialLoad(false);
+      }
+    }, 3000); // 3 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [initialLoad]);
+
+  // Show loading during initial auth check or SSR (but only briefly)
+  if (!isClient || (initialLoad && isLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">

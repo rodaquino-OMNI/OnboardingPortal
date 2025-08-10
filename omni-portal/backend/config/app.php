@@ -103,6 +103,8 @@ return [
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\OCRServiceProvider::class,
+        App\Providers\SecurityServiceProvider::class,
+        App\Providers\RewardServiceProvider::class,
     ])->toArray(),
 
     /*

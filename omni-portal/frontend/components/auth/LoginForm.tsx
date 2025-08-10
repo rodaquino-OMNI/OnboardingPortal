@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { User, Lock, AlertCircle } from 'lucide-react';
@@ -17,12 +17,20 @@ import TwoFactorAuth from './TwoFactorAuth';
 
 export default function LoginForm() {
   const router = useRouter();
-  const { login, socialLogin, error: authError, clearError } = useAuth();
+  const { login, socialLogin, error: authError, clearError, isAuthenticated } = useAuth();
   const [showSuccess, setShowSuccess] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [requires2FA, setRequires2FA] = useState(false);
   const [sessionToken, setSessionToken] = useState<string>('');
   const [sessionLimitError, setSessionLimitError] = useState<any>(null);
+  
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('[LoginForm] User already authenticated, redirecting to /home');
+      router.push('/home');
+    }
+  }, [isAuthenticated, router]);
 
   const {
     register,
@@ -64,8 +72,14 @@ export default function LoginForm() {
       // Normal login success
       setShowSuccess(true);
       
-      // Redirect after success animation
+      // Debug: Check cookies after login
+      console.log('Login successful. Checking cookies...');
+      console.log('Document cookies:', document.cookie);
+      
+      // Force reload to ensure all state is synchronized
+      // Use Next.js router for client-side navigation to preserve state
       setTimeout(() => {
+        console.log('Navigating to /home...');
         router.push('/home');
       }, 1500);
     } catch (error) {
@@ -198,6 +212,7 @@ export default function LoginForm() {
             placeholder="000.000.000-00 ou seu@email.com"
             icon={User}
             error={errors.login?.message}
+            autoComplete="username email"
             {...register('login')}
           />
         </div>
@@ -212,6 +227,7 @@ export default function LoginForm() {
             placeholder="••••••••"
             icon={Lock}
             error={errors.password?.message}
+            autoComplete="current-password"
             {...register('password')}
           />
         </div>

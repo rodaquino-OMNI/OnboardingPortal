@@ -40,4 +40,4 @@ _ide_helper_models.php
 !/storage/framework/sessions/.gitkeep
 !/storage/framework/testing/.gitkeep
 !/storage/framework/views/.gitkeep
-!/storage/logs/.gitkeep
+!/storage/logs/.gitkeep/omni-portal/frontend/components/lazy/

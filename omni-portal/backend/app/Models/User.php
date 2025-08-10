@@ -185,4 +185,112 @@ class User extends Authenticatable
             'id'
         );
     }
+
+    /**
+     * Safe fallback for adminRoles relationship
+     * Returns empty collection if table doesn't exist
+     * This prevents crashes while maintaining backward compatibility
+     */
+    public function adminRoles()
+    {
+        // Check if custom admin system tables exist
+        if (!\Schema::hasTable('admin_user_roles')) {
+            // Return empty relationship to prevent errors
+            // This allows code to call $user->adminRoles without crashing
+            return $this->belongsToMany(
+                \App\Models\Admin\AdminRole::class, 
+                'non_existent_table_safe_fallback'
+            )->whereRaw('1 = 0'); // Always returns empty collection
+        }
+        
+        // Actual relationship when table exists
+        return $this->belongsToMany(
+            \App\Models\Admin\AdminRole::class,
+            'admin_user_roles',
+            'user_id',
+            'admin_role_id'
+        )
+        ->withPivot(['assigned_at', 'expires_at', 'is_active'])
+        ->wherePivot('is_active', true)
+        ->where(function ($query) {
+            $query->whereNull('admin_user_roles.expires_at')
+                  ->orWhere('admin_user_roles.expires_at', '>', now());
+        });
+    }
+
+    /**
+     * Check if user has admin access via either system
+     * This is backward compatible and won't break existing checks
+     */
+    public function hasAdminAccess(): bool
+    {
+        // Check Spatie roles (current working system)
+        if ($this->hasRole(['admin', 'super-admin', 'manager', 'hr', 'moderator'])) {
+            return true;
+        }
+        
+        // Check custom admin roles (future system) only if table exists
+        if (\Schema::hasTable('admin_user_roles') && $this->adminRoles()->exists()) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get combined roles from both systems
+     * Merges Spatie and custom admin roles for compatibility
+     */
+    public function getAllRoles(): array
+    {
+        $roles = [];
+        
+        // Get Spatie roles (current system)
+        if ($this->roles) {
+            $roles = array_merge($roles, $this->roles->pluck('name')->toArray());
+        }
+        
+        // Get custom admin roles if available
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                $adminRoles = $this->adminRoles;
+                if ($adminRoles && count($adminRoles) > 0) {
+                    $roles = array_merge($roles, $adminRoles->pluck('name')->toArray());
+                }
+            } catch (\Exception $e) {
+                // Silently fail if admin roles can't be loaded
+                // This ensures backward compatibility
+            }
+        }
+        
+        return array_unique($roles);
+    }
+
+    /**
+     * Check if user has specific admin permission
+     * Checks both Spatie and custom admin systems
+     */
+    public function hasAdminPermission(string $resource, string $action, string $scope = 'all'): bool
+    {
+        // First check Spatie permissions
+        $spatiePermission = "{$resource}.{$action}";
+        if ($this->hasPermissionTo($spatiePermission)) {
+            return true;
+        }
+        
+        // Then check custom admin permissions if available
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                foreach ($this->adminRoles as $role) {
+                    if ($role->hasPermission($resource, $action, $scope)) {
+                        return true;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silently fail to maintain compatibility
+            }
+        }
+        
+        return false;
+    }
 }

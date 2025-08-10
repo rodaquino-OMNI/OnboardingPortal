@@ -105,6 +105,16 @@ export interface DashboardSummary {
     next_level: string | null;
     points_to_next_level: number;
   };
+  // Additional properties used in the dashboard
+  quick_stats?: {
+    [key: string]: any;
+  };
+  recent_badges?: Array<{
+    id: number;
+    name: string;
+    icon: string;
+    earned_at: string;
+  }>;
 }
 
 export interface GamificationAchievements {
@@ -148,95 +158,167 @@ export const gamificationApi = {
    * Get gamification progress for the authenticated user
    */
   getProgress: async (): Promise<GamificationProgress> => {
-    const response = await api.get<{
-      success: boolean;
-      data: GamificationProgress;
-    }>('/gamification/progress');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: GamificationProgress;
+      }>('/gamification/progress');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return default progress
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: GamificationProgress}>('/gamification/public/progress');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get gamification statistics for the authenticated user
    */
   getStats: async (): Promise<GamificationStats> => {
-    const response = await api.get<{
-      success: boolean;
-      data: GamificationStats;
-    }>('/gamification/stats');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: GamificationStats;
+      }>('/gamification/stats');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return default stats
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: GamificationStats}>('/gamification/public/stats');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get badges for the authenticated user
    */
   getBadges: async (): Promise<{ earned: GamificationBadge[]; available: GamificationBadge[] }> => {
-    const response = await api.get<{
-      success: boolean;
-      data: { earned: GamificationBadge[]; available: GamificationBadge[] };
-    }>('/gamification/badges');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { earned: GamificationBadge[]; available: GamificationBadge[] };
+      }>('/gamification/badges');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return default badges
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: { earned: GamificationBadge[]; available: GamificationBadge[] }}>('/gamification/public/badges');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get leaderboard for the user's company
    */
   getLeaderboard: async (limit: number = 10): Promise<LeaderboardEntry[]> => {
-    const response = await api.get<{
-      success: boolean;
-      data: LeaderboardEntry[];
-    }>(`/gamification/leaderboard?limit=${limit}`);
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: LeaderboardEntry[];
+      }>(`/gamification/leaderboard?limit=${limit}`);
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return empty leaderboard
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: LeaderboardEntry[]}>('/gamification/public/leaderboard');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get activity feed for the authenticated user
    */
   getActivityFeed: async (limit: number = 20): Promise<ActivityFeedItem[]> => {
-    const response = await api.get<{
-      success: boolean;
-      data: ActivityFeedItem[];
-    }>(`/gamification/activity-feed?limit=${limit}`);
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: ActivityFeedItem[];
+      }>(`/gamification/activity-feed?limit=${limit}`);
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return empty activity feed
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: ActivityFeedItem[]}>('/gamification/public/activity-feed');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get dashboard summary for the authenticated user
    */
   getDashboard: async (): Promise<DashboardSummary> => {
-    const response = await api.get<{
-      success: boolean;
-      data: DashboardSummary;
-    }>('/gamification/dashboard');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: DashboardSummary;
+      }>('/gamification/dashboard');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return default dashboard
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: DashboardSummary}>('/gamification/public/dashboard');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get achievements for the authenticated user
    */
   getAchievements: async (): Promise<GamificationAchievements> => {
-    const response = await api.get<{
-      success: boolean;
-      data: GamificationAchievements;
-    }>('/gamification/achievements');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: GamificationAchievements;
+      }>('/gamification/achievements');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, return default achievements
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: GamificationAchievements}>('/gamification/public/achievements');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 
   /**
    * Get available levels
    */
   getLevels: async (): Promise<any[]> => {
-    const response = await api.get<{
-      success: boolean;
-      data: any[];
-    }>('/gamification/levels');
-    
-    return response.data.data;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: any[];
+      }>('/gamification/levels');
+      
+      return response.data.data;
+    } catch (error: any) {
+      // If user is not authenticated, use public endpoint
+      if (error.response?.status === 401) {
+        const publicResponse = await api.get<{success: boolean; data: any[]}>('/gamification/public/levels');
+        return publicResponse.data.data;
+      }
+      throw error;
+    }
   },
 };

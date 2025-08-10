@@ -78,116 +78,139 @@ class EnhancedOCRService
     }
 
     /**
-     * Process document with enhanced OCR (primary: Textract, fallback: Tesseract)
+     * Check if Textract should be used
      */
-    public function processDocument(string $filePath, array $options = []): array
+    protected function shouldUseTextract(): bool
     {
-        $cacheKey = $this->getCacheKey($filePath, $options);
-        
-        // Check cache first
-        if ($this->config['cache']['enabled'] && Cache::has($cacheKey)) {
-            Log::info('OCR result retrieved from cache', ['file_path' => $filePath]);
-            return Cache::get($cacheKey);
-        }
-
-        // Check cost limits
-        if (!$this->usageTracker->canProcessDocument()) {
-            Log::warning('OCR processing blocked: budget limit reached');
-            throw new \Exception('Daily OCR budget limit reached');
-        }
-
-        $result = $this->processWithRetry($filePath, $options);
-        
-        // Cache the result
-        if ($this->config['cache']['enabled'] && $result['success']) {
-            Cache::put($cacheKey, $result, $this->config['cache']['ttl']);
-        }
-
-        return $result;
+        return $this->textractClient !== null && 
+               !Cache::get('textract_quota_exceeded', false);
     }
 
     /**
-     * Process document with retry logic and fallback mechanisms
+     * Process document with enhanced error handling
      */
-    protected function processWithRetry(string $filePath, array $options = []): array
+    public function processDocument(string $filePath, array $options = []): array
     {
-        $maxRetries = $this->config['drivers']['enhanced']['max_retries'];
-        $retryDelay = $this->config['drivers']['enhanced']['retry_delay'];
-        
+        $startTime = microtime(true);
+        $attempt = 0;
+        $maxAttempts = $this->config['processing']['max_attempts'] ?? 3;
         $lastException = null;
-        
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+
+        while ($attempt < $maxAttempts) {
+            $attempt++;
+            
             try {
-                Log::info("OCR processing attempt {$attempt}", ['file_path' => $filePath]);
-                
-                // Try AWS Textract first
-                $result = $this->processWithTextract($filePath, $options);
-                
-                // Validate quality
-                if ($this->isQualityAcceptable($result)) {
-                    $this->usageTracker->recordUsage('textract', $this->estimatePages($filePath));
-                    return $this->formatSuccessResult($result, 'textract', $attempt);
+                // Validate file before processing
+                if (!file_exists($filePath)) {
+                    throw new \InvalidArgumentException('Could not process image - file not found');
                 }
-                
-                Log::warning('Textract result quality below threshold', [
-                    'confidence' => $result['average_confidence'] ?? 0,
-                    'threshold' => $this->config['quality']['fallback_threshold']
-                ]);
-                
-                // Fallback to Tesseract if quality is poor
-                $fallbackResult = $this->processWithTesseract($filePath, $options);
-                
-                if ($this->isQualityAcceptable($fallbackResult)) {
-                    $this->usageTracker->recordUsage('tesseract', 1);
-                    return $this->formatSuccessResult($fallbackResult, 'tesseract_fallback', $attempt);
+
+                // Check file size
+                $fileSize = filesize($filePath);
+                if ($fileSize === false || $fileSize === 0) {
+                    throw new \InvalidArgumentException('Could not process image - file is empty or corrupted');
                 }
-                
-            } catch (AwsException $e) {
-                $lastException = $e;
-                Log::error("AWS Textract error on attempt {$attempt}", [
-                    'error' => $e->getMessage(),
-                    'code' => $e->getAwsErrorCode(),
-                    'type' => $e->getAwsErrorType()
-                ]);
-                
-                // Try Tesseract fallback for AWS errors
-                try {
-                    $fallbackResult = $this->processWithTesseract($filePath, $options);
-                    $this->usageTracker->recordUsage('tesseract', 1);
-                    return $this->formatSuccessResult($fallbackResult, 'tesseract_fallback', $attempt);
-                } catch (\Exception $fallbackException) {
-                    Log::error("Tesseract fallback failed on attempt {$attempt}", [
-                        'error' => $fallbackException->getMessage()
-                    ]);
+
+                if ($fileSize > 50 * 1024 * 1024) { // 50MB limit
+                    throw new \InvalidArgumentException('Could not process image - file too large (max 50MB)');
                 }
+
+                // Validate file format
+                $mimeType = mime_content_type($filePath);
+                $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
                 
+                if (!in_array($mimeType, $allowedTypes)) {
+                    throw new \InvalidArgumentException('Could not process image - unsupported file format. Only JPEG, PNG, and PDF are supported.');
+                }
+
+                // Try primary OCR service (Textract)
+                if ($this->shouldUseTextract()) {
+                    try {
+                        $result = $this->processWithTextract($filePath, $options);
+                        
+                        if ($this->isQualityAcceptable($result)) {
+                            $this->usageTracker->recordUsage('textract', 1);
+                            return $this->formatSuccessResult($result, 'textract', $attempt);
+                        }
+                        
+                        Log::warning('Textract result quality below threshold', [
+                            'confidence' => $result['average_confidence'] ?? 0,
+                            'threshold' => $this->config['quality']['fallback_threshold']
+                        ]);
+                        
+                        // Fallback to Tesseract if quality is poor
+                        $fallbackResult = $this->processWithTesseract($filePath, $options);
+                        if ($this->isQualityAcceptable($fallbackResult)) {
+                            $this->usageTracker->recordUsage('tesseract', 1);
+                            return $this->formatSuccessResult($fallbackResult, 'tesseract_fallback', $attempt);
+                        }
+                        
+                    } catch (AwsException $e) {
+                        $lastException = $e;
+                        Log::error("AWS Textract error on attempt {$attempt}", [
+                            'error' => $e->getMessage(),
+                            'code' => $e->getAwsErrorCode(),
+                            'type' => $e->getAwsErrorType()
+                        ]);
+                        
+                        // Try Tesseract fallback for AWS errors
+                        try {
+                            $fallbackResult = $this->processWithTesseract($filePath, $options);
+                            if ($this->isQualityAcceptable($fallbackResult)) {
+                                $this->usageTracker->recordUsage('tesseract', 1);
+                                return $this->formatSuccessResult($fallbackResult, 'tesseract_aws_fallback', $attempt);
+                            }
+                        } catch (\Exception $tesseractException) {
+                            Log::error("Tesseract fallback also failed", [
+                                'tesseract_error' => $tesseractException->getMessage(),
+                                'original_aws_error' => $e->getMessage()
+                            ]);
+                        }
+                    }
+                } else {
+                    // Use Tesseract directly
+                    $result = $this->processWithTesseract($filePath, $options);
+                    if ($this->isQualityAcceptable($result)) {
+                        $this->usageTracker->recordUsage('tesseract', 1);
+                        return $this->formatSuccessResult($result, 'tesseract', $attempt);
+                    }
+                }
+
+                // If we reach here, both services failed or quality was poor
+                if ($attempt < $maxAttempts) {
+                    sleep(1); // Wait before retry
+                    continue;
+                }
+
             } catch (\Exception $e) {
                 $lastException = $e;
-                Log::error("OCR processing error on attempt {$attempt}", [
+                Log::error("OCR processing attempt {$attempt} failed", [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'file_path' => $filePath,
+                    'options' => $options
                 ]);
-            }
-            
-            // Wait before retry (except for last attempt)
-            if ($attempt < $maxRetries) {
-                usleep($retryDelay * 1000);
-                $retryDelay *= 2; // Exponential backoff
+
+                // Don't retry for certain types of errors
+                if ($this->isNonRetryableError($e)) {
+                    break;
+                }
+
+                if ($attempt < $maxAttempts) {
+                    sleep($attempt); // Exponential backoff
+                    continue;
+                }
             }
         }
-        
+
         // All attempts failed
-        Log::error('All OCR processing attempts failed', [
-            'file_path' => $filePath,
-            'attempts' => $maxRetries,
-            'last_error' => $lastException?->getMessage()
-        ]);
+        $processingTime = (microtime(true) - $startTime) * 1000;
         
         return [
             'success' => false,
-            'error' => 'OCR processing failed after ' . $maxRetries . ' attempts',
-            'last_exception' => $lastException?->getMessage(),
-            'attempts' => $maxRetries
+            'error' => $this->categorizeError($lastException),
+            'processing_time' => $processingTime,
+            'attempts' => $attempt,
+            'service_used' => 'none'
         ];
     }
 
@@ -409,8 +432,8 @@ class EnhancedOCRService
      */
     protected function isQualityAcceptable(array $result): bool
     {
-        $minConfidence = $this->config['quality']['min_confidence'];
-        $minTextLength = $this->config['quality']['text_length_threshold'];
+        $minConfidence = $this->config['quality']['min_confidence'] ?? 70;
+        $minTextLength = $this->config['quality']['text_length_threshold'] ?? 10;
         
         // Check average confidence
         $avgConfidence = $result['average_confidence'] ?? 0;
@@ -428,80 +451,143 @@ class EnhancedOCRService
     }
 
     /**
-     * Format successful result
+     * Categorize errors for better user experience
      */
-    protected function formatSuccessResult(array $result, string $method, int $attempts): array
+    private function categorizeError(?\Exception $exception): string
     {
-        return array_merge($result, [
-            'success' => true,
-            'processing_method' => $method,
-            'attempts' => $attempts,
-            'processed_at' => now()->toISOString(),
-            'quality_score' => $this->calculateQualityScore($result)
-        ]);
-    }
-
-    /**
-     * Calculate quality score for the OCR result
-     */
-    protected function calculateQualityScore(array $result): float
-    {
-        $score = 0;
-        
-        // Confidence score weight (50%)
-        $avgConfidence = $result['average_confidence'] ?? 0;
-        $score += ($avgConfidence / 100) * 50;
-        
-        // Text length weight (20%)
-        $textLength = strlen($result['raw_text'] ?? '');
-        $textScore = min(100, ($textLength / 100) * 100); // Normalize to 100
-        $score += ($textScore / 100) * 20;
-        
-        // Forms detected weight (15%)
-        $formsCount = count($result['forms'] ?? []);
-        $formsScore = min(100, $formsCount * 10);
-        $score += ($formsScore / 100) * 15;
-        
-        // Tables detected weight (10%)
-        $tablesCount = count($result['tables'] ?? []);
-        $tablesScore = min(100, $tablesCount * 20);
-        $score += ($tablesScore / 100) * 10;
-        
-        // Blocks detected weight (5%)
-        $blocksCount = count($result['blocks'] ?? []);
-        $blocksScore = min(100, $blocksCount * 2);
-        $score += ($blocksScore / 100) * 5;
-        
-        return round($score, 2);
-    }
-
-    /**
-     * Generate cache key for OCR result
-     */
-    protected function getCacheKey(string $filePath, array $options = []): string
-    {
-        $key = $this->config['cache']['prefix'] . '_' . md5($filePath . serialize($options));
-        return $key;
-    }
-
-    /**
-     * Estimate number of pages in document
-     */
-    protected function estimatePages(string $filePath): int
-    {
-        try {
-            // For now, assume 1 page for images and estimate for PDFs
-            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-            
-            if ($extension === 'pdf') {
-                // Could implement PDF page counting here
-                return 1; // Default assumption
-            }
-            
-            return 1;
-        } catch (\Exception $e) {
-            return 1;
+        if (!$exception) {
+            return 'Could not process image - unknown error occurred';
         }
+
+        $message = $exception->getMessage();
+
+        // File-related errors
+        if (str_contains($message, 'file not found') || str_contains($message, 'No such file')) {
+            return 'Could not process image - file not found or has been moved';
+        }
+
+        if (str_contains($message, 'empty') || str_contains($message, 'corrupted') || str_contains($message, 'invalid format')) {
+            return 'Could not process image - file appears to be corrupted or invalid';
+        }
+
+        if (str_contains($message, 'too large') || str_contains($message, 'file size')) {
+            return 'Could not process image - file is too large (maximum 50MB)';
+        }
+
+        if (str_contains($message, 'unsupported') || str_contains($message, 'format')) {
+            return 'Could not process image - unsupported file format';
+        }
+
+        // Quality-related errors
+        if (str_contains($message, 'quality') || str_contains($message, 'resolution') || str_contains($message, 'blur')) {
+            return 'Could not process image - image quality too low for text recognition';
+        }
+
+        // Service-related errors
+        if (str_contains($message, 'timeout') || str_contains($message, 'network') || str_contains($message, 'connection')) {
+            return 'Could not process image - service timeout, please try again';
+        }
+
+        if (str_contains($message, 'quota') || str_contains($message, 'limit') || str_contains($message, 'rate')) {
+            return 'Could not process image - service temporarily unavailable due to high demand';
+        }
+
+        if (str_contains($message, 'memory') || str_contains($message, 'resource')) {
+            return 'Could not process image - insufficient resources to process this image';
+        }
+
+        // AWS-specific errors
+        if ($exception instanceof AwsException) {
+            $awsErrorCode = $exception->getAwsErrorCode();
+            
+            switch ($awsErrorCode) {
+                case 'InvalidImageFormatException':
+                    return 'Could not process image - unsupported or corrupted image format';
+                case 'ImageTooLargeException':
+                    return 'Could not process image - image file is too large';
+                case 'BadDocumentException':
+                    return 'Could not process image - document quality is too poor';
+                case 'DocumentTooLargeException':
+                    return 'Could not process image - document has too many pages';
+                case 'UnsupportedDocumentException':
+                    return 'Could not process image - document type not supported';
+                case 'ThrottlingException':
+                    return 'Could not process image - service busy, please try again in a moment';
+                case 'InternalServerError':
+                    return 'Could not process image - temporary service error, please try again';
+                default:
+                    return 'Could not process image - AWS service error: ' . $awsErrorCode;
+            }
+        }
+
+        // Tesseract-specific errors
+        if (str_contains($message, 'tesseract') || str_contains($message, 'TesseractOCR')) {
+            if (str_contains($message, 'not found') || str_contains($message, 'command not found')) {
+                return 'Could not process image - OCR service not available';
+            }
+            if (str_contains($message, 'failed to read')) {
+                return 'Could not process image - unable to read image file';
+            }
+            return 'Could not process image - text recognition service error';
+        }
+
+        // Generic fallback
+        return 'Could not process image';
+    }
+
+    /**
+     * Check if error should not be retried
+     */
+    private function isNonRetryableError(\Exception $e): bool
+    {
+        $message = $e->getMessage();
+        
+        // File format/corruption errors shouldn't be retried
+        if (str_contains($message, 'corrupted') || 
+            str_contains($message, 'invalid format') || 
+            str_contains($message, 'unsupported') ||
+            str_contains($message, 'file not found') ||
+            str_contains($message, 'too large')) {
+            return true;
+        }
+
+        // AWS specific non-retryable errors
+        if ($e instanceof AwsException) {
+            $nonRetryableCodes = [
+                'InvalidImageFormatException',
+                'ImageTooLargeException',
+                'BadDocumentException',
+                'DocumentTooLargeException',
+                'UnsupportedDocumentException'
+            ];
+            
+            return in_array($e->getAwsErrorCode(), $nonRetryableCodes);
+        }
+
+        return false;
+    }
+
+    /**
+     * Format successful result with consistent structure
+     */
+    private function formatSuccessResult(array $result, string $service, int $attempts): array
+    {
+        return [
+            'success' => true,
+            'text' => $result['raw_text'] ?? $result['text'] ?? '',
+            'confidence' => $result['confidence'] ?? $result['average_confidence'] ?? 0,
+            'extracted_data' => $result['extracted_data'] ?? [],
+            'blocks' => $result['blocks'] ?? [],
+            'forms' => $result['forms'] ?? [],
+            'processing_time' => $result['processing_time'] ?? 0,
+            'service_used' => $service,
+            'attempts' => $attempts,
+            'metadata' => [
+                'timestamp' => now()->toISOString(),
+                'version' => '2.0',
+                'confidence_threshold' => $this->config['quality']['min_confidence'] ?? 70
+            ]
+        ];
     }
 
     /**

@@ -13,35 +13,60 @@ use Illuminate\Support\Facades\Log;
 class GamificationService
 {
     /**
-     * Point values for different actions
+     * Point values for different actions - SYNCHRONIZED WITH FRONTEND
      */
     const POINTS = [
-        'registration' => 100,
-        'profile_field' => 10,
-        'health_question' => 20,
-        'document_required' => 50,
-        'document_optional' => 100,
-        'interview_scheduled' => 150,
-        'interview_completed' => 200,
+        // Profile Actions
         'profile_completed' => 50,
-        'onboarding_completed' => 200,
-        'daily_login' => 5,
-        'streak_bonus' => 10, // Per day of streak
-        'telemedicine_scheduled' => 225, // Balanced points for telemedicine (150 * 1.5 = balanced reward)
-        'telemedicine_completed' => 500,
-        'telemedicine_preparation' => 100,
-        'punctuality_bonus' => 50,
+        'profile_photo_upload' => 10,
+        'profile_update' => 5,
         
-        // OCR Processing Points (NEW)
-        'ocr_processing_completed' => 75,     // Base points for successful OCR processing
-        'ocr_high_confidence' => 25,          // Bonus for >90% confidence
-        'ocr_medium_confidence' => 15,        // Bonus for >80% confidence
-        'ocr_quality_excellent' => 35,        // Bonus for excellent quality processing
-        'ocr_quality_good' => 20,             // Bonus for good quality processing
-        'ocr_validation_success' => 40,       // Bonus for passing all validation checks
-        'ocr_validation_partial' => 20,       // Bonus for passing most validation checks
-        'ocr_progressive_quality' => 50,      // Progressive reward for consistent quality
-        'ocr_complex_document' => 30,         // Bonus for processing complex documents (medical, forms)
+        // Document Actions
+        'document_upload' => 20,
+        'document_verified' => 30,
+        'all_documents_complete' => 100,
+        
+        // Health Questionnaire
+        'health_question_answered' => 2,
+        'health_section_complete' => 15,
+        'health_questionnaire_complete' => 150,
+        'health_perfect_accuracy' => 50, // Bonus for no corrections needed
+        
+        // Interview
+        'interview_scheduled' => 75,
+        'interview_completed' => 200,
+        'interview_rescheduled' => -10, // Penalty for rescheduling
+        
+        // Telemedicine
+        'telemedicine_scheduled' => 100,
+        'telemedicine_completed' => 250,
+        
+        // Engagement Bonuses
+        'daily_login' => 5,
+        'weekly_streak' => 25,
+        'monthly_streak' => 100,
+        
+        // Completion Bonuses
+        'onboarding_complete' => 500,
+        'speed_bonus_24h' => 100,
+        'speed_bonus_48h' => 50,
+        'speed_bonus_72h' => 25,
+        
+        // Penalties
+        'missed_appointment' => -50,
+        'incomplete_form' => -5,
+        'document_rejected' => -10,
+        
+        // OCR Processing Points
+        'ocr_processing_completed' => 75,
+        'ocr_high_confidence' => 25,
+        'ocr_medium_confidence' => 15,
+        'ocr_quality_excellent' => 35,
+        'ocr_quality_good' => 20,
+        'ocr_validation_success' => 40,
+        'ocr_validation_partial' => 20,
+        'ocr_progressive_quality' => 50,
+        'ocr_complex_document' => 30,
     ];
 
     /**

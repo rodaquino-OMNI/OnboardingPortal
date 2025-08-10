@@ -7,6 +7,7 @@ use App\Models\HealthQuestionnaire;
 use App\Models\QuestionnaireTemplate;
 use App\Services\HealthAIService;
 use App\Services\ClinicalDecisionService;
+use App\Services\HealthDataCoordinator;
 use App\Http\Middleware\RateLimitHealthEndpoints;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -18,13 +19,19 @@ class HealthQuestionnaireController extends Controller
 {
     protected $healthAIService;
     protected $clinicalDecisionService;
+    protected $healthDataCoordinator;
 
-    public function __construct(HealthAIService $healthAIService, ClinicalDecisionService $clinicalDecisionService)
+    public function __construct(
+        HealthAIService $healthAIService, 
+        ClinicalDecisionService $clinicalDecisionService,
+        HealthDataCoordinator $healthDataCoordinator
+    )
     {
         $this->middleware('auth:sanctum');
         $this->middleware(RateLimitHealthEndpoints::class);
         $this->healthAIService = $healthAIService;
         $this->clinicalDecisionService = $clinicalDecisionService;
+        $this->healthDataCoordinator = $healthDataCoordinator;
     }
 
     /**
@@ -353,8 +360,8 @@ class HealthQuestionnaireController extends Controller
             // Calculate overall progressive score
             $progressiveScore = $this->calculateProgressiveScore($request->scores);
 
-            // Award points based on layer and risk level
-            $this->awardProgressivePoints($beneficiary, $request->layer, $request->risk_level);
+            // Process through coordinator to prevent race conditions
+            $coordinatorResult = $this->healthDataCoordinator->processQuestionnaire($questionnaire);
 
             // Track engagement metrics
             event(new \App\Events\HealthScreeningCompleted(
@@ -374,7 +381,9 @@ class HealthQuestionnaireController extends Controller
                     'progressive_score' => $progressiveScore,
                     'risk_level' => $request->risk_level,
                     'recommendations' => $request->recommendations,
-                    'next_steps' => $request->next_steps
+                    'next_steps' => $request->next_steps,
+                    'gamification' => $coordinatorResult['gamification'] ?? null,
+                    'clinical_alerts_scheduled' => $coordinatorResult['clinical_alerts_scheduled'] ?? false
                 ]
             ]);
 

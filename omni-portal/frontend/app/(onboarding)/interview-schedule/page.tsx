@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, ChevronLeft, ChevronRight, Video, Award, Star, X, AlertTriangle, CheckCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import apiService from '@/services/api';
 
@@ -27,17 +27,8 @@ export default function InterviewSchedulePage() {
   const [countdown, setCountdown] = useState(5);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
 
-  // Check onboarding status on component mount
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-    
-    checkOnboardingStatus();
-  }, [isAuthenticated, router]);
-
-  const checkOnboardingStatus = async () => {
+  // Define checkOnboardingStatus before using it in useEffect
+  const checkOnboardingStatus = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -45,7 +36,7 @@ export default function InterviewSchedulePage() {
       const [profileResponse, documentsResponse, healthResponse] = await Promise.allSettled([
         apiService.get('/api/profile/status').catch(() => ({ data: { profile_complete: false } })),
         apiService.get('/api/documents/status').catch(() => ({ data: { required_documents_uploaded: false } })), 
-        apiService.get('/api/health-questionnaire/status').catch(() => ({ data: { questionnaire_completed: false } }))
+        apiService.get('/api/health-questionnaires/status').catch(() => ({ data: { questionnaire_completed: false } }))
       ]);
 
       // Fallback logic - check localStorage for partial progress
@@ -104,7 +95,7 @@ export default function InterviewSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isCountdownActive) return;

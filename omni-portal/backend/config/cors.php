@@ -15,23 +15,46 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie', 'storage/*'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
-    'allowed_methods' => ['*'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
-    'allowed_origins' => [
-        env('FRONTEND_URL', 'http://localhost:3000'),
-        'http://localhost:3000',
-        'http://127.0.0.1:3000'
+    'allowed_origins' => env('APP_ENV') === 'production' 
+        ? [
+            env('FRONTEND_URL', 'https://portal.austahealth.com'),
+            'https://portal.austahealth.com',
+            'https://www.austahealth.com',
+        ]
+        : [
+            env('FRONTEND_URL', 'http://localhost:3000'),
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://localhost:8080', // For testing
+        ],
+
+    'allowed_origins_patterns' => env('APP_ENV') === 'production' 
+        ? [] 
+        : ['/^https?:\/\/localhost:\d+$/'], // Allow any localhost port in dev
+
+    'allowed_headers' => [
+        'Accept',
+        'Authorization',
+        'Content-Type',
+        'X-Requested-With',
+        'X-CSRF-Token',
+        'X-XSRF-Token',
     ],
 
-    'allowed_origins_patterns' => [],
+    'exposed_headers' => [
+        'X-CSRF-Token',
+        'X-XSRF-TOKEN',
+        'X-Rate-Limit-Remaining',
+        'X-Rate-Limit-Limit',
+        'Content-Length',
+        'X-Request-Id',
+    ],
 
-    'allowed_headers' => ['*'],
-
-    'exposed_headers' => [],
-
-    'max_age' => 0,
+    'max_age' => 86400, // 24 hours
 
     'supports_credentials' => true,
 

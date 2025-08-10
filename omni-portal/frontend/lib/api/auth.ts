@@ -49,9 +49,32 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Clear any client-side state and redirect to login
-      // Tokens are now httpOnly cookies managed by the server
-      window.location.href = '/login';
+      console.log('%c[API INTERCEPTOR] 401 Error Detected', 'color: red; font-weight: bold', {
+        url: error.config?.url,
+        method: error.config?.method,
+        endpoint: error.request?.responseURL,
+        message: error.response?.data?.message,
+        timestamp: new Date().toISOString(),
+        stack: new Error().stack
+      });
+      
+      // Don't redirect immediately - check if user is actually authenticated
+      const hasAuthCookie = document.cookie.includes('authenticated=true') || 
+                           document.cookie.includes('auth_token=');
+      
+      console.log('[API INTERCEPTOR] Cookie check:', { 
+        hasAuthCookie, 
+        cookies: document.cookie.substring(0, 200) 
+      });
+      
+      // Only redirect if we truly don't have auth cookies
+      // Some endpoints might return 401 for other reasons (permissions, etc)
+      if (!hasAuthCookie && !error.config?.url?.includes('/auth/')) {
+        console.log('%c[API INTERCEPTOR] Redirecting to login - no auth cookies found', 'color: red; font-weight: bold');
+        window.location.href = '/login';
+      } else {
+        console.log('[API INTERCEPTOR] Not redirecting - user has auth cookies or auth endpoint');
+      }
     }
     return Promise.reject(error);
   }

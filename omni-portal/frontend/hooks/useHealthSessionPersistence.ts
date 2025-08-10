@@ -125,6 +125,12 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
 
   const restoreFromStorage = async (): Promise<HealthSessionData | null> => {
     try {
+      // Check if localStorage is available
+      if (typeof window === 'undefined' || !window.localStorage) {
+        console.warn('localStorage is not available');
+        return null;
+      }
+
       // Try primary storage first
       let sessionData = localStorage.getItem(primaryKey);
       
@@ -135,18 +141,36 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
       
       if (sessionData) {
         const parsed = JSON.parse(sessionData);
-        // Convert date strings back to Date objects
-        parsed.lastSavedAt = new Date(parsed.lastSavedAt);
-        parsed.metadata.startedAt = new Date(parsed.metadata.startedAt);
+        // Convert date strings back to Date objects safely
+        parsed.lastSavedAt = parsed.lastSavedAt ? new Date(parsed.lastSavedAt) : new Date();
+        if (parsed.metadata) {
+          parsed.metadata.startedAt = parsed.metadata.startedAt ? new Date(parsed.metadata.startedAt) : new Date();
+        }
         
         // Check if session is not too old (e.g., 30 days)
         const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
-        if (Date.now() - parsed.lastSavedAt.getTime() < maxAge) {
+        const sessionAge = Date.now() - (parsed.lastSavedAt?.getTime() || Date.now());
+        if (sessionAge < maxAge) {
           return parsed;
+        } else {
+          console.log('Session too old, clearing...');
+          localStorage.removeItem(primaryKey);
+          if (enableBackupStorage) {
+            localStorage.removeItem(backupKey);
+          }
         }
       }
     } catch (error) {
       console.error('Failed to restore session from storage:', error);
+      // Clear corrupted data
+      try {
+        localStorage.removeItem(primaryKey);
+        if (enableBackupStorage) {
+          localStorage.removeItem(backupKey);
+        }
+      } catch (clearError) {
+        console.error('Failed to clear corrupted session:', clearError);
+      }
     }
     
     return null;
@@ -154,19 +178,81 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
 
   const saveToStorage = async (session: HealthSessionData): Promise<boolean> => {
     try {
-      const serialized = JSON.stringify(session);
+      // Check if localStorage is available
+      if (typeof window === 'undefined' || !window.localStorage) {
+        console.warn('localStorage is not available');
+        return false;
+      }
+
+      // Clean up the session data to avoid circular references
+      const cleanSession = {
+        ...session,
+        lastSavedAt: session.lastSavedAt instanceof Date ? session.lastSavedAt.toISOString() : session.lastSavedAt,
+        metadata: {
+          ...session.metadata,
+          startedAt: session.metadata.startedAt instanceof Date ? session.metadata.startedAt.toISOString() : session.metadata.startedAt
+        }
+      };
+
+      // Serialize with error handling for circular references
+      let serialized: string;
+      try {
+        serialized = JSON.stringify(cleanSession);
+      } catch (jsonError) {
+        console.error('Failed to serialize session data:', jsonError);
+        // Try with a simpler serialization
+        serialized = JSON.stringify({
+          userId: session.userId,
+          sessionId: session.sessionId,
+          responses: {},
+          currentSectionIndex: session.currentSectionIndex,
+          currentQuestionIndex: session.currentQuestionIndex,
+          progress: session.progress,
+          lastSavedAt: new Date().toISOString(),
+          metadata: {
+            startedAt: new Date().toISOString(),
+            version: session.metadata.version,
+            mode: session.metadata.mode,
+            features: [],
+            totalSections: session.metadata.totalSections
+          }
+        });
+      }
       
-      // Save to primary storage
-      localStorage.setItem(primaryKey, serialized);
-      
-      // Save to backup storage if enabled
-      if (enableBackupStorage) {
-        localStorage.setItem(backupKey, serialized);
+      // Check storage quota before saving
+      try {
+        // Save to primary storage
+        localStorage.setItem(primaryKey, serialized);
+        
+        // Save to backup storage if enabled
+        if (enableBackupStorage) {
+          try {
+            localStorage.setItem(backupKey, serialized);
+          } catch (backupError) {
+            console.warn('Failed to save backup, but primary save succeeded');
+          }
+        }
+      } catch (storageError: any) {
+        if (storageError.name === 'QuotaExceededError') {
+          console.error('localStorage quota exceeded. Clearing old sessions...');
+          // Try to clear old sessions
+          const keys = Object.keys(localStorage).filter(k => k.startsWith('health-session-') && k !== primaryKey);
+          keys.forEach(k => localStorage.removeItem(k));
+          // Retry save
+          localStorage.setItem(primaryKey, serialized);
+        } else {
+          throw storageError;
+        }
       }
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save session to storage:', error);
+      console.error('Error details:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack
+      });
       return false;
     }
   };

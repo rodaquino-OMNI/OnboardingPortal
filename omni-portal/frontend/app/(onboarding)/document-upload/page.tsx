@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth';
 import apiService from '@/services/api';
 import { EnhancedDocumentUpload } from '@/components/upload/EnhancedDocumentUpload';
 import type { OCRData, DocumentValidation } from '@/types';
@@ -34,7 +33,7 @@ interface UploadResult {
 
 export default function DocumentUploadPage() {
   const router = useRouter();
-  const { addPoints } = useAuth();
+  // Points are awarded by backend only - removed client-side awarding for security
   
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -143,25 +142,25 @@ export default function DocumentUploadPage() {
             }
           }));
           
-          // Award points immediately for each document upload (partial achievements)
-          // Backend V2 awards 25 for upload + 50 for validation = 75 total with OCR
-          // Without OCR, just 25 for upload
-          const points = result.ocrData && result.validation?.isValid ? 75 : 25;
-          addPoints(points);
+          // Points are automatically awarded by the backend:
+          // - 25 points for document upload
+          // - 50 bonus points for successful OCR validation
+          // The backend handles all gamification logic for security
+          
+          const pointsAwarded = result.ocrData && result.validation?.isValid ? 75 : 25;
+          console.log(`✨ Backend awarded ${pointsAwarded} points for document upload`);
 
-          // Check for milestone achievements
+          // Check for milestone achievements (display only - backend handles rewards)
           const currentUploads = Object.values(uploads).filter(u => u.uploaded).length + 1; // +1 for current upload
           const totalRequired = documents.filter(d => d.required).length;
           
-          // Award milestone bonuses
+          // Display milestone notifications (backend handles the actual rewards)
           if (currentUploads === Math.ceil(totalRequired / 2)) {
             // Halfway milestone
-            addPoints(50);
-            console.log('🎉 Halfway milestone reached!');
+            console.log('🎉 Halfway milestone reached! Backend will award bonus points.');
           } else if (currentUploads === totalRequired) {
             // Completion milestone
-            addPoints(100);
-            console.log('🏆 All documents completed!');
+            console.log('🏆 All documents completed! Backend will award completion bonus.');
           }
         } else {
           throw new Error(response.error?.message || 'Erro no upload');
@@ -192,7 +191,7 @@ export default function DocumentUploadPage() {
         }
       }));
     }
-  }, [addPoints]);
+  }, []);
 
   const handleEnhancedUploadProgress = useCallback((docId: string, progress: number) => {
     setUploads(prev => ({
@@ -345,11 +344,11 @@ export default function DocumentUploadPage() {
           
           {/* Enhanced Tips Section */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-            <h4 className="font-semibold text-blue-900 font-['Inter'] flex items-center gap-2 mb-4">
+            <h4 className="font-semibold text-blue-900 flex items-center gap-2 mb-4">
               <Shield className="w-5 h-5" />
               Recursos avançados de upload
             </h4>
-            <ul className="text-sm text-blue-800 space-y-2 font-['Inter']">
+            <ul className="text-sm text-blue-800 space-y-2">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
                 <strong>OCR automático:</strong> Extração de texto dos documentos
@@ -398,12 +397,12 @@ export default function DocumentUploadPage() {
                 </div>
                 <div className="flex-1">
                   {getCompletionStats().isComplete ? (
-                    <p className="text-base font-semibold text-green-800 font-['Inter']">
+                    <p className="text-base font-semibold text-green-800">
                       ✅ Todos os documentos foram enviados!
                     </p>
                   ) : (
                     <div>
-                      <p className="text-base font-semibold text-blue-800 font-['Inter']">
+                      <p className="text-base font-semibold text-blue-800">
                         📄 {getCompletionStats().completed} de {getCompletionStats().total} documentos enviados
                       </p>
                       <p className="text-sm text-blue-600 mt-1">
@@ -441,23 +440,29 @@ export default function DocumentUploadPage() {
         <Button
           variant="outline"
           onClick={handleBack}
-          className="flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl border-2 hover:bg-gray-50 transition-all font-['Inter'] group"
+          className="flex flex-col items-center gap-1 px-6 py-3 min-h-[56px] rounded-xl border-2 hover:bg-gray-50 transition-all group"
           disabled={isLoading}
         >
-          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Voltar
+          <div className="flex items-center gap-2">
+            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Voltar</span>
+          </div>
+          <span className="text-xs text-gray-500">Questionário de Saúde</span>
         </Button>
         <Button
           onClick={handleNext}
-          className="flex items-center gap-2 px-6 py-3 min-h-[44px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 font-['Inter'] group"
+          className="flex flex-col items-center gap-1 px-6 py-3 min-h-[56px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 group"
           disabled={isLoading}
         >
           {isLoading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <>
-              {getCompletionStats().isComplete ? 'Continuar' : 'Prosseguir'}
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <div className="flex items-center gap-2">
+                <span>{getCompletionStats().isComplete ? 'Continuar' : 'Prosseguir'}</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </div>
+              <span className="text-xs text-white/90">Agendar Entrevista</span>
             </>
           )}
         </Button>

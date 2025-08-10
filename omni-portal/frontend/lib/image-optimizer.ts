@@ -157,6 +157,7 @@ function handleOrientation(
 export async function validateImageQuality(file: File): Promise<{
   isValid: boolean;
   issues: string[];
+  warnings?: string[];
   suggestions: string[];
 }> {
   return new Promise((resolve) => {
@@ -167,12 +168,13 @@ export async function validateImageQuality(file: File): Promise<{
       
       img.onload = () => {
         const issues: string[] = [];
+        const warnings: string[] = [];
         const suggestions: string[] = [];
         
-        // Check resolution
-        if (img.width < 800 || img.height < 600) {
-          issues.push('Resolução muito baixa');
-          suggestions.push('Use uma imagem com pelo menos 800x600 pixels');
+        // Check resolution - treat as warning for mobile compatibility
+        if (img.width < 400 || img.height < 300) {
+          warnings.push('Resolução baixa');
+          suggestions.push('Para melhor qualidade, use uma imagem com pelo menos 800x600 pixels');
         }
         
         // Check aspect ratio for documents
@@ -190,6 +192,7 @@ export async function validateImageQuality(file: File): Promise<{
         resolve({
           isValid: issues.length === 0,
           issues,
+          warnings,
           suggestions,
         });
       };

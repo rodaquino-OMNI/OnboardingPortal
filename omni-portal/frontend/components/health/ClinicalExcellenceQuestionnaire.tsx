@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { clinicalQuestionnaireAdapter } from '@/lib/clinical-questionnaire-adapter';
 
 // Clinical Excellence Healthcare Questionnaire - Phase 1 Implementation
 // Aligned with HEALTHCARE_QUESTIONNAIRE_EXCELLENCE_STRATEGY.md
@@ -148,7 +149,7 @@ export function ClinicalExcellenceQuestionnaire({
   // State Management - Enhanced for Clinical Excellence
   const [currentQuestion, setCurrentQuestion] = useState<ClinicalQuestion | null>(null);
   const [responses, setResponses] = useState<Record<string, string | number | boolean | string[]>>({});
-  const [clinicalEngine] = useState(new ClinicalDecisionEngine());
+  // Using singleton instance from /lib/clinical-decision-engine.ts
   const [fraudDetector] = useState(new AdvancedFraudDetector());
   const [auditLogger] = useState(new AuditLogger(sessionId || ''));
   
@@ -191,7 +192,7 @@ export function ClinicalExcellenceQuestionnaire({
     auditLogger.log('assessment_started', { userId, sessionId });
     
     // Start with rapid triage (30-second target)
-    const triageQuestion = clinicalEngine.getTriageQuestion();
+    const triageQuestion = clinicalQuestionnaireAdapter.getTriageQuestion();
     setCurrentQuestion(triageQuestion);
     setAssessmentMetrics(prev => ({ ...prev, totalQuestions: 1 }));
   };
@@ -214,7 +215,7 @@ export function ClinicalExcellenceQuestionnaire({
       });
 
       // Real-time clinical analysis
-      const clinicalAnalysis = await clinicalEngine.analyzeResponse(
+      const clinicalAnalysis = await clinicalQuestionnaireAdapter.analyzeResponse(
         currentQuestion.id, 
         value, 
         newResponses
@@ -250,7 +251,7 @@ export function ClinicalExcellenceQuestionnaire({
       }
 
       // Intelligent next question selection
-      const nextQuestion = await clinicalEngine.selectNextQuestion(
+      const nextQuestion = await clinicalQuestionnaireAdapter.selectNextQuestion(
         newResponses,
         clinicalAnalysis,
         progressiveStage
@@ -315,7 +316,7 @@ export function ClinicalExcellenceQuestionnaire({
           await completeAssessment(currentResponses, { stage: 'triage_complete' });
         } else {
           setProgressiveStage('targeted');
-          const targetedQuestion = clinicalEngine.getTargetedQuestion(analysis);
+          const targetedQuestion = clinicalQuestionnaireAdapter.getTargetedQuestion(analysis);
           setCurrentQuestion(targetedQuestion);
         }
         break;
@@ -325,7 +326,7 @@ export function ClinicalExcellenceQuestionnaire({
           await completeAssessment(currentResponses, { stage: 'targeted_complete' });
         } else {
           setProgressiveStage('specialized');
-          const specializedQuestion = clinicalEngine.getSpecializedQuestion(analysis);
+          const specializedQuestion = clinicalQuestionnaireAdapter.getSpecializedQuestion(analysis);
           setCurrentQuestion(specializedQuestion);
         }
         break;
@@ -364,7 +365,7 @@ export function ClinicalExcellenceQuestionnaire({
     });
 
     // Generate comprehensive clinical results
-    const finalAnalysis = await clinicalEngine.generateFinalAnalysis(finalResponses);
+    const finalAnalysis = await clinicalQuestionnaireAdapter.generateFinalAnalysis(finalResponses);
     const finalFraudAnalysis = await fraudDetector.generateFinalReport();
 
     const results: ClinicalAssessmentResults = {
@@ -649,106 +650,6 @@ export function ClinicalExcellenceQuestionnaire({
   );
 }
 
-// Clinical Decision Engine - Core Intelligence
-class ClinicalDecisionEngine {
-  private currentAnalysis: Partial<ClinicalAssessmentResults> = {};
-
-  getTriageQuestion(): ClinicalQuestion {
-    return {
-      id: 'triage_wellbeing',
-      text: 'Como você avaliaria seu bem-estar geral hoje?',
-      type: 'emergency_scale',
-      clinicalInstrument: 'Triagem Rápida',
-      evidenceLevel: 'A',
-      criticalForSafety: true,
-      clinicalRationale: 'Avaliação inicial de bem-estar para estratificação de risco',
-      options: [{ emoji: '📊' }]
-    };
-  }
-
-  async analyzeResponse(questionId: string, value: string | number | boolean | string[], _allResponses: Record<string, string | number | boolean | string[]>): Promise<Partial<ClinicalAssessmentResults> & { emergencyDetected: boolean; emergencyProtocol?: EmergencyProtocol }> {
-    // Simulated clinical analysis - in production would use actual algorithms
-    const numericValue = typeof value === 'number' ? value : 0;
-    const analysis = {
-      scores: {
-        overallSeverity: numericValue <= 3 ? 'severe' as const : numericValue <= 5 ? 'moderate' as const : numericValue <= 7 ? 'mild' as const : 'minimal' as const
-      },
-      riskStratification: {
-        level: numericValue <= 2 ? 'critical' as const : numericValue <= 4 ? 'high' as const : numericValue <= 6 ? 'moderate' as const : 'low' as const,
-        confidenceScore: 85,
-        primaryConcerns: numericValue <= 4 ? ['mental_health', 'general_distress'] : [],
-        timeToIntervention: numericValue <= 2 ? 1 : numericValue <= 4 ? 24 : 0,
-        escalationRequired: numericValue <= 2
-      },
-      emergencyDetected: numericValue <= 1,
-      emergencyProtocol: numericValue <= 1 ? {
-        severity: 'critical' as const,
-        immediateActions: ['Contato imediato com profissional de saúde mental'],
-        contactInformation: [{
-          type: 'crisis_line' as const,
-          name: 'CVV - Centro de Valorização da Vida',
-          phone: '188',
-          available24h: true
-        }],
-        followUpRequired: true,
-        estimatedTimeToSafety: 15,
-        safetyPlan: [
-          'Mantenha-se em um ambiente seguro',
-          'Entre em contato com alguém de confiança',
-          'Ligue para o número de emergência se necessário',
-          'Lembre-se: este sentimento vai passar'
-        ]
-      } : undefined
-    };
-
-    this.currentAnalysis = analysis;
-    return analysis;
-  }
-
-  async selectNextQuestion(responses: Record<string, string | number | boolean | string[]>, analysis: Partial<ClinicalAssessmentResults>, stage: string) {
-    // Simplified next question logic
-    if (stage === 'triage' && analysis.riskStratification.level !== 'low') {
-      return {
-        id: 'targeted_depression',
-        text: 'Nas últimas 2 semanas, você se sentiu triste, deprimido ou sem esperança?',
-        type: 'clinical_select',
-        clinicalInstrument: 'PHQ-2',
-        evidenceLevel: 'A',
-        options: [
-          { value: 0, label: 'Nunca', clinicalCode: 'PHQ-0' },
-          { value: 1, label: 'Vários dias', clinicalCode: 'PHQ-1' },
-          { value: 2, label: 'Mais da metade dos dias', clinicalCode: 'PHQ-2' },
-          { value: 3, label: 'Quase todos os dias', clinicalCode: 'PHQ-3' }
-        ]
-      };
-    }
-    
-    return null; // End of questions
-  }
-
-  getTargetedQuestion(analysis: Partial<ClinicalAssessmentResults>): ClinicalQuestion {
-    return this.selectNextQuestion({}, analysis, 'targeted');
-  }
-
-  getSpecializedQuestion(analysis: Partial<ClinicalAssessmentResults>): ClinicalQuestion {
-    return this.selectNextQuestion({}, analysis, 'specialized');
-  }
-
-  async generateFinalAnalysis(responses: Record<string, any>) {
-    return {
-      icd10Codes: ['Z71.1'], // Counseling and medical advice
-      recommendations: [{
-        category: 'routine' as const,
-        action: 'Acompanhamento com profissional de saúde mental',
-        rationale: 'Baseado nos sinais de angústia identificados',
-        evidenceLevel: 'A' as const,
-        timeframe: '1-2 semanas',
-        priority: 7
-      }],
-      accuracyScore: 92
-    };
-  }
-}
 
 // Advanced Fraud Detection Engine
 class AdvancedFraudDetector {

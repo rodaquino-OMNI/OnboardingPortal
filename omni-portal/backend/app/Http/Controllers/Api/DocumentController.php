@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Services\OCRService;
 use App\Services\OptimizedTextractService;
+use App\Services\SecureFileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -77,36 +78,55 @@ class DocumentController extends Controller
 
         try {
             $file = $request->file('file');
-            $filename = $this->generateSecureFilename($file, $beneficiary->id);
             
-            // Create storage directory if not exists
-            $storagePath = storage_path("app/documents/{$beneficiary->id}");
-            if (!file_exists($storagePath)) {
-                mkdir($storagePath, 0755, true);
+            // Use secure file upload service
+            $uploadService = new SecureFileUploadService();
+            
+            try {
+                $fileData = $uploadService->validateAndProcess(
+                    $file,
+                    $request->type,
+                    $beneficiary->id
+                );
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File validation failed: ' . $e->getMessage()
+                ], 422);
             }
             
-            // Move uploaded file to storage
-            $path = "documents/{$beneficiary->id}/{$filename}";
-            $file->move($storagePath, $filename);
+            // Additional antivirus scan if available
+            if (!$uploadService->scanWithAntivirus(storage_path('app/' . $fileData['path']))) {
+                // Delete the file immediately
+                Storage::delete($fileData['path']);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File failed security scan. Please ensure the file is safe and try again.'
+                ], 422);
+            }
 
-            // Create document record
+            // Create document record with secure file data
             $document = Document::create([
                 'beneficiary_id' => $beneficiary->id,
                 'uploaded_by' => Auth::id(),
                 'document_type' => $request->type,
                 'document_category' => $this->getDocumentCategory($request->type),
                 'original_name' => $file->getClientOriginalName(),
-                'stored_name' => $filename,
-                'file_path' => $path,
-                'mime_type' => $file->getMimeType(),
-                'file_size' => $file->getSize(),
-                'file_extension' => $file->getClientOriginalExtension(),
+                'stored_name' => $fileData['filename'],
+                'file_path' => $fileData['path'],
+                'mime_type' => $fileData['mime_type'],
+                'file_size' => $fileData['size'],
+                'file_extension' => $fileData['extension'],
+                'file_hash' => $fileData['hash'],
                 'status' => 'pending',
                 'is_encrypted' => false,
                 'metadata' => [
                     'description' => $request->description,
                     'upload_ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
+                    'security_validated' => true,
+                    'validation_timestamp' => now()->toIso8601String(),
                 ]
             ]);
 

@@ -14,6 +14,7 @@ import {
   BellIcon,
   XMarkIcon,
   Bars3Icon,
+  HeartIcon,
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -21,6 +22,8 @@ const navigation = [
   { name: 'Usuários', href: '/admin/users', icon: UsersIcon, permission: 'view_users' },
   { name: 'Documentos', href: '/admin/documents', icon: DocumentTextIcon, permission: 'view_all_documents' },
   { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon, permission: 'view_analytics' },
+  { name: 'Riscos de Saúde', href: '/admin/health-risks', icon: HeartIcon, permission: 'view_health_risks' },
+  { name: 'Health Intelligence', href: '/admin/health-risks/intelligence', icon: ChartBarIcon, permission: 'view_health_risks' },
   { name: 'Configurações', href: '/admin/settings', icon: CogIcon, permission: 'manage_system_settings' },
   { name: 'Segurança', href: '/admin/security', icon: ShieldCheckIcon, permission: 'view_security_logs' },
   { name: 'Notificações', href: '/admin/notifications', icon: BellIcon, permission: 'send_notifications' },

@@ -1,7 +1,7 @@
 import { Worker, RecognizeResult, createScheduler, Scheduler } from 'tesseract.js';
 import { createTesseractWorker } from './tesseract-runtime-loader';
 import { OCRWorkerManager } from './web-worker-ocr';
-import { compressImage } from './image-optimizer';
+import { compressImage, validateImageQuality } from './image-optimizer';
 import type { OCRResult, OCRBlock, BoundingBox, ExtractedDocumentData, DocumentValidation } from '@/types/ocr';
 import { makeCancellable, type CancellableRequest } from './async-utils';
 
@@ -122,6 +122,12 @@ export class OCRService {
       }
 
       try {
+        // Validate and optimize image before processing
+        const qualityCheck = await validateImageQuality(file);
+        if (!qualityCheck.isValid) {
+          throw new Error(`Image quality issues: ${qualityCheck.issues.join(', ')}`);
+        }
+
         // Compress image before OCR with cancellation support
         const compressedFile = await compressImage(file, {
           maxWidth: 1920,
@@ -171,7 +177,18 @@ export class OCRService {
           throw new Error('OCR recognition was cancelled');
         }
         console.error('OCR recognition failed:', error);
-        throw new Error('Failed to process document');
+        if (error instanceof Error) {
+          if (error.message.includes('Could not process image')) {
+            throw new Error('Invalid image format or corrupted file. Please try a different image.');
+          }
+          if (error.message.includes('Image quality')) {
+            throw error; // Re-throw quality errors as-is
+          }
+          if (error.message.includes('network') || error.message.includes('fetch')) {
+            throw new Error('Network error while loading OCR resources. Please check your internet connection.');
+          }
+        }
+        throw new Error('Could not process image. Please try again with a clearer image.');
       }
     }, { timeout: 30000 }); // 30-second timeout
 

@@ -31,7 +31,7 @@ return [
     |
     */
 
-    'lifetime' => env('SESSION_LIFETIME', 120),
+    'lifetime' => env('SESSION_LIFETIME', 60),
 
     'expire_on_close' => false,
 
@@ -46,7 +46,7 @@ return [
     |
     */
 
-    'encrypt' => false,
+    'encrypt' => env('SESSION_ENCRYPT', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -168,7 +168,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -196,6 +196,22 @@ return [
     |
     */
 
-    'same_site' => 'lax',
+    'same_site' => env('SESSION_SAME_SITE', 'strict'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Enhanced Session Security
+    |--------------------------------------------------------------------------
+    |
+    | These options provide additional security features for session management
+    | including fingerprinting, IP validation, and automatic rotation.
+    |
+    */
+
+    'fingerprinting' => env('SESSION_FINGERPRINTING', true),
+    'rotate_sensitive' => env('SESSION_ROTATE_SENSITIVE', true),
+    'validate_ip' => env('SESSION_VALIDATE_IP', true),
+    'validate_user_agent' => env('SESSION_VALIDATE_USER_AGENT', true),
+    'inactive_timeout' => env('SESSION_INACTIVE_TIMEOUT', 60),
 
 ];

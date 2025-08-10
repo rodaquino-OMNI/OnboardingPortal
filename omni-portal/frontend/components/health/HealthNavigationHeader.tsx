@@ -50,11 +50,15 @@ export function HealthNavigationHeader({
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleHomeClick = () => {
+    console.log('Dashboard button clicked, progress:', progress);
     // If progress is significant, show confirmation dialog
     if (progress > 10) {
+      console.log('Showing exit dialog');
       setShowExitDialog(true);
     } else {
-      router.push('/home');
+      console.log('Navigating to /home');
+      // Force client-side navigation
+      window.location.href = '/home';
     }
   };
 
@@ -69,7 +73,7 @@ export function HealthNavigationHeader({
           // Show success message briefly then navigate
           setShowSaveDialog(true);
           setTimeout(() => {
-            router.push('/home');
+            window.location.href = '/home';
           }, 1500);
         } else {
           setSaveError('Não foi possível salvar o progresso. Tente novamente.');
@@ -80,12 +84,12 @@ export function HealthNavigationHeader({
         setIsSaving(false);
       }
     } else {
-      router.push('/home');
+      window.location.href = '/home';
     }
   };
 
   const handleExitWithoutSaving = () => {
-    router.push('/home');
+    window.location.href = '/home';
   };
 
   const handleQuickSave = async () => {

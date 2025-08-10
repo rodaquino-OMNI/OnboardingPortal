@@ -538,13 +538,122 @@ class AdminController extends Controller
     {
         $permissions = [];
         
-        foreach ($user->adminRoles as $role) {
-            foreach ($role->adminPermissions as $permission) {
-                $permissions[] = $permission->identifier;
+        // SAFE: Use our new safe method that checks table existence
+        if (method_exists($user, 'getAllRoles')) {
+            // Get roles from both Spatie and custom admin systems
+            $roles = $user->getAllRoles();
+            
+            // For now, convert role names to basic permissions
+            // This maintains compatibility while the custom system is being developed
+            foreach ($roles as $roleName) {
+                $permissions = array_merge($permissions, $this->getRolePermissions($roleName));
+            }
+        } else {
+            // Fallback: try to use adminRoles relationship safely
+            try {
+                if (\Schema::hasTable('admin_user_roles') && $user->adminRoles) {
+                    foreach ($user->adminRoles as $role) {
+                        if ($role->adminPermissions) {
+                            foreach ($role->adminPermissions as $permission) {
+                                $permissions[] = $permission->identifier;
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silent fail to maintain compatibility
+                // Log the error for debugging but don't break the response
+                \Log::warning('AdminController: Could not load adminRoles permissions', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
             }
         }
         
         return array_unique($permissions);
+    }
+
+    /**
+     * Get basic permissions for a role name (Spatie compatibility)
+     */
+    private function getRolePermissions(string $roleName): array
+    {
+        return match($roleName) {
+            'super-admin' => [
+                'dashboard.view', 'users.view', 'users.edit', 'users.delete',
+                'roles.view', 'roles.edit', 'analytics.view', 'system.manage',
+                'security.view', 'export.data'
+            ],
+            'admin' => [
+                'dashboard.view', 'users.view', 'users.edit', 'roles.view',
+                'analytics.view', 'security.view'
+            ],
+            'manager' => [
+                'dashboard.view', 'users.view', 'analytics.view'
+            ],
+            'hr' => [
+                'dashboard.view', 'users.view', 'users.edit'
+            ],
+            'moderator' => [
+                'dashboard.view', 'users.view'
+            ],
+            default => ['dashboard.view']
+        };
+    }
+
+    /**
+     * Get user role hierarchy (safe implementation)
+     */
+    private function getUserRoleHierarchy(User $user): array
+    {
+        $hierarchy = [];
+        
+        try {
+            // Check Spatie roles first (working system)
+            if ($user->roles) {
+                foreach ($user->roles as $role) {
+                    $hierarchy[] = [
+                        'name' => $role->name,
+                        'source' => 'spatie',
+                        'level' => $this->getRoleHierarchyLevel($role->name)
+                    ];
+                }
+            }
+            
+            // Check custom admin roles if available
+            if (\Schema::hasTable('admin_user_roles') && method_exists($user, 'adminRoles')) {
+                foreach ($user->adminRoles as $role) {
+                    $hierarchy[] = [
+                        'name' => $role->name,
+                        'source' => 'custom',
+                        'level' => $role->hierarchy_level ?? 0
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            // Silent fail to maintain compatibility
+            \Log::warning('AdminController: Could not load role hierarchy', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        return $hierarchy;
+    }
+
+    /**
+     * Get hierarchy level for Spatie role names
+     */
+    private function getRoleHierarchyLevel(string $roleName): int
+    {
+        return match($roleName) {
+            'super-admin' => 100,
+            'admin' => 80,
+            'manager' => 60,
+            'hr' => 60,
+            'moderator' => 40,
+            default => 10
+        };
     }
 
     private function logAction(string $action, string $resource, ?int $resourceId = null, array $data = [], string $riskLevel = 'low'): void

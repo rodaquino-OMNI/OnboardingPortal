@@ -15,24 +15,41 @@ export function middleware(request: NextRequest) {
   }
 
   // Enhanced auth check for protected routes
+  // Check multiple possible cookie names
   const authCookie = request.cookies.get('auth_token');
   const sessionCookie = request.cookies.get('omni_onboarding_portal_session');
+  const laravelSession = request.cookies.get('austa_health_portal_session');
+  const sanctumToken = request.cookies.get('XSRF-TOKEN');
+  const authenticatedCookie = request.cookies.get('authenticated');
   const pathname = request.nextUrl.pathname;
+  
+  // Check authentication - any of these cookies indicate authentication
+  const isAuthenticated = !!(authCookie || sessionCookie || laravelSession || sanctumToken || authenticatedCookie);
+  
+  // Debug logging to see what cookies are available - RATE LIMITED to prevent spam
+  const debugKey = `middleware_debug_${pathname}`;
+  const now = Date.now();
+  const lastLog = global[debugKey as any] || 0;
+  
+  if ((pathname === '/home' || pathname === '/login') && (now - lastLog > 5000)) { // Only log once every 5 seconds
+    global[debugKey as any] = now;
+    console.log(`[MIDDLEWARE] Checking cookies for ${pathname}:`, {
+      authCookie: authCookie?.value?.substring(0, 20) + '...' || 'none',
+      sessionCookie: !!sessionCookie,
+      laravelSession: !!laravelSession,
+      sanctumToken: !!sanctumToken,
+      authenticatedCookie: !!authenticatedCookie,
+      allCookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value.substring(0, 20) + '...' })),
+      isAuthenticated
+    });
+  }
 
   // Public routes that don't require authentication
   const publicRoutes = [
-    '/',
     '/login',
     '/register',
     '/forgot-password',
     '/callback',
-    '/welcome',
-    '/company-info',
-    '/health-questionnaire',
-    '/document-upload',
-    '/interview-schedule',
-    '/telemedicine-schedule',
-    '/completion',
     '/api',
     '/_next',
     '/favicon.ico',
@@ -42,14 +59,40 @@ export function middleware(request: NextRequest) {
     '/tesseract'
   ];
 
+  // Onboarding routes (temporarily public for testing)
+  const onboardingRoutes = [
+    '/welcome',
+    '/company-info',
+    '/health-questionnaire',
+    '/document-upload',
+    '/interview-schedule',
+    '/telemedicine-schedule',
+    '/completion',
+    '/home' // TEMPORARY: Make home public to prevent redirect loop
+  ];
+
   // Check if the current path is public
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  
-  // Check authentication - either auth_token OR session cookie should be present
-  const isAuthenticated = !!(authCookie || sessionCookie);
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) ||
+                        onboardingRoutes.some(route => pathname.startsWith(route)) ||
+                        pathname === '/';
 
   // If it's a protected route and user is not authenticated, redirect to login
   if (!isPublicRoute && !isAuthenticated) {
+    // Prevent redirect loop - check if we're already being redirected
+    const referer = request.headers.get('referer');
+    if (referer && referer.includes('/login')) {
+      console.log('Preventing redirect loop - already coming from login');
+      return NextResponse.next();
+    }
+    
+    console.log('Redirecting to login - no auth cookies found for:', pathname, {
+      authCookie: !!authCookie,
+      sessionCookie: !!sessionCookie,
+      laravelSession: !!laravelSession,
+      sanctumToken: !!sanctumToken,
+      authenticatedCookie: !!authenticatedCookie,
+      allCookies: request.cookies.getAll().map(c => c.name)
+    });
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);

@@ -230,8 +230,8 @@ class VideoSecurityMiddleware
         }
 
         // Increment with expiration
-        Cache::increment($key);
-        Cache::expire($key, $limit['window']);
+        $newCount = Cache::increment($key);
+        Cache::put($key, $newCount, $limit['window']);
         
         return true;
     }

@@ -203,7 +203,7 @@ export function IntelligentPathwayRouter({
               ai: true,
               gamification: true,
               progressive: true,
-              accessibility: true
+              accessibility: false
             }}
           />
         );
@@ -217,7 +217,7 @@ export function IntelligentPathwayRouter({
             features={{
               clinical: true,
               progressive: true,
-              accessibility: true,
+              accessibility: false,
               gamification: false
             }}
           />
@@ -538,7 +538,7 @@ function HybridPathwayComponent({ onComplete, userId, pathwayDecision }: HybridP
             ai: true,
             gamification: true,
             progressive: true,
-            accessibility: true
+            accessibility: false
           }}
         />
       </div>
@@ -560,7 +560,7 @@ function HybridPathwayComponent({ onComplete, userId, pathwayDecision }: HybridP
         features={{
           clinical: true,
           progressive: true,
-          accessibility: true,
+          accessibility: false,
           gamification: false
         }}
       />

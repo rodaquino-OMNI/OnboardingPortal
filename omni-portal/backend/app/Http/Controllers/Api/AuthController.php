@@ -31,12 +31,20 @@ class AuthController extends Controller
             ]);
         }
         
-        // Get credentials
+        // Get credentials with field validation
         $credentials = $request->getCredentials();
         $field = $request->getLoginField();
         
-        // Find user
-        $user = User::where($field, $credentials[$field])->first();
+        // Whitelist allowed fields to prevent SQL injection
+        $allowedFields = ['email', 'cpf'];
+        if (!in_array($field, $allowedFields, true)) {
+            throw ValidationException::withMessages([
+                'email' => ['Campo de login inválido.'],
+            ]);
+        }
+        
+        // Use parameterized query with field whitelisting
+        $user = User::where($field, '=', $credentials[$field])->first();
         
         if (!$user || !Hash::check($credentials['password'], $user->password)) {
             RateLimiter::hit($throttleKey, 60);
@@ -101,7 +109,7 @@ class AuthController extends Controller
             $token,
             config('sanctum.expiration', 525600), // 1 year default
             '/',
-            null,
+            'localhost', // Set domain to localhost to share between ports
             config('session.secure', false), // Use config for secure flag
             true, // httpOnly
             false, // raw (don't encode)
@@ -129,7 +137,7 @@ class AuthController extends Controller
             '',
             -1, // Expire immediately
             '/',
-            null,
+            'localhost', // Same domain as login
             config('session.secure', false), // Use same config as login
             true, // httpOnly
             false,
@@ -157,7 +165,7 @@ class AuthController extends Controller
             '',
             -1, // Expire immediately
             '/',
-            null,
+            'localhost', // Same domain as login
             config('session.secure', false), // Use same config as login
             true, // httpOnly
             false,

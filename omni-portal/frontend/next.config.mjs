@@ -1,5 +1,3 @@
-import withPWA from '@ducanh2912/next-pwa';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -12,22 +10,21 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   experimental: {
-    // typedRoutes: true, // Temporarily disabled for build
-    // optimizeCss removed - fixing critters/util._extend issue
     serverComponentsExternalPackages: ['mysql2'],
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  
+  // Optimize font loading
+  optimizeFonts: true,
   eslint: {
-    // Build-time linting is now enabled to catch errors early
-    // This ensures code quality standards are met before deployment
-    // ignoreDuringBuilds: true, // REMOVED: We want to fix all lint errors
+    // Re-enabled ESLint checking after fixing critical errors
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    // TypeScript type checking is now enforced during builds
-    // This prevents runtime errors and ensures type safety
-    // ignoreBuildErrors: true, // REMOVED: We want to fix all type errors
+    // Re-enabled TypeScript checking after fixing runtime issues
+    ignoreBuildErrors: false,
   },
   // Production optimizations
   poweredByHeader: false,
@@ -35,8 +32,8 @@ const nextConfig = {
   generateEtags: true,
   
   // Bundle analyzer and webpack optimizations
-  webpack: (config, { isServer }) => {
-    // Fix webpack module resolution for @hookform packages
+  webpack: (config, { isServer, webpack }) => {
+    // Fix webpack module resolution
     config.resolve = {
       ...config.resolve,
       fallback: {
@@ -55,41 +52,6 @@ const nextConfig = {
         filename: 'static/tesseract/[name][ext]'
       }
     });
-
-    // CRITICAL FIX: Optimized chunk splitting for stability
-    if (!isServer) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: 'all',
-          minSize: 20000,
-          maxSize: 1000000, // 1MB - prevents too many small chunks
-          cacheGroups: {
-            vendor: {
-              name(module) {
-                // Generate stable chunk names
-                const packageName = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)?.[1];
-                return packageName ? `vendor-${packageName.replace('@', '').replace('/', '-')}` : 'vendor';
-              },
-              test: /[\\/]node_modules[\\/]/,
-              priority: 10,
-              reuseExistingChunk: true,
-            },
-            common: {
-              name: 'common',
-              minChunks: 2,
-              priority: 5,
-              reuseExistingChunk: true,
-            },
-            default: {
-              minChunks: 2,
-              priority: -20,
-              reuseExistingChunk: true,
-            }
-          }
-        }
-      };
-    }
 
     return config;
   },
@@ -131,34 +93,5 @@ const nextConfig = {
   },
 };
 
-// Only enable PWA in production to prevent development issues
-const withPWAConfig = process.env.NODE_ENV === 'production' 
-  ? withPWA({
-      dest: 'public',
-      register: true,
-      skipWaiting: true,
-      disable: false,
-      buildExcludes: [/middleware-manifest\.json$/],
-      workboxOptions: {
-        runtimeCaching: [
-          {
-            urlPattern: /^https?.*/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'https-calls',
-              networkTimeoutSeconds: 15,
-              expiration: {
-                maxEntries: 150,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
-      },
-    })
-  : (config) => config; // In development, just return config without PWA
-
-export default withPWAConfig(nextConfig);
+// PWA has been completely removed to fix service worker conflicts
+export default nextConfig;

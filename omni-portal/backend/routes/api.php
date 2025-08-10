@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\RegisterController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\GamificationController;
+use App\Http\Controllers\Api\GamificationPublicController;
 use App\Http\Controllers\Api\LGPDController;
 use App\Http\Controllers\Api\HealthQuestionnaireController;
 use App\Http\Controllers\Api\DocumentController;
@@ -29,10 +30,28 @@ use App\Http\Controllers\Api\TelemedicineSchedulingController;
 |
 */
 
+// Base API route - returns API information
+Route::get('/', [App\Http\Controllers\Api\ApiInfoController::class, 'index']);
+
 // Health check and monitoring endpoints
-Route::get('/health', [App\Http\Controllers\Api\MetricsController::class, 'health']);
+Route::get('/health', [App\Http\Controllers\Api\ApiInfoController::class, 'health']);
 Route::get('/status', [App\Http\Controllers\Api\MetricsController::class, 'status']);
 Route::get('/metrics', [App\Http\Controllers\Api\MetricsController::class, 'metrics']);
+
+// Public configuration endpoint (no auth required)
+Route::get('/config/public', [App\Http\Controllers\Api\ConfigController::class, 'getPublicConfig']);
+
+// Public Gamification Routes (for initial page load without auth)
+Route::prefix('gamification/public')->group(function () {
+    Route::get('/levels', [GamificationPublicController::class, 'getLevels']);
+    Route::get('/progress', [GamificationPublicController::class, 'getDefaultProgress']);
+    Route::get('/badges', [GamificationPublicController::class, 'getDefaultBadges']);
+    Route::get('/leaderboard', [GamificationPublicController::class, 'getDefaultLeaderboard']);
+    Route::get('/activity-feed', [GamificationPublicController::class, 'getDefaultActivityFeed']);
+    Route::get('/dashboard', [GamificationPublicController::class, 'getDefaultDashboard']);
+    Route::get('/achievements', [GamificationPublicController::class, 'getDefaultAchievements']);
+    Route::get('/stats', [GamificationPublicController::class, 'getDefaultStats']);
+});
 
 // Public authentication routes
 Route::prefix('auth')->group(function () {
@@ -57,14 +76,17 @@ Route::prefix('auth')->group(function () {
         ->where('provider', 'google|facebook|instagram');
 });
 
-// Registration routes - Multi-step process
+// Registration routes - Multi-step process with state validation
 Route::prefix('register')->group(function () {
-    Route::post('/step1', [RegisterController::class, 'step1']);
+    Route::post('/step1', [RegisterController::class, 'step1'])
+        ->middleware('registration.state:personal');
     
     // Protected registration routes (require partial authentication)
     Route::middleware(['auth:sanctum'])->group(function () {
-        Route::post('/step2', [RegisterController::class, 'step2']);
-        Route::post('/step3', [RegisterController::class, 'step3']);
+        Route::post('/step2', [RegisterController::class, 'step2'])
+            ->middleware('registration.state:contact');
+        Route::post('/step3', [RegisterController::class, 'step3'])
+            ->middleware('registration.state:security');
         Route::get('/progress', [RegisterController::class, 'progress']);
         Route::get('/validate-profile', [RegisterController::class, 'validateProfileCompletion']);
         Route::delete('/cancel', [RegisterController::class, 'cancel']);
@@ -76,6 +98,9 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
     
     // Legacy user endpoint for backward compatibility
     Route::get('/user', [AuthController::class, 'user']);
+    
+    // User-specific configuration
+    Route::get('/config/user', [App\Http\Controllers\Api\ConfigController::class, 'getUserConfig']);
     
     // Profile management
     Route::prefix('profile')->group(function () {
@@ -137,11 +162,26 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
         Route::get('/dashboard', [GamificationController::class, 'getDashboard']);
     });
     
+    // Rewards System
+    Route::prefix('rewards')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\RewardController::class, 'index']);
+        Route::get('/history', [App\Http\Controllers\Api\RewardController::class, 'history']);
+        Route::get('/{id}', [App\Http\Controllers\Api\RewardController::class, 'show']);
+        Route::post('/{id}/claim', [App\Http\Controllers\Api\RewardController::class, 'claim']);
+        Route::post('/{id}/redeem', [App\Http\Controllers\Api\RewardController::class, 'redeem']);
+    });
+    
     // Enhanced document upload routes (V2)
     Route::prefix('v2/documents')->group(function () {
         Route::post('/upload', [DocumentControllerV2::class, 'upload']);
         Route::get('/{id}/ocr-status', [DocumentControllerV2::class, 'getOCRStatus']);
         Route::post('/{id}/process-ocr', [DocumentControllerV2::class, 'processOCRFallback']);
+    });
+
+    // Image Processing API routes - NEW
+    Route::prefix('image-processing')->group(function () {
+        Route::post('/process', [App\Http\Controllers\Api\ImageProcessingController::class, 'processImage']);
+        Route::get('/status/{processingId}', [App\Http\Controllers\Api\ImageProcessingController::class, 'getProcessingStatus']);
     });
 
     // Optimized document processing routes (V3)
@@ -333,6 +373,28 @@ Route::middleware(['auth:sanctum', 'admin.access'])->prefix('admin')->group(func
         Route::get('/leaderboards', [App\Http\Controllers\Api\AdminController::class, 'leaderboardManagement']);
     });
     
+    // Clinical Health Risk Management
+    Route::prefix('health-risks')->group(function () {
+        // ML Predictions endpoints
+        Route::get('/predictions/{beneficiaryId}', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getPredictions']);
+        Route::get('/similar-patients/{beneficiaryId}', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getSimilarPatients']);
+        Route::post('/generate-interventions', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'generateInterventions']);
+        Route::post('/train-models', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'trainModels']);
+        
+        Route::get('/dashboard', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'dashboard']);
+        Route::get('/alerts', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getAlerts']);
+        Route::get('/alerts/{id}', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getAlert']);
+        Route::post('/alerts/{id}/acknowledge', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'acknowledgeAlert']);
+        Route::post('/alerts/{id}/intervention', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'createIntervention']);
+        Route::post('/alerts/{id}/resolve', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'resolveAlert']);
+        Route::get('/alerts/{id}/workflow', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getAlertWorkflow']);
+        Route::get('/reports', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getReports']);
+        Route::post('/reports/generate', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'generateReport']);
+        Route::get('/reports/{id}/download', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'downloadReport']);
+        Route::get('/population-analytics', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getPopulationAnalytics']);
+        Route::post('/process', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'processRisks']);
+    });
+    
     // Company Management
     Route::prefix('companies')->group(function () {
         Route::get('/', [App\Http\Controllers\Api\AdminController::class, 'companies']);
@@ -342,4 +404,27 @@ Route::middleware(['auth:sanctum', 'admin.access'])->prefix('admin')->group(func
         Route::get('/{company}/users', [App\Http\Controllers\Api\AdminController::class, 'companyUsers']);
         Route::get('/{company}/analytics', [App\Http\Controllers\Api\AdminController::class, 'companyAnalytics']);
     });
+});
+
+// External Health Intelligence API (v1) - OAuth2 Protected
+// These endpoints are for external health plan integrations
+Route::prefix('v1/health-intelligence')->middleware(['auth:api', 'throttle:100,1'])->group(function () {
+    // Population health metrics
+    Route::get('/population-metrics', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'getPopulationMetrics']);
+    
+    // Risk profiles with filtering
+    Route::get('/risk-profiles', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'getRiskProfiles']);
+    
+    // Predictive analytics
+    Route::get('/predictive-analytics', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'getPredictiveAnalytics']);
+    
+    // Intervention effectiveness
+    Route::get('/intervention-effectiveness', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'getInterventionEffectiveness']);
+    
+    // Executive summary reports
+    Route::get('/executive-summary', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'getExecutiveSummary']);
+    
+    // Webhook management
+    Route::post('/webhooks/critical-alerts', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'registerCriticalAlertWebhook']);
+    Route::post('/alerts/notify', [App\Http\Controllers\Api\V1\HealthIntelligenceController::class, 'notifyAlert']);
 });

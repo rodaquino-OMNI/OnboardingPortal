@@ -604,14 +604,33 @@ export function BaseHealthQuestionnaire({
     >
       <QuestionnaireProvider config={config} onComplete={onComplete}>
         <div className="health-questionnaire">
+          {/* Debug: Log features being rendered */}
+          {console.log('[BaseHealthQuestionnaire] Rendering features:', config.features.map(f => ({ 
+            id: f.id, 
+            name: f.name, 
+            enabled: f.enabled, 
+            hasComponent: !!f.component 
+          })))}
+          
           {/* Feature components will be rendered here */}
           {config.features
             .filter(f => f.enabled && f.component)
             .sort((a, b) => b.priority - a.priority)
             .map(feature => {
+              console.log(`[BaseHealthQuestionnaire] Rendering feature: ${feature.name}`);
               const Component = feature.component!;
               return <Component key={feature.id} {...feature.config} onProgressUpdate={onProgressUpdate} />;
             })}
+            
+          {/* Fallback if no features render */}
+          {config.features.filter(f => f.enabled && f.component).length === 0 && (
+            <div className="p-6 text-center">
+              <p className="text-red-600">Erro: Nenhum componente de questionário foi carregado.</p>
+              <p className="text-sm text-gray-600 mt-2">Features disponíveis: {config.features.length}</p>
+              <p className="text-sm text-gray-600">Features habilitadas: {config.features.filter(f => f.enabled).length}</p>
+              <p className="text-sm text-gray-600">Features com componente: {config.features.filter(f => f.component).length}</p>
+            </div>
+          )}
         </div>
       </QuestionnaireProvider>
     </HealthQuestionnaireErrorBoundary>

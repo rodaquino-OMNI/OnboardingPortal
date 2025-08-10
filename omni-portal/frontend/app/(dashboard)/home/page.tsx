@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
+import { GAMIFICATION_POINTS } from '@/lib/constants/gamification';
 import { ProgressCard } from '@/components/gamification/ProgressCard';
 import { BadgeDisplay } from '@/components/gamification/BadgeDisplay';
 import { Leaderboard } from '@/components/gamification/Leaderboard';
@@ -26,16 +27,32 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { 
     dashboardSummary, 
     fetchAll 
   } = useGamification();
+  
+  // Track if we've already fetched to prevent duplicate calls
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    // Fetch all gamification data when dashboard loads
-    fetchAll();
-  }, []); // Only fetch on mount
+    // Only fetch gamification data if authenticated and haven't fetched yet
+    // This prevents 401 errors from triggering redirects and duplicate fetches
+    if (isAuthenticated && !hasFetchedRef.current) {
+      console.log('[DashboardPage] Fetching gamification data - user is authenticated');
+      hasFetchedRef.current = true;
+      
+      // Debounce the fetch to prevent rapid re-fetches
+      const timer = setTimeout(() => {
+        fetchAll();
+      }, 100);
+      return () => clearTimeout(timer);
+    } else if (!isAuthenticated) {
+      console.log('[DashboardPage] Skipping gamification fetch - user not authenticated yet');
+      hasFetchedRef.current = false; // Reset if user logs out
+    }
+  }, [isAuthenticated, fetchAll]); // Properly include fetchAll in dependencies
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -98,6 +115,14 @@ export default function DashboardPage() {
                       <CheckCircle className="w-6 h-6 text-red-600" />
                     </div>
                     <span className="text-sm font-medium text-gray-700 text-center leading-tight">Questionário de Saúde</span>
+                  </div>
+                </Link>
+                <Link href="/rewards" className="block group">
+                  <div className="card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48">
+                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors duration-300">
+                      <Target className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Recompensas</span>
                   </div>
                 </Link>
               </div>
@@ -178,7 +203,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Completar Questionário de Saúde</p>
-                    <p className="text-xs text-gray-500">Ganhe 100 pontos</p>
+                    <p className="text-xs text-gray-500">Ganhe {GAMIFICATION_POINTS.HEALTH_QUESTIONNAIRE} pontos</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -187,7 +212,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Enviar Documentos Obrigatórios</p>
-                    <p className="text-xs text-gray-500">Ganhe 50 pontos cada</p>
+                    <p className="text-xs text-gray-500">Ganhe {GAMIFICATION_POINTS.DOCUMENT_UPLOAD} pontos cada</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -196,7 +221,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">Agendar Entrevista</p>
-                    <p className="text-xs text-gray-500">Ganhe 150 pontos</p>
+                    <p className="text-xs text-gray-500">Ganhe {GAMIFICATION_POINTS.INTERVIEW_SCHEDULE} pontos</p>
                   </div>
                 </div>
               </div>

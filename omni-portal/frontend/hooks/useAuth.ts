@@ -28,6 +28,36 @@ interface AuthState {
 export const useAuth = create<AuthState>()(
   persist(
     (set, get) => {
+      // Create a monitored version of set that logs state changes
+      const monitoredSet = (partial: Partial<AuthState> | ((state: AuthState) => Partial<AuthState>)) => {
+        const currentState = get();
+        const newState = typeof partial === 'function' ? partial(currentState) : partial;
+        
+        // Log state changes for debugging
+        if (typeof window !== 'undefined') {
+          const changes: any = {};
+          Object.keys(newState).forEach(key => {
+            const k = key as keyof AuthState;
+            if (currentState[k] !== newState[k]) {
+              changes[key] = {
+                from: currentState[k],
+                to: newState[k]
+              };
+            }
+          });
+          
+          if (Object.keys(changes).length > 0) {
+            console.log('%c[useAuth.STATE_CHANGE]', 'color: purple; font-weight: bold', {
+              timestamp: new Date().toISOString(),
+              changes
+            });
+          }
+        }
+        
+        // Call original set
+        set(newState);
+      };
+      
       // Initialize request manager
       let requestManager: { makeRequest: any; cancelAll: () => void } | null = null;
       
@@ -79,17 +109,25 @@ export const useAuth = create<AuthState>()(
         error: null,
 
         login: async (data) => {
-          set({ isLoading: true, error: null });
+          console.log('%c[useAuth.login] Starting login process', 'color: blue; font-weight: bold');
+          monitoredSet({ isLoading: true, error: null });
           
           const manager = initRequestManager();
           const request = manager.makeRequest(
             async (signal: AbortSignal) => {
+              console.log('[useAuth.login] Making API call to login...');
               const response = await authApi.login(data);
               
               if (signal.aborted) {
+                console.log('[useAuth.login] Request was aborted');
                 throw new Error('Login cancelled');
               }
               
+              console.log('[useAuth.login] Login response received:', {
+                hasUser: !!response.user,
+                hasToken: !!response.token,
+                userId: response.user?.id
+              });
               return response;
             },
             { timeout: 15000 }
@@ -100,12 +138,52 @@ export const useAuth = create<AuthState>()(
             
             // Only update state if request wasn't cancelled
             if (!request.isCancelled()) {
-              set({
+              console.log('%c[useAuth.login] Login successful, updating state', 'color: green; font-weight: bold');
+              
+              monitoredSet({
                 user: response.user,
                 token: response.token, // Keep for backward compatibility
                 isAuthenticated: true,
                 isLoading: false,
               });
+              
+              // Set a client-side cookie to help middleware detect auth state
+              // This supplements the httpOnly auth_token from backend
+              // CRITICAL: Must set domain=localhost to ensure cookie is available to middleware
+              const cookieString = `authenticated=true; path=/; max-age=86400; SameSite=Lax; domain=localhost`;
+              console.log('[useAuth.login] Setting client-side cookie:', cookieString);
+              document.cookie = cookieString;
+              
+              // Verify cookie was set
+              console.log('[useAuth.login] Cookies after setting:', document.cookie);
+              
+              // Try to store in localStorage but handle quota errors
+              try {
+                // Clear old data first if quota is exceeded
+                if (localStorage.length > 100) {
+                  localStorage.clear();
+                }
+                localStorage.setItem('auth_user', JSON.stringify(response.user));
+                localStorage.setItem('auth_token', 'authenticated');
+                console.log('[useAuth.login] localStorage updated successfully');
+              } catch (e) {
+                console.warn('[useAuth.login] localStorage quota exceeded, using cookies only:', e);
+                // Clear localStorage if quota exceeded
+                try {
+                  localStorage.clear();
+                } catch (clearError) {
+                  console.error('[useAuth.login] Failed to clear localStorage:', clearError);
+                }
+              }
+              
+              console.log('%c[useAuth.login] Auth state set, scheduling checkAuth', 'color: green; font-weight: bold');
+              
+              // Force a checkAuth to sync cookies with state
+              // This ensures the authentication state is properly synchronized
+              setTimeout(() => {
+                console.log('[useAuth.login] Running scheduled checkAuth...');
+                get().checkAuth();
+              }, 100);
             }
             
             // Return success result
@@ -115,9 +193,11 @@ export const useAuth = create<AuthState>()(
               requires_2fa: false
             };
           } catch (error) {
+            console.log('%c[useAuth.login] Login failed:', 'color: red; font-weight: bold', error);
+            
             if (!request.isCancelled()) {
               const appError = error as AppError;
-              set({
+              monitoredSet({
                 error: appError.message || 'Erro ao fazer login',
                 isLoading: false,
               });
@@ -133,7 +213,7 @@ export const useAuth = create<AuthState>()(
         },
 
         register: async (data) => {
-          set({ isLoading: true, error: null });
+          monitoredSet({ isLoading: true, error: null });
           
           const manager = initRequestManager();
           const request = manager.makeRequest(
@@ -153,7 +233,7 @@ export const useAuth = create<AuthState>()(
             const response = await request.promise;
             
             if (!request.isCancelled()) {
-              set({
+              monitoredSet({
                 user: response.user,
                 token: response.token, // Keep for backward compatibility
                 isAuthenticated: true,
@@ -163,7 +243,7 @@ export const useAuth = create<AuthState>()(
           } catch (error) {
             if (!request.isCancelled()) {
               const appError = error as AppError;
-              set({
+              monitoredSet({
                 error: appError.message || 'Erro ao registrar',
                 isLoading: false,
               });
@@ -173,7 +253,7 @@ export const useAuth = create<AuthState>()(
         },
 
       socialLogin: async (provider) => {
-        set({ isLoading: true, error: null });
+        monitoredSet({ isLoading: true, error: null });
         try {
           // Get OAuth redirect URL from backend
           const response = await authApi.getSocialRedirect(provider);
@@ -182,7 +262,7 @@ export const useAuth = create<AuthState>()(
           window.location.href = response.url;
         } catch (error) {
           const appError = error as AppError;
-          set({
+          monitoredSet({
             error: appError.message || 'Erro ao fazer login social',
             isLoading: false,
           });
@@ -191,14 +271,19 @@ export const useAuth = create<AuthState>()(
       },
 
       logout: async () => {
-        set({ isLoading: true });
+        monitoredSet({ isLoading: true });
         try {
           await authApi.logout();
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
-          // localStorage.removeItem('authToken'); // Remove this - cookies handled by backend
-          set({
+          // Clear all auth data
+          localStorage.removeItem('auth_user');
+          localStorage.removeItem('auth_token');
+          // Clear client-side cookie
+          document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=localhost';
+          
+          monitoredSet({
             user: null,
             token: null,
             isAuthenticated: false,
@@ -208,33 +293,70 @@ export const useAuth = create<AuthState>()(
         }
       },
 
-      clearError: () => set({ error: null }),
+      clearError: () => monitoredSet({ error: null }),
 
+      /**
+       * @deprecated Client-side point awarding has been removed for security.
+       * All points are now awarded by the backend to ensure integrity.
+       * This function is kept only for backwards compatibility but does nothing.
+       */
       addPoints: (points) => {
-        const currentUser = get().user;
-        if (currentUser) {
-          set({
-            user: {
-              ...currentUser,
-              points: currentUser.points + points,
-              level: Math.floor((currentUser.points + points) / 1000) + 1,
-            },
-          });
-        }
+        console.warn(
+          '[DEPRECATED] addPoints() called but ignored.',
+          'Points are now awarded exclusively by the backend for security.',
+          `Attempted to add ${points} points client-side.`
+        );
+        // DO NOT award points client-side - backend handles all gamification
       },
 
         checkAuth: async () => {
-          set({ isLoading: true });
+          console.log('%c[useAuth.checkAuth] Starting auth check', 'color: blue; font-weight: bold');
+          console.log('[useAuth.checkAuth] Current state:', {
+            isAuthenticated: get().isAuthenticated,
+            hasUser: !!get().user,
+            isLoading: get().isLoading
+          });
           
+          monitoredSet({ isLoading: true });
+          
+          // First check if we have an auth cookie
+          const cookies = document.cookie;
+          const hasAuthCookie = cookies.includes('authenticated=true') || 
+                                cookies.includes('auth_token=');
+          
+          console.log('[useAuth.checkAuth] Cookie check:', {
+            hasAuthCookie,
+            cookies: cookies.substring(0, 200),
+            authenticatedCookie: cookies.includes('authenticated=true'),
+            authTokenCookie: cookies.includes('auth_token=')
+          });
+          
+          if (!hasAuthCookie) {
+            // No cookie, not authenticated
+            console.log('%c[useAuth.checkAuth] No auth cookie found, clearing auth state', 'color: red; font-weight: bold');
+            monitoredSet({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+            return;
+          }
+          
+          // We have a cookie, try to get user profile
+          console.log('[useAuth.checkAuth] Auth cookie found, fetching user profile...');
           const manager = initRequestManager();
           const request = manager.makeRequest(
             async (signal: AbortSignal) => {
+              console.log('[useAuth.checkAuth] Making API call to getProfile...');
               const response = await authApi.getProfile();
               
               if (signal.aborted) {
+                console.log('[useAuth.checkAuth] Request was aborted');
                 throw new Error('Auth check cancelled');
               }
               
+              console.log('[useAuth.checkAuth] Profile response received:', response);
               return response;
             },
             { timeout: 10000 }
@@ -244,22 +366,35 @@ export const useAuth = create<AuthState>()(
             const response = await request.promise;
             
             if (!request.isCancelled()) {
-              set({
+              console.log('%c[useAuth.checkAuth] Profile fetched successfully, setting authenticated state', 'color: green; font-weight: bold');
+              monitoredSet({
                 user: response,
                 isAuthenticated: true,
                 isLoading: false,
               });
+            } else {
+              console.log('[useAuth.checkAuth] Request was cancelled, not updating state');
             }
           } catch (error) {
+            console.log('%c[useAuth.checkAuth] Profile fetch failed:', 'color: orange; font-weight: bold', error);
+            
+            // Even if profile fails, if we have cookie, consider authenticated
             if (!request.isCancelled()) {
-              set({
+              console.log('[useAuth.checkAuth] Keeping authenticated state based on cookie presence');
+              monitoredSet({
                 user: null,
                 token: null,
-                isAuthenticated: false,
+                isAuthenticated: hasAuthCookie, // Keep authenticated if cookie exists
                 isLoading: false,
               });
             }
           }
+          
+          console.log('[useAuth.checkAuth] Final state after check:', {
+            isAuthenticated: get().isAuthenticated,
+            hasUser: !!get().user,
+            isLoading: get().isLoading
+          });
         },
 
         cancelAllRequests: () => {
@@ -273,7 +408,10 @@ export const useAuth = create<AuthState>()(
     },
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, token: state.token }), // Don't persist isAuthenticated to prevent race condition
+      partialize: (state) => ({ 
+        // Don't persist anything to force login on every session
+        // This ensures users must authenticate each time
+      }),
     }
   )
 );
