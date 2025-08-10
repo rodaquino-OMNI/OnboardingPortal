@@ -1,0 +1,221 @@
+{
+  "performance_budgets": {
+    "critical_path": {
+      "description": "Critical user journey performance targets",
+      "budgets": {
+        "login_form_render": {
+          "target": "< 100ms",
+          "current": "372ms",
+          "priority": "HIGH",
+          "improvement_needed": "272ms",
+          "optimization_areas": [
+            "Reduce component bundle size",
+            "Implement code splitting",
+            "Optimize re-render cycles",
+            "Use React.memo for form components"
+          ]
+        },
+        "health_questionnaire_initial_load": {
+          "target": "< 200ms",
+          "current": "unknown",
+          "priority": "HIGH",
+          "optimization_areas": [
+            "Lazy load non-critical sections",
+            "Implement virtual scrolling",
+            "Optimize feature loading",
+            "Use progressive enhancement"
+          ]
+        },
+        "form_input_response": {
+          "target": "< 16ms (60fps)",
+          "current": "42ms",
+          "priority": "CRITICAL",
+          "improvement_needed": "26ms",
+          "optimization_areas": [
+            "Debounce input handlers",
+            "Optimize validation logic",
+            "Use controlled vs uncontrolled inputs strategically",
+            "Minimize DOM updates"
+          ]
+        },
+        "user_interaction_response": {
+          "target": "< 1000ms",
+          "current": "2924ms",
+          "priority": "HIGH",
+          "improvement_needed": "1924ms",
+          "optimization_areas": [
+            "Optimize click handlers",
+            "Reduce state update cascades",
+            "Implement interaction batching",
+            "Use requestAnimationFrame for UI updates"
+          ]
+        }
+      }
+    },
+    "bundle_size": {
+      "description": "JavaScript bundle size targets",
+      "budgets": {
+        "main_bundle": {
+          "target": "< 250KB gzipped",
+          "current": "unknown",
+          "priority": "HIGH",
+          "optimization_areas": [
+            "Tree shaking optimization",
+            "Code splitting by route",
+            "Dynamic imports for heavy components",
+            "Bundle analyzer integration"
+          ]
+        },
+        "vendor_chunks": {
+          "target": "< 500KB gzipped",
+          "current": "unknown",
+          "priority": "MEDIUM",
+          "optimization_areas": [
+            "Vendor code splitting",
+            "CDN for large libraries",
+            "Module federation for shared deps",
+            "Selective imports"
+          ]
+        }
+      }
+    },
+    "memory_usage": {
+      "description": "Runtime memory consumption targets",
+      "budgets": {
+        "component_memory": {
+          "target": "< 10MB per major component",
+          "current": "unknown",
+          "priority": "MEDIUM",
+          "optimization_areas": [
+            "Memory leak detection",
+            "Event listener cleanup",
+            "Cache size limits",
+            "Garbage collection optimization"
+          ]
+        },
+        "re_render_optimization": {
+          "target": "1 render per prop change",
+          "current": "2 renders observed",
+          "priority": "MEDIUM",
+          "optimization_areas": [
+            "React.memo implementation",
+            "useMemo for expensive calculations",
+            "useCallback for stable references",
+            "Props structure optimization"
+          ]
+        }
+      }
+    },
+    "network_performance": {
+      "description": "Network and API performance targets",
+      "budgets": {
+        "api_response_time": {
+          "target": "< 500ms",
+          "current": "unknown",
+          "priority": "HIGH",
+          "optimization_areas": [
+            "API endpoint optimization",
+            "Request caching",
+            "GraphQL or query optimization",
+            "CDN for static assets"
+          ]
+        },
+        "resource_loading": {
+          "target": "< 2s on 3G",
+          "current": "3s+ observed",
+          "priority": "HIGH",
+          "optimization_areas": [
+            "Progressive loading",
+            "Critical resource prioritization",
+            "Service worker caching",
+            "Resource hints (preload, prefetch)"
+          ]
+        }
+      }
+    },
+    "mobile_performance": {
+      "description": "Mobile-specific performance targets",
+      "budgets": {
+        "touch_response": {
+          "target": "< 100ms",
+          "current": "unknown",
+          "priority": "HIGH",
+          "optimization_areas": [
+            "Touch event optimization",
+            "Passive event listeners",
+            "CSS hardware acceleration",
+            "Reduce paint/layout thrashing"
+          ]
+        },
+        "battery_impact": {
+          "target": "Low impact",
+          "current": "unknown",
+          "priority": "MEDIUM",
+          "optimization_areas": [
+            "Animation optimization",
+            "Background processing limits",
+            "Efficient polling/updates",
+            "CPU usage monitoring"
+          ]
+        }
+      }
+    }
+  },
+  "measurement_tools": {
+    "performance_tests": {
+      "jest_performance": "jest --config=jest.perf.config.js",
+      "lighthouse_cli": "lighthouse http://localhost:3000 --output json",
+      "bundle_analyzer": "ANALYZE=true npm run build",
+      "memory_profiling": "Chrome DevTools Memory tab"
+    },
+    "continuous_monitoring": {
+      "web_vitals": "Core Web Vitals tracking",
+      "performance_observer": "Browser Performance Observer API",
+      "custom_metrics": "Application-specific performance metrics"
+    }
+  },
+  "optimization_priorities": [
+    {
+      "priority": "CRITICAL",
+      "items": [
+        "Form input response time (42ms → < 16ms)",
+        "Initial page load performance"
+      ]
+    },
+    {
+      "priority": "HIGH", 
+      "items": [
+        "Login form render time (372ms → < 100ms)",
+        "User interaction response (2924ms → < 1000ms)",
+        "Bundle size optimization",
+        "Mobile touch response"
+      ]
+    },
+    {
+      "priority": "MEDIUM",
+      "items": [
+        "Re-render optimization",
+        "Memory usage monitoring",
+        "Battery impact reduction",
+        "Code splitting implementation"
+      ]
+    }
+  ],
+  "testing_strategy": {
+    "unit_performance_tests": {
+      "component_render_time": "Measure individual component render performance",
+      "memory_leak_detection": "Test for memory leaks in component lifecycle",
+      "interaction_timing": "Measure user interaction response times"
+    },
+    "integration_performance_tests": {
+      "user_journey_timing": "End-to-end performance measurement",
+      "api_integration_performance": "Backend integration performance",
+      "mobile_simulation": "3G/4G network simulation testing"
+    },
+    "load_testing": {
+      "concurrent_users": "Performance under load",
+      "resource_exhaustion": "Resource limit testing",
+      "stress_scenarios": "Edge case performance testing"
+    }
+  }
+}

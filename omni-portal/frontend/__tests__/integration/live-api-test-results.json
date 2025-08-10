@@ -1,0 +1,96 @@
+{
+  "summary": {
+    "totalTests": 11,
+    "successfulTests": 8,
+    "failedTests": 3,
+    "successRate": 72.72727272727273,
+    "avgResponseTime": 9.363636363636363,
+    "corsSupport": 11
+  },
+  "results": [
+    {
+      "test": "Health /health",
+      "status": 200,
+      "success": true,
+      "responseTime": 19,
+      "corsHeaders": true
+    },
+    {
+      "test": "Health /status",
+      "status": 200,
+      "success": true,
+      "responseTime": 8,
+      "corsHeaders": true
+    },
+    {
+      "test": "Health /metrics",
+      "status": 200,
+      "success": true,
+      "responseTime": 14,
+      "corsHeaders": true
+    },
+    {
+      "test": "Invalid Login",
+      "status": 500,
+      "success": false,
+      "responseTime": 8,
+      "corsHeaders": true
+    },
+    {
+      "test": "Email Check",
+      "status": 500,
+      "success": false,
+      "responseTime": 8,
+      "corsHeaders": true
+    },
+    {
+      "test": "CPF Check",
+      "status": 500,
+      "success": false,
+      "responseTime": 8,
+      "corsHeaders": true
+    },
+    {
+      "test": "CORS Preflight",
+      "status": 204,
+      "success": true,
+      "responseTime": 5,
+      "corsHeaders": true,
+      "corsDetails": {
+        "origin": "http://localhost:3000",
+        "methods": "POST",
+        "headers": "Content-Type, Authorization",
+        "credentials": "true"
+      }
+    },
+    {
+      "test": "Protected /user",
+      "status": 401,
+      "success": true,
+      "responseTime": 6,
+      "corsHeaders": true
+    },
+    {
+      "test": "Protected /gamification/progress",
+      "status": 401,
+      "success": true,
+      "responseTime": 7,
+      "corsHeaders": true
+    },
+    {
+      "test": "Protected /documents",
+      "status": 401,
+      "success": true,
+      "responseTime": 10,
+      "corsHeaders": true
+    },
+    {
+      "test": "Protected /profile",
+      "status": 401,
+      "success": true,
+      "responseTime": 10,
+      "corsHeaders": true
+    }
+  ],
+  "report": "\n# Live API Integration Test Report\n\n**Generated:** 2025-08-05T14:38:47.583Z\n**Total Tests:** 11\n**Successful:** 8\n**Failed:** 3\n**Success Rate:** 72.7%\n**Average Response Time:** 9.36ms\n**CORS Support:** 11/11 endpoints\n\n## Test Results Summary\n\n\n### Health /health\n- **Status:** 200 ✅\n- **Response Time:** 19ms\n- **CORS Headers:** Present\n\n\n\n\n### Health /status\n- **Status:** 200 ✅\n- **Response Time:** 8ms\n- **CORS Headers:** Present\n\n\n\n\n### Health /metrics\n- **Status:** 200 ✅\n- **Response Time:** 14ms\n- **CORS Headers:** Present\n\n\n\n\n### Invalid Login\n- **Status:** 500 ❌\n- **Response Time:** 8ms\n- **CORS Headers:** Present\n\n\n\n\n### Email Check\n- **Status:** 500 ❌\n- **Response Time:** 8ms\n- **CORS Headers:** Present\n\n\n\n\n### CPF Check\n- **Status:** 500 ❌\n- **Response Time:** 8ms\n- **CORS Headers:** Present\n\n\n\n\n### CORS Preflight\n- **Status:** 204 ✅\n- **Response Time:** 5ms\n- **CORS Headers:** Present\n\n- **CORS Details:** {\n  \"origin\": \"http://localhost:3000\",\n  \"methods\": \"POST\",\n  \"headers\": \"Content-Type, Authorization\",\n  \"credentials\": \"true\"\n}\n\n\n### Protected /user\n- **Status:** 401 ✅\n- **Response Time:** 6ms\n- **CORS Headers:** Present\n\n\n\n\n### Protected /gamification/progress\n- **Status:** 401 ✅\n- **Response Time:** 7ms\n- **CORS Headers:** Present\n\n\n\n\n### Protected /documents\n- **Status:** 401 ✅\n- **Response Time:** 10ms\n- **CORS Headers:** Present\n\n\n\n\n### Protected /profile\n- **Status:** 401 ✅\n- **Response Time:** 10ms\n- **CORS Headers:** Present\n\n\n\n\n## Analysis\n\n### Connectivity\n✅ Backend is accessible\n\n### CORS Configuration\n✅ CORS headers present on 11/11 endpoints\n\n### Authentication\n⚠️ Authentication needs verification\n\n### Security\n✅ Protected endpoints properly secured\n\n## Recommendations\n\n⚠️  3 tests failed - review specific endpoint issues above\n\n✅ CORS configuration appears correct\n\n✅ Response times are acceptable\n"
+}
