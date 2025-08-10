@@ -6,32 +6,26 @@ import { useAuth } from '@/hooks/useAuth';
 import { Rocket, User, Shield, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { IconTest } from '@/components/test/IconTest';
 
 export default function Home() {
   const router = useRouter();
-  
-  // TEMPORARILY DISABLED AUTH FOR ICON DEBUGGING
-  // const { isAuthenticated, isLoading } = useAuth();
-  // const [isClient, setIsClient] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
-  // useEffect(() => {
-  //   setIsClient(true);
-  // }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // useEffect(() => {
-  //   if (isClient && isAuthenticated && !isLoading) {
-  //     router.push('/home');
-  //   }
-  // }, [isClient, isAuthenticated, isLoading, router]);
+  useEffect(() => {
+    // Only redirect after component is mounted and user is authenticated
+    if (mounted && isAuthenticated) {
+      router.push('/home');
+    }
+  }, [mounted, isAuthenticated, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-16">
-        {/* DEBUG: Icon Test Component */}
-        <div className="mb-8">
-          <IconTest />
-        </div>
         <div className="text-center mb-16">
           <div className="mb-8">
             <Rocket className="w-20 h-20 text-blue-600 mx-auto mb-6" />

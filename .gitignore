@@ -65,6 +65,8 @@ coverage/
 # Laravel cache files
 bootstrap/cache/*.php
 !bootstrap/cache/.gitkeep
+omni-portal/backend/bootstrap/cache/*.php
+!omni-portal/backend/bootstrap/cache/.gitkeep
 
 # Configuration files that might contain sensitive data
 .pa11yci
@@ -117,6 +119,13 @@ security-tools.sh
 setup-enhanced-upload.sh
 nextjs-safe-upgrade.sh
 integration-test.js
+
+# Backend test files (sensitive)
+**/create_admin_user.php
+**/create_test_data.php
+**/test_db.php
+**/update_test_users.php
+**/test-*.php
 
 # Performance test files
 performance-test.php
@@ -347,6 +356,28 @@ start-dev.js
 # TypeScript declaration files (project-specific)
 jest-axe.d.ts
 test-types.d.ts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
