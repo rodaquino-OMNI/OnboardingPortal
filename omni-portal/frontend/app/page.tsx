@@ -6,75 +6,32 @@ import { useAuth } from '@/hooks/useAuth';
 import { Rocket, User, Shield, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { IconTest } from '@/components/test/IconTest';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, checkAuth } = useAuth();
-  const [isClient, setIsClient] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
+  
+  // TEMPORARILY DISABLED AUTH FOR ICON DEBUGGING
+  // const { isAuthenticated, isLoading } = useAuth();
+  // const [isClient, setIsClient] = useState(false);
 
-  // Ensure this only runs on client side
-  useEffect(() => {
-    setIsClient(true);
-    // Check auth status when component mounts
-    const initAuth = async () => {
-      try {
-        await checkAuth();
-      } catch (error) {
-        console.error('[HomePage] Auth check error:', error);
-      } finally {
-        setInitialLoad(false);
-      }
-    };
-    initAuth();
-  }, []); // Remove checkAuth dependency to prevent infinite loop
+  // useEffect(() => {
+  //   setIsClient(true);
+  // }, []);
 
-  useEffect(() => {
-    // Only redirect after auth check is complete and we're authenticated
-    if (isClient && !initialLoad && isAuthenticated && !isLoading) {
-      router.push('/home');
-    }
-  }, [isClient, initialLoad, isAuthenticated, isLoading, router]);
-
-  // Add timeout to prevent infinite loading
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (initialLoad) {
-        console.warn('[HomePage] Auth check timeout, forcing load complete');
-        setInitialLoad(false);
-      }
-    }, 3000); // 3 second timeout
-    
-    return () => clearTimeout(timeout);
-  }, [initialLoad]);
-
-  // Show loading during initial auth check or SSR (but only briefly)
-  if (!isClient || (initialLoad && isLoading)) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If authenticated after auth check, show redirect loading
-  if (isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecionando para o dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  // useEffect(() => {
+  //   if (isClient && isAuthenticated && !isLoading) {
+  //     router.push('/home');
+  //   }
+  // }, [isClient, isAuthenticated, isLoading, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-16">
+        {/* DEBUG: Icon Test Component */}
+        <div className="mb-8">
+          <IconTest />
+        </div>
         <div className="text-center mb-16">
           <div className="mb-8">
             <Rocket className="w-20 h-20 text-blue-600 mx-auto mb-6" />
