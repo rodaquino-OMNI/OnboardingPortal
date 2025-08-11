@@ -151,127 +151,67 @@ export default function InterviewUnlockCard() {
   const completionPercentage = onboardingProgress?.completionPercentage ?? 0;
 
   return (
-    <Card 
-      className={`
-        relative overflow-hidden transition-all duration-500 cursor-pointer
-        ${isUnlocked 
-          ? 'bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105' 
-          : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:border-purple-300 hover:shadow-lg'
-        }
-        ${showUnlockAnimation ? 'animate-pulse shadow-purple-500/50' : ''}
-      `}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+    <div 
+      className="block group"
+      onClick={handleUnlockClick}
     >
-      {/* Premium Banner */}
-      <div className="absolute top-0 left-0 right-0">
+      <div className={`
+        card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer 
+        group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48
+        ${!isUnlocked ? 'opacity-75' : ''}
+      `}>
+        {/* Lock indicator overlay for locked state */}
+        {!isUnlocked && (
+          <div className="absolute top-2 right-2">
+            <Lock className="w-4 h-4 text-gray-400" />
+          </div>
+        )}
+        
         <div className={`
-          text-center py-2 text-xs font-bold tracking-wide
+          w-12 h-12 rounded-full flex items-center justify-center mb-3 
+          transition-colors duration-300 relative
           ${isUnlocked 
-            ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900' 
-            : 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-700'
+            ? 'bg-purple-100 group-hover:bg-purple-200' 
+            : 'bg-gray-100 group-hover:bg-gray-200'
           }
         `}>
-          {isUnlocked ? '⭐ PREMIUM DESBLOQUEADO ⭐' : '🔒 RECOMPENSA EXCLUSIVA'}
+          <Calendar className={`
+            w-6 h-6
+            ${isUnlocked ? 'text-purple-600' : 'text-gray-400'}
+          `} />
+          {!isUnlocked && (
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center border border-gray-200">
+              <Lock className="w-3 h-3 text-gray-400" />
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Sparkle Effects */}
-      {isUnlocked && (
-        <>
-          <Sparkles className="absolute top-8 right-4 w-6 h-6 text-yellow-300 animate-pulse" />
-          <Star className="absolute bottom-4 left-4 w-5 h-5 text-yellow-200 animate-pulse delay-500" />
-          <Crown className="absolute top-12 left-6 w-4 h-4 text-pink-300 animate-bounce delay-1000" />
-        </>
-      )}
-
-      <div 
-        className="p-4 pt-8 flex flex-col items-center justify-center relative z-10"
-        onClick={handleUnlockClick}
-      >
-        {/* Main Icon */}
-        <div className={`
-          relative mb-3 transition-all duration-300
-          ${hovering ? 'transform scale-110' : ''}
+        
+        <span className={`
+          text-sm font-medium text-center
+          ${isUnlocked ? 'text-gray-700' : 'text-gray-500'}
         `}>
-          <div className={`
-            w-16 h-16 rounded-full flex items-center justify-center
-            ${isUnlocked 
-              ? 'bg-white/20 backdrop-blur-sm border-2 border-white/40' 
-              : 'bg-purple-100 border-2 border-purple-200'
-            }
-          `}>
-            {isUnlocked ? (
-              <Gift className="w-8 h-8 text-white drop-shadow-lg" />
-            ) : (
-              <div className="relative">
-                <Gift className="w-8 h-8 text-purple-500" />
-                <Lock className="absolute -bottom-1 -right-1 w-4 h-4 text-gray-600 bg-white rounded-full p-0.5 shadow-lg" />
-              </div>
-            )}
-          </div>
-          
-          {/* Points Badge */}
-          <Badge className={`
-            absolute -top-1 -right-1 px-2 py-0.5 text-xs font-bold
-            ${isUnlocked 
-              ? 'bg-green-500 text-white border-green-600' 
-              : 'bg-purple-500 text-white border-purple-600'
-            }
-          `}>
-            {onboardingProgress?.totalPoints || 0} pts
-          </Badge>
-        </div>
-
-        {/* Title Only - Minimal */}
-        <h3 className={`
-          font-bold text-base mb-3
-          ${isUnlocked ? 'text-white' : 'text-gray-800'}
-        `}>
-          Consulta Premium
-        </h3>
-
-        {/* Progress Section - Compact */}
-        {!isUnlocked && (
-          <div className="w-full mb-3">
-            <Progress 
-              value={completionPercentage} 
-              className="h-2 bg-gray-200"
-            />
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-xs text-gray-500">
-                {onboardingProgress?.totalPoints || 0}
-              </span>
-              <span className="text-xs font-medium text-purple-600">
-                {UNLOCK_REQUIREMENTS.MINIMUM_POINTS}
-              </span>
+          Entrevista
+        </span>
+        
+        <span className="text-xs text-gray-500 mt-1">
+          {isUnlocked 
+            ? 'Agendar agora'
+            : `${onboardingProgress?.pointsNeeded || UNLOCK_REQUIREMENTS.MINIMUM_POINTS} pts necessários`
+          }
+        </span>
+        
+        {/* Small progress indicator */}
+        {!isUnlocked && onboardingProgress && (
+          <div className="w-full mt-2 px-2">
+            <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-purple-400 rounded-full transition-all duration-500"
+                style={{width: `${completionPercentage}%`}}
+              />
             </div>
           </div>
         )}
-
-        {/* CTA Button - Clean */}
-        <Button
-          className={`
-            w-full font-semibold transition-all duration-300 text-sm py-2
-            ${isUnlocked
-              ? 'bg-white text-purple-600 hover:bg-gray-100 shadow-lg'
-              : 'bg-purple-500 hover:bg-purple-600 text-white'
-            }
-          `}
-        >
-          {isUnlocked ? (
-            <>
-              <Calendar className="w-4 h-4 mr-1" />
-              Agendar
-            </>
-          ) : (
-            <>
-              <Lock className="w-4 h-4 mr-1" />
-              {onboardingProgress?.pointsNeeded || 0} pts para desbloquear
-            </>
-          )}
-        </Button>
       </div>
-    </Card>
+    </div>
   );
 }

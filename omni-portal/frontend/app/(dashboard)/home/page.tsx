@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
 import { GAMIFICATION_POINTS } from '@/lib/constants/gamification';
@@ -23,14 +23,16 @@ import {
   Clock, 
   TrendingUp,
   Target,
-  Activity
+  Activity,
+  Check
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user, isAuthenticated } = useAuth();
   const { 
     dashboardSummary, 
-    fetchAll 
+    fetchAll,
+    progress
   } = useGamification();
   
   // Track if we've already fetched to prevent duplicate calls
@@ -53,6 +55,71 @@ export default function DashboardPage() {
       hasFetchedRef.current = false; // Reset if user logs out
     }
   }, [isAuthenticated, fetchAll]); // Properly include fetchAll in dependencies
+
+  // State for onboarding progress to avoid hydration issues
+  const [onboardingStatus, setOnboardingStatus] = useState({
+    currentStep: 1,
+    completedSteps: 0,
+    totalSteps: 6,
+    progressPercentage: 0,
+    healthCompleted: false,
+    documentsUploaded: false
+  });
+
+  // Calculate onboarding progress safely on client-side only
+  useEffect(() => {
+    const calculateOnboardingStep = () => {
+      let currentStep = 1;
+      let completedSteps = 0;
+      
+      // Check profile completion (Step 1)
+      if (user?.name && user?.email) {
+        completedSteps++;
+        currentStep = 2;
+      }
+      
+      // Check health questionnaire (Step 2) - Safe client-side check
+      const healthCompleted = typeof window !== 'undefined' 
+        ? localStorage.getItem('health_questionnaire_completed') === 'true'
+        : false;
+      if (healthCompleted) {
+        completedSteps++;
+        currentStep = 3;
+      }
+      
+      // Check documents (Step 3) - Safe client-side check
+      const documentsUploaded = typeof window !== 'undefined'
+        ? localStorage.getItem('documents_uploaded') === 'true'
+        : false;
+      if (documentsUploaded) {
+        completedSteps++;
+        currentStep = 4;
+      }
+      
+      // Check if interview is unlocked (Step 4)
+      const totalPoints = progress?.total_points || 0;
+      if (totalPoints >= 500) {
+        completedSteps++;
+        currentStep = 5;
+      }
+      
+      // Check rewards accessed (Step 5)
+      if (completedSteps >= 4) {
+        currentStep = 6;
+      }
+      
+      return {
+        currentStep,
+        completedSteps,
+        totalSteps: 6,
+        progressPercentage: (completedSteps / 6) * 100,
+        healthCompleted,
+        documentsUploaded
+      };
+    };
+
+    setOnboardingStatus(calculateOnboardingStep());
+  }, [user, progress]); // Update when user or progress changes
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -88,43 +155,131 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <ProgressCard className="card-modern" />
             
-            {/* Quick Actions */}
+            {/* Quick Actions - Onboarding Journey Steps */}
             <Card className="card-modern p-4 sm:p-6 lg:p-8">
-              <h3 className="section-title mb-4 sm:mb-6 text-base sm:text-lg">Ações Rápidas</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Link href="/profile" className="block group">
-                  <div className="card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48">
+              <h3 className="section-title mb-4 sm:mb-6 text-base sm:text-lg">Jornada de Integração</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Step 1: Profile */}
+                <Link href="/profile" className="block group relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    user?.name && user?.email ? 'bg-green-600' : 'bg-blue-600'
+                  }`}>
+                    {user?.name && user?.email ? <Check className="w-5 h-5" /> : '1'}
+                  </div>
+                  <div className={`card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48 ${
+                    user?.name && user?.email ? '' : ''
+                  }`}>
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-blue-200 transition-colors duration-300">
                       <User className="w-6 h-6 text-blue-600" />
                     </div>
                     <span className="text-sm font-medium text-gray-700 text-center">Perfil</span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      {user?.name && user?.email ? 'Completo' : 'Complete seu perfil'}
+                    </span>
                   </div>
                 </Link>
-                <Link href="/document-upload" className="block group">
-                  <div className="card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-green-200 transition-colors duration-300">
-                      <FileText className="w-6 h-6 text-green-600" />
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 text-center">Documentos</span>
+                
+                {/* Step 2: Health Questionnaire */}
+                <Link href="/health-questionnaire" className="block group relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    onboardingStatus.healthCompleted ? 'bg-green-600' : 'bg-red-600'
+                  }`}>
+                    {onboardingStatus.healthCompleted ? <Check className="w-5 h-5" /> : '2'}
                   </div>
-                </Link>
-                <InterviewUnlockCard />
-                <Link href="/health-questionnaire" className="block group">
                   <div className="card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48">
                     <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-red-200 transition-colors duration-300">
                       <CheckCircle className="w-6 h-6 text-red-600" />
                     </div>
                     <span className="text-sm font-medium text-gray-700 text-center leading-tight">Questionário de Saúde</span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      {onboardingStatus.healthCompleted ? 'Completo' : 'Avaliação médica'}
+                    </span>
                   </div>
                 </Link>
-                <Link href="/rewards" className="block group">
+                
+                {/* Step 3: Documents */}
+                <Link href="/document-upload" className="block group relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    onboardingStatus.documentsUploaded ? 'bg-green-600' : 'bg-green-600'
+                  }`}>
+                    {onboardingStatus.documentsUploaded ? <Check className="w-5 h-5" /> : '3'}
+                  </div>
                   <div className="card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48">
-                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-purple-200 transition-colors duration-300">
-                      <Target className="w-6 h-6 text-purple-600" />
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-green-200 transition-colors duration-300">
+                      <FileText className="w-6 h-6 text-green-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Documentos</span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      {onboardingStatus.documentsUploaded ? 'Enviados' : 'Envie seus documentos'}
+                    </span>
+                  </div>
+                </Link>
+                
+                {/* Step 4: Interview (Unlockable) */}
+                <div className="relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    (progress?.total_points || 0) >= 500 ? 'bg-green-600' : 'bg-purple-600'
+                  }`}>
+                    {(progress?.total_points || 0) >= 500 ? <Check className="w-5 h-5" /> : '4'}
+                  </div>
+                  <InterviewUnlockCard />
+                </div>
+                
+                {/* Step 5: Rewards (Available after completion) */}
+                <Link href="/rewards" className="block group relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    onboardingStatus.completedSteps >= 4 ? 'bg-green-600' : 'bg-yellow-600'
+                  }`}>
+                    {onboardingStatus.completedSteps >= 4 ? <Check className="w-5 h-5" /> : '5'}
+                  </div>
+                  <div className={`card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48 ${
+                    onboardingStatus.completedSteps < 4 ? 'opacity-75' : ''
+                  }`}>
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-yellow-200 transition-colors duration-300">
+                      <Target className="w-6 h-6 text-yellow-600" />
                     </div>
                     <span className="text-sm font-medium text-gray-700 text-center">Recompensas</span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      {onboardingStatus.completedSteps >= 4 ? 'Disponível' : 'Resgate benefícios'}
+                    </span>
                   </div>
                 </Link>
+                
+                {/* Step 6: Telemedicine Consultation (Final reward) */}
+                <Link href="/telemedicine-schedule" className="block group relative">
+                  <div className={`absolute -top-2 -left-2 w-8 h-8 text-white rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-md ${
+                    onboardingStatus.completedSteps >= 5 ? 'bg-green-600' : 'bg-indigo-600'
+                  }`}>
+                    {onboardingStatus.completedSteps >= 5 ? <Check className="w-5 h-5" /> : '6'}
+                  </div>
+                  <div className={`card-modern p-6 h-full flex flex-col items-center justify-center cursor-pointer group-hover:shadow-lg transition-all duration-300 group-hover:-translate-y-1 touch-target-48 ${
+                    (progress?.total_points || 0) < 500 ? 'opacity-75' : ''
+                  }`}>
+                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mb-3 group-hover:bg-indigo-200 transition-colors duration-300">
+                      <Calendar className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 text-center">Consulta Premium</span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      {(progress?.total_points || 0) >= 500 ? 'Disponível' : 'Alcance 500 pontos'}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+              
+              {/* Progress Indicator */}
+              <div className="mt-6 px-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs text-gray-600">Progresso da Jornada</span>
+                  <span className="text-xs font-medium text-gray-800">
+                    Passo {onboardingStatus.currentStep} de {onboardingStatus.totalSteps}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500" 
+                    style={{width: `${onboardingStatus.progressPercentage}%`}}
+                  ></div>
+                </div>
               </div>
             </Card>
           </div>

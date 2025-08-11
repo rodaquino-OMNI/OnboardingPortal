@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\TelemedicineSchedulingController;
 
 // Base API route - returns API information
 Route::get('/', [App\Http\Controllers\Api\ApiInfoController::class, 'index']);
+Route::get('/test', function() { return ['test' => 'working']; });
 
 // Health check and monitoring endpoints
 Route::get('/health', [App\Http\Controllers\Api\ApiInfoController::class, 'health']);
@@ -102,7 +103,7 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
     // User-specific configuration
     Route::get('/config/user', [App\Http\Controllers\Api\ConfigController::class, 'getUserConfig']);
     
-    // Profile management
+    // Profile management - Consolidated routes
     Route::prefix('profile')->group(function () {
         Route::get('/', [ProfileController::class, 'show']);
         Route::put('/', [ProfileController::class, 'update']);
@@ -111,6 +112,8 @@ Route::middleware(['auth:sanctum', 'registration.completed', 'account.active'])-
         Route::get('/preferences', [ProfileController::class, 'preferences']);
         Route::put('/preferences', [ProfileController::class, 'updatePreferences']);
         Route::get('/security', [ProfileController::class, 'security']);
+        Route::put('/emergency-contacts', [ProfileController::class, 'updateEmergencyContacts']);
+        Route::put('/privacy-settings', [ProfileController::class, 'updatePrivacySettings']);
     });
     
     // LGPD Compliance routes

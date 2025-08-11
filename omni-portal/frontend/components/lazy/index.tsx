@@ -1,8 +1,8 @@
 import dynamic from 'next/dynamic';
-import { ComponentType } from 'react';
+import React from 'react';
 
 // Loading component
-const Loading = () => (
+const Loading: React.FC = () => (
   <div className="flex items-center justify-center p-8">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
   </div>
@@ -12,7 +12,7 @@ const Loading = () => (
 export const LazyHealthQuestionnaire = dynamic(
   () => import('@/components/health/UnifiedHealthQuestionnaire'),
   { 
-    loading: () => <Loading />,
+    loading: Loading,
     ssr: false 
   }
 );
@@ -20,7 +20,7 @@ export const LazyHealthQuestionnaire = dynamic(
 export const LazyDocumentUpload = dynamic(
   () => import('@/components/upload/EnhancedDocumentUpload'),
   { 
-    loading: () => <Loading />,
+    loading: Loading,
     ssr: false 
   }
 );
