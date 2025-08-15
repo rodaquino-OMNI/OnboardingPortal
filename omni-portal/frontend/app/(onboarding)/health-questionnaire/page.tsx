@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { UnifiedHealthQuestionnaire } from '@/components/health/UnifiedHealthQuestionnaire';
+import { OptimizedUnifiedHealthQuestionnaire as UnifiedHealthQuestionnaire } from '@/components/health/OptimizedUnifiedHealthQuestionnaire';
 import { HealthNavigationHeader, SessionRestorationBanner } from '@/components/health/HealthNavigationHeader';
 import { HealthAssessmentComplete } from '@/components/health/HealthAssessmentComplete';
 import { useHealthSessionPersistence } from '@/hooks/useHealthSessionPersistence';

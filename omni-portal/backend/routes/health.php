@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
+use App\Http\Controllers\Api\HealthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -17,41 +18,85 @@ use Illuminate\Support\Facades\Redis;
 Route::get('/health', function (Request $request) {
     try {
         $checks = [];
+        $overallHealthy = true;
         
-        // Check database
+        // Check database with connection details
         $dbStart = microtime(true);
-        DB::select('SELECT 1');
-        $checks['database'] = [
-            'status' => 'ok',
-            'response_time' => round((microtime(true) - $dbStart) * 1000, 2) . 'ms'
-        ];
+        try {
+            DB::connection()->getPdo();
+            DB::select('SELECT 1');
+            $checks['database'] = [
+                'status' => 'healthy',
+                'response_time' => round((microtime(true) - $dbStart) * 1000, 2) . 'ms',
+                'driver' => config('database.default'),
+                'host' => config('database.connections.' . config('database.default') . '.host')
+            ];
+        } catch (\Exception $e) {
+            $checks['database'] = [
+                'status' => 'unhealthy',
+                'error' => $e->getMessage()
+            ];
+            $overallHealthy = false;
+        }
         
-        // Check Redis
+        // Check Redis with detailed connection info
         $redisStart = microtime(true);
-        Redis::ping();
-        $checks['cache'] = [
-            'status' => 'ok',
-            'response_time' => round((microtime(true) - $redisStart) * 1000, 2) . 'ms'
-        ];
+        try {
+            Redis::ping();
+            $checks['redis'] = [
+                'status' => 'healthy',
+                'response_time' => round((microtime(true) - $redisStart) * 1000, 2) . 'ms',
+                'host' => config('database.redis.default.host'),
+                'port' => config('database.redis.default.port')
+            ];
+        } catch (\Exception $e) {
+            $checks['redis'] = [
+                'status' => 'unhealthy',
+                'error' => $e->getMessage()
+            ];
+            $overallHealthy = false;
+        }
         
-        // Check storage
+        // Check storage with more details
         $storageWritable = is_writable(storage_path());
         $checks['storage'] = [
-            'status' => $storageWritable ? 'ok' : 'fail',
-            'writable' => $storageWritable
+            'status' => $storageWritable ? 'healthy' : 'unhealthy',
+            'writable' => $storageWritable,
+            'path' => storage_path(),
+            'disk_space' => disk_free_space(storage_path())
+        ];
+        if (!$storageWritable) {
+            $overallHealthy = false;
+        }
+        
+        // Check PHP-FPM status
+        $checks['php_fpm'] = [
+            'status' => 'healthy',
+            'version' => PHP_VERSION,
+            'memory_limit' => ini_get('memory_limit'),
+            'max_execution_time' => ini_get('max_execution_time')
+        ];
+        
+        // Check application
+        $checks['application'] = [
+            'status' => 'healthy',
+            'laravel_version' => app()->version(),
+            'environment' => config('app.env'),
+            'debug' => config('app.debug')
         ];
         
         return response()->json([
-            'status' => 'healthy',
+            'status' => $overallHealthy ? 'healthy' : 'unhealthy',
             'timestamp' => now()->toISOString(),
             'checks' => $checks
-        ], 200);
+        ], $overallHealthy ? 200 : 503);
         
     } catch (\Exception $e) {
         return response()->json([
             'status' => 'unhealthy',
             'timestamp' => now()->toISOString(),
-            'error' => $e->getMessage()
+            'error' => $e->getMessage(),
+            'trace' => config('app.debug') ? $e->getTraceAsString() : null
         ], 503);
     }
 });
@@ -76,10 +121,7 @@ Route::get('/health/ready', function () {
     }
 });
 
-Route::get('/health/live', function () {
-    // Simple liveness check - just return OK if Laravel is running
-    return response()->json([
-        'status' => 'alive',
-        'timestamp' => now()->toISOString()
-    ], 200);
-});
+// Use dedicated health controller for better organization
+Route::get('/health/detailed', [HealthController::class, 'health']);
+Route::get('/health/live', [HealthController::class, 'live']);
+Route::get('/health/ready', [HealthController::class, 'ready']);

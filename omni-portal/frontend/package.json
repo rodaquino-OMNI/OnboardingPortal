@@ -12,9 +12,14 @@
     "test:coverage": "jest --coverage",
     "analyze": "cross-env ANALYZE=true next build",
     "bundle-analyzer": "npx @next/bundle-analyzer@latest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docker:build": "docker build -t omni-portal-frontend .",
+    "docker:dev": "docker build -f Dockerfile.dev -t omni-portal-frontend:dev .",
+    "clean": "rm -rf .next node_modules/.cache",
+    "postinstall": "node scripts/setup-tesseract-lazy.js || echo 'Tesseract setup skipped'"
   },
   "dependencies": {
+    "axios": "^1.7.2",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.1",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -39,6 +44,7 @@
     "@types/react": "18.2.21",
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.15",
+    "axios": "^1.11.0",
     "chart.js": "^4.5.0",
     "class-variance-authority": "^0.7.1",
     "date-fns": "^4.1.0",
@@ -67,6 +73,7 @@
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^16.3.0",
     "@types/jest": "^30.0.0",
+    "@types/lodash-es": "^4.17.12",
     "cross-env": "^7.0.3",
     "jest": "^30.0.5",
     "jest-environment-jsdom": "^30.0.5"

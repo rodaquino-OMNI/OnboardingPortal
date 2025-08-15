@@ -15,8 +15,10 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy package files and scripts for postinstall hook
+# Copy package files and ensure scripts directory exists
 COPY package.json package-lock.json ./
+# Create scripts directory and copy setup scripts
+RUN mkdir -p scripts
 COPY scripts ./scripts
 
 # Install dependencies with memory optimization (disable Husky for Docker)
@@ -40,8 +42,15 @@ WORKDIR /app
 # Copy application source
 COPY . .
 
-# Setup Tesseract.js worker files
-RUN node scripts/setup-tesseract-lazy.js
+# Ensure scripts directory exists and setup Tesseract.js worker files
+RUN mkdir -p scripts && \
+    if [ -f scripts/setup-tesseract-lazy.js ]; then \
+      node scripts/setup-tesseract-lazy.js; \
+    else \
+      echo "Creating placeholder tesseract setup..." && \
+      mkdir -p public/tesseract && \
+      echo 'Tesseract will be loaded dynamically when needed' > public/tesseract/.needs-setup; \
+    fi
 
 # Set build-time environment variables
 ARG NEXT_PUBLIC_API_URL

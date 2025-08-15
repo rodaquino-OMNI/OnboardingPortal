@@ -1,5 +1,5 @@
 # Development overrides for docker-compose
-version: '3.8'
+# Version removed as it's obsolete in Docker Compose v2
 
 services:
   # Use development Dockerfile for frontend
@@ -11,12 +11,15 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - NODE_ENV=development
-      - CHOKIDAR_USEPOLLING=true
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: true
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      WATCHPACK_POLLING: true
     command: npm run dev
 
-  # PHP development settings
-  php:
+  # Backend PHP development settings (extends backend service)
+  backend:
     environment:
       - APP_ENV=local
       - APP_DEBUG=true
@@ -33,9 +36,6 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
-    networks:
-      - omni_network
-
   # PHPMyAdmin for database management
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
@@ -48,9 +48,11 @@ services:
       - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
     depends_on:
       - mysql
-    networks:
-      - omni_network
 
+  # Redis with no authentication for development
+  redis:
+    command: redis-server --protected-mode no --appendonly yes
+    
   # Redis Commander for Redis management
   redis-commander:
     image: rediscommander/redis-commander:latest
@@ -61,5 +63,3 @@ services:
       - REDIS_HOSTS=local:redis:6379
     depends_on:
       - redis
-    networks:
-      - omni_network

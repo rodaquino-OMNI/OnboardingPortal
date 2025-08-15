@@ -24,10 +24,6 @@ export default function ExecutiveSummaryDashboard() {
   const [period, setPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('monthly');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  useEffect(() => {
-    loadSummary();
-  }, [period, loadSummary]);
-
   const loadSummary = useCallback(async () => {
     try {
       setLoading(true);
@@ -44,6 +40,10 @@ export default function ExecutiveSummaryDashboard() {
       setLoading(false);
     }
   }, [period]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
 
   const downloadPdfReport = async () => {
     try {

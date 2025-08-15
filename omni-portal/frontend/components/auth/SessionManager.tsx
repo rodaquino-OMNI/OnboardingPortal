@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface Session {
   id: string;
@@ -19,11 +19,6 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [tokenExpired, setTokenExpired] = useState(false);
-
-  useEffect(() => {
-    fetchSessions();
-    setupTokenRefresh();
-  }, []);
 
   const fetchSessions = async () => {
     try {
@@ -48,43 +43,6 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
     }
   };
 
-  const setupTokenRefresh = () => {
-    const tokenExpiresAt = localStorage.getItem('token_expires_at');
-    if (!tokenExpiresAt) return;
-
-    const expiresIn = new Date(tokenExpiresAt).getTime() - Date.now();
-    
-    // Refresh 1 minute before expiry
-    const refreshIn = Math.max(0, expiresIn - 60000);
-
-    if (refreshIn > 0) {
-      setTimeout(async () => {
-        try {
-          const response = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            },
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            localStorage.setItem('access_token', data.access_token);
-            const newExpiry = new Date(Date.now() + data.expires_in * 1000);
-            localStorage.setItem('token_expires_at', newExpiry.toISOString());
-            setupTokenRefresh(); // Schedule next refresh
-          } else {
-            setTokenExpired(true);
-          }
-        } catch (err) {
-          console.error('Token refresh failed:', err);
-        }
-      }, refreshIn);
-    } else {
-      refreshToken();
-    }
-  };
-
   const refreshToken = async () => {
     try {
       const response = await fetch('/api/auth/refresh', {
@@ -97,7 +55,8 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('access_token', data.access_token);
-        setupTokenRefresh();
+        const newExpiry = new Date(Date.now() + data.expires_in * 1000);
+        localStorage.setItem('token_expires_at', newExpiry.toISOString());
       } else {
         localStorage.removeItem('access_token');
         setTokenExpired(true);
@@ -106,6 +65,33 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
       setTokenExpired(true);
     }
   };
+
+  const setupTokenRefresh = (): (() => void) | undefined => {
+    const tokenExpiresAt = localStorage.getItem('token_expires_at');
+    if (!tokenExpiresAt) return undefined;
+
+    const expiresIn = new Date(tokenExpiresAt).getTime() - Date.now();
+    
+    // Refresh 1 minute before expiry
+    const refreshIn = Math.max(0, expiresIn - 60000);
+
+    if (refreshIn > 0) {
+      const timeoutId = setTimeout(() => {
+        refreshToken();
+      }, refreshIn);
+      
+      return () => clearTimeout(timeoutId);
+    } else {
+      refreshToken();
+      return undefined;
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+    const cleanup = setupTokenRefresh();
+    return cleanup;
+  }, []);
 
   const handleRevokeSession = async (sessionId: string) => {
     try {

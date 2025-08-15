@@ -40,10 +40,10 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
         window.speechSynthesis.cancel();
       }
     };
-  }, [config]);
+  }, [config, setupKeyboardNavigation]);
 
   // Setup keyboard navigation
-  const setupKeyboardNavigation = () => {
+  const setupKeyboardNavigation = useCallback(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Tab navigation is handled by default
       // Add custom shortcuts
@@ -64,7 +64,7 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  };
+  }, []);
 
   // Setup screen reader announcements
   const setupScreenReaderAnnouncements = () => {
@@ -167,7 +167,7 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
             {config?.textToSpeech && (
               <Button
                 size="sm"
-                variant={isReading ? 'default' : 'outline'}
+                variant={isReading ? 'primary' : 'outline'}
                 onClick={isReading ? stopReading : readCurrentQuestion}
                 aria-label={isReading ? 'Parar leitura' : 'Ler pergunta em voz alta'}
               >
@@ -183,9 +183,12 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
                 onClick={() => {
                   const sizes: AccessibilityConfig['fontSize'][] = ['small', 'medium', 'large', 'extra-large'];
                   const currentIndex = sizes.indexOf(fontSize);
-                  const newSize = sizes[currentIndex > 0 ? currentIndex - 1 : 0];
-                  setFontSize(newSize);
-                  announce(`Tamanho da fonte: ${newSize}`);
+                  const newIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+                  const newSize = sizes[newIndex];
+                  if (newSize) {
+                    setFontSize(newSize);
+                    announce(`Tamanho da fonte: ${newSize}`);
+                  }
                 }}
                 aria-label="Diminuir tamanho da fonte"
                 disabled={fontSize === 'small'}
@@ -203,9 +206,12 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
                 onClick={() => {
                   const sizes: AccessibilityConfig['fontSize'][] = ['small', 'medium', 'large', 'extra-large'];
                   const currentIndex = sizes.indexOf(fontSize);
-                  const newSize = sizes[currentIndex < sizes.length - 1 ? currentIndex + 1 : sizes.length - 1];
-                  setFontSize(newSize);
-                  announce(`Tamanho da fonte: ${newSize}`);
+                  const newIndex = currentIndex < sizes.length - 1 ? currentIndex + 1 : sizes.length - 1;
+                  const newSize = sizes[newIndex];
+                  if (newSize) {
+                    setFontSize(newSize);
+                    announce(`Tamanho da fonte: ${newSize}`);
+                  }
                 }}
                 aria-label="Aumentar tamanho da fonte"
                 disabled={fontSize === 'extra-large'}
@@ -217,7 +223,7 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
             {/* High Contrast */}
             <Button
               size="sm"
-              variant={highContrast ? 'default' : 'outline'}
+              variant={highContrast ? 'primary' : 'outline'}
               onClick={toggleHighContrast}
               aria-label={`${highContrast ? 'Desativar' : 'Ativar'} alto contraste`}
             >

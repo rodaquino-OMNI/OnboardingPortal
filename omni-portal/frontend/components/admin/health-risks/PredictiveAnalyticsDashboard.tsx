@@ -16,10 +16,6 @@ export default function PredictiveAnalyticsDashboard() {
   const [horizonDays, setHorizonDays] = useState(30);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.7);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [horizonDays, confidenceThreshold, loadAnalytics]);
-
   const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
@@ -36,6 +32,10 @@ export default function PredictiveAnalyticsDashboard() {
       setLoading(false);
     }
   }, [horizonDays, confidenceThreshold]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {

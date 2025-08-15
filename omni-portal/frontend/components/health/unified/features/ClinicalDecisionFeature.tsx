@@ -50,10 +50,10 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
         console.error('[Clinical Decision] Risk calculation error:', error);
       }
     }
-  }, [state.responses, enableRealTime]);
+  }, [state.responses, enableRealTime, checkClinicalAlerts]);
 
   // Check for clinical alerts based on risk score
-  const checkClinicalAlerts = (score: RiskScore) => {
+  const checkClinicalAlerts = useCallback((score: RiskScore) => {
     const alerts: ClinicalAlert[] = [];
 
     // Emergency detection
@@ -69,7 +69,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
     }
 
     // High cardiovascular risk
-    if (score.cardiovascular > 70) {
+    if ((score as any).cardiovascular > 70) {
       alerts.push({
         id: 'cv-risk',
         severity: 'high',
@@ -81,7 +81,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
     }
 
     // Mental health concerns
-    if (score.mental > 60) {
+    if ((score as any).mental > 60) {
       alerts.push({
         id: 'mental-health',
         severity: 'medium',
@@ -96,7 +96,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
 
     // Update recommended protocols
     updateProtocols(score);
-  };
+  }, [enableEmergency]);
 
   // Update clinical protocols based on risk assessment
   const updateProtocols = (score: RiskScore) => {
@@ -110,7 +110,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
       newProtocols.push('Protocolo de Monitoramento de Pressão Arterial');
     }
 
-    if (score.mental > 40) {
+    if ((score as any).mental > 40) {
       newProtocols.push('Protocolo de Avaliação de Saúde Mental (PHQ-9/GAD-7)');
     }
 
@@ -150,7 +150,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
                     </p>
                   )}
                 </div>
-                <Badge variant={alert.severity === 'critical' ? 'destructive' : 'secondary'}>
+                <Badge variant={alert.severity === 'critical' ? 'error' : 'secondary'}>
                   {alert.severity === 'critical' ? 'CRÍTICO' : alert.severity.toUpperCase()}
                 </Badge>
               </div>
@@ -170,19 +170,19 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {Math.round(riskScore.cardiovascular)}
+                {Math.round((riskScore as any).cardiovascular || 0)}
               </div>
               <div className="text-xs text-gray-600">Cardiovascular</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {Math.round(riskScore.mental)}
+                {Math.round((riskScore as any).mental || 0)}
               </div>
               <div className="text-xs text-gray-600">Saúde Mental</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {Math.round(riskScore.overall)}
+                {Math.round((riskScore as any).overall || 0)}
               </div>
               <div className="text-xs text-gray-600">Geral</div>
             </div>

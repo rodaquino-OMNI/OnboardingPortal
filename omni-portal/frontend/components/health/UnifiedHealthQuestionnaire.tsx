@@ -210,7 +210,7 @@ export function UnifiedHealthQuestionnaire({
     // Calculate basic risk scores (simplified version)
     const calculateBasicRiskScore = () => {
       let totalScore = 0;
-      let categories = {
+      const categories = {
         cardiovascular: 0,
         mental_health: 0,
         substance_abuse: 0,

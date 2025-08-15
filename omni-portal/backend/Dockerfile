@@ -62,7 +62,7 @@ COPY --from=composer:2.7.1 /usr/bin/composer /usr/bin/composer
 # Stage 2: Application Build
 FROM dependencies AS builder
 
-WORKDIR /var/www/html
+WORKDIR /var/www/backend
 
 # Copy composer files first for better caching
 COPY composer.json composer.lock ./
@@ -92,10 +92,10 @@ FROM dependencies AS production
 RUN addgroup -g 1000 -S appgroup && \
     adduser -u 1000 -S appuser -G appgroup
 
-WORKDIR /var/www/html
+WORKDIR /var/www/backend
 
 # Copy application from builder
-COPY --from=builder --chown=appuser:appgroup /var/www/html /var/www/html
+COPY --from=builder --chown=appuser:appgroup /var/www/backend /var/www/backend
 
 # Create necessary directories with proper permissions
 RUN mkdir -p \

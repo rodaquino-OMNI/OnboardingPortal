@@ -67,10 +67,6 @@ export default function AlertsListPage() {
   });
   const [searchInput, setSearchInput] = useState('');
 
-  useEffect(() => {
-    loadAlerts();
-  }, [loadAlerts]); // Include loadAlerts dependency
-
   const loadAlerts = useCallback(async () => {
     try {
       setLoading(true);
@@ -85,6 +81,10 @@ export default function AlertsListPage() {
       setLoading(false);
     }
   }, [filters]);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]); // Include loadAlerts dependency
 
   const handleSearch = () => {
     setFilters(prev => ({ ...prev, search: searchInput, page: 1 }));

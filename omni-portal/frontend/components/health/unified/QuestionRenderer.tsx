@@ -2,16 +2,18 @@
 
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { ChevronRight, CheckCircle, Info, AlertCircle } from 'lucide-react';
+// INTEGRATION: Use SafeTouchButton for WCAG AAA compliance (48px touch targets)
+import { SafeTouchButton } from '@/components/health/touch/SafeTouchButton';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useQuestionnaire, QuestionnaireFeature } from './BaseHealthQuestionnaire';
-import { HealthQuestion, QuestionValue } from '@/types/health';
+import { HealthQuestion, QuestionValue } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary, useErrorHandler } from '../ErrorBoundary';
-import { useUnifiedNavigation, NAVIGATION_PROFILES } from '@/hooks/useUnifiedNavigation';
+import { useUnifiedNavigation, NAVIGATION_PROFILES, NavigationConfig } from '@/hooks/useUnifiedNavigation';
 import { ChronicConditionSelector } from '../structured/ChronicConditionSelector';
 import { MedicationSelector } from '../structured/MedicationSelector';
 import { ContactForm } from '../structured/ContactForm';
@@ -30,6 +32,7 @@ interface QuestionRendererConfig {
 const QuestionRendererInner = memo(function QuestionRendererInner({ config, onProgressUpdate }: { config?: QuestionRendererConfig; onProgressUpdate?: (progress: number) => void }) {
   const {
     state,
+    config: questionnaireConfig,
     getCurrentSection,
     getCurrentQuestion,
     getVisibleQuestions,
@@ -75,8 +78,8 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     const requestedProfile = profileName || 'clinical';
     
     // Validate profile exists, with multiple fallback layers for safety
-    if (NAVIGATION_PROFILES[requestedProfile]) {
-      return NAVIGATION_PROFILES[requestedProfile];
+    if ((NAVIGATION_PROFILES as any)[requestedProfile]) {
+      return (NAVIGATION_PROFILES as any)[requestedProfile];
     }
     
     // First fallback: clinical (medical safety priority)
@@ -140,7 +143,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       const storedValue = state.responses[currentQuestion.id] !== undefined 
         ? state.responses[currentQuestion.id] 
         : null;
-      setLocalValue(storedValue);
+      setLocalValue(storedValue || null);
       
       // Clear all error states when question changes
       setShowError(false);
@@ -151,7 +154,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         // The error will be cleared by the validation system
       }
     }
-  }, [currentQuestion?.id, state.responses]);
+  }, [currentQuestion?.id, state.responses, currentQuestion, state.validationErrors]);
 
   // TECHNICAL EXCELLENCE FIX 3: Unified validation error manager with consistent state handling
   useEffect(() => {
@@ -175,7 +178,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         console.log('Validation error cleared from global state');
       }
     }
-  }, [currentQuestion?.id, state.validationErrors, validationMessage, showError]);
+  }, [currentQuestion?.id, state.validationErrors, validationMessage, showError, currentQuestion]);
 
   // Call onProgressUpdate when progress changes
   useEffect(() => {
@@ -231,30 +234,32 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     const value = state.responses[currentQuestion.id];
     const error = state.validationErrors[currentQuestion.id];
 
-    switch (currentQuestion.type) {
+    switch (currentQuestion.type as any) {
       case 'boolean':
         return (
           <div className="grid grid-cols-2 gap-4" role="radiogroup" aria-labelledby="question-text">
-            <Button
-              variant={value === true ? 'default' : 'outline'}
+            <SafeTouchButton
+              variant={value === true ? 'primary' : 'secondary'}
+              size="large"
               onClick={() => handleResponse(true)}
-              className="min-h-[48px] py-4 text-lg transition-all hover:scale-105 active:scale-95 touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="transition-all hover:scale-105 active:scale-95"
               role="radio"
               aria-checked={value === true}
               aria-describedby={currentQuestion.required ? 'required-indicator' : undefined}
             >
               Sim
-            </Button>
-            <Button
-              variant={value === false ? 'default' : 'outline'}
+            </SafeTouchButton>
+            <SafeTouchButton
+              variant={value === false ? 'primary' : 'secondary'}
+              size="large"
               onClick={() => handleResponse(false)}
-              className="min-h-[48px] py-4 text-lg transition-all hover:scale-105 active:scale-95 touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="transition-all hover:scale-105 active:scale-95"
               role="radio"
               aria-checked={value === false}
               aria-describedby={currentQuestion.required ? 'required-indicator' : undefined}
             >
               Não
-            </Button>
+            </SafeTouchButton>
           </div>
         );
 
@@ -263,27 +268,28 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <div className="space-y-3" role="radiogroup" aria-labelledby="question-text">
             {options.map((option, index) => (
-              <Button
+              <SafeTouchButton
                 key={`${option.value}-${index}`}
-                variant={value === option.value ? 'default' : 'outline'}
+                variant={value === option.value ? 'primary' : 'secondary'}
+                size="standard"
                 onClick={() => handleResponse(option.value)}
-                className="w-full justify-start py-4 min-h-[48px] transition-all hover:scale-[1.02] active:scale-[0.98] touch-manipulation focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="w-full justify-start transition-all hover:scale-[1.02] active:scale-[0.98]"
                 role="radio"
                 aria-checked={value === option.value}
-                aria-describedby={option.description ? `option-desc-${index}` : undefined}
+                aria-describedby={(option as any).description ? `option-desc-${index}` : undefined}
               >
                 <div className="text-left">
                   <div>{option.label}</div>
-                  {option.description && (
+                  {(option as any).description && (
                     <div 
                       id={`option-desc-${index}`}
                       className="text-sm text-gray-600 mt-1"
                     >
-                      {option.description}
+                      {(option as any).description}
                     </div>
                   )}
                 </div>
-              </Button>
+              </SafeTouchButton>
             ))}
           </div>
         );
@@ -299,7 +305,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
               return (
                 <Button
                   key={`${option.value}-${index}`}
-                  variant={isSelected ? 'default' : 'outline'}
+                  variant={isSelected ? 'primary' : 'outline'}
                   onClick={() => {
                     if (option.value === 'none') {
                       handleResponse(['none']);
@@ -339,7 +345,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
               placeholder="Digite um número"
               min={currentQuestion.validation?.min}
               max={currentQuestion.validation?.max}
-              value={localValue || ''}
+              value={String(localValue || '')}
               onChange={(e) => {
                 const val = e.target.value === '' ? null : parseInt(e.target.value);
                 setLocalValue(val);
@@ -401,12 +407,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <ChronicConditionSelector
             onComplete={(conditions) => {
-              handleResponse(conditions);
+              handleResponse(conditions as any);
             }}
             isProcessing={false}
             initialValue={value as any || []}
-            title="Condições Crônicas de Saúde"
-            description="Selecione as condições que você tem ou já teve, e forneça detalhes estruturados sobre cada uma"
           />
         );
 
@@ -414,12 +418,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <MedicationSelector
             onComplete={(medications) => {
-              handleResponse(medications);
+              handleResponse(medications as any);
             }}
             isProcessing={false}
             initialValue={value as any || []}
-            title="Medicamentos Atuais"
-            description="Liste todos os medicamentos que você toma regularmente com detalhes estruturados"
           />
         );
 
@@ -427,12 +429,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <ContactForm
             onComplete={(contact) => {
-              handleResponse(contact);
+              handleResponse(contact as any);
             }}
             isProcessing={false}
             initialValue={value as any}
-            title="Contato de Emergência"
-            description="Informações do seu contato de emergência para situações médicas"
           />
         );
 
@@ -440,12 +440,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <SurgeryHistorySelector
             onComplete={(surgeries) => {
-              handleResponse(surgeries);
+              handleResponse(surgeries as any);
             }}
             isProcessing={false}
             initialValue={value as any || []}
-            title="Histórico de Cirurgias"
-            description="Registre as cirurgias que você já fez com detalhes estruturados"
           />
         );
 
@@ -511,9 +509,9 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
                 <Badge variant="outline">
                   {currentSection.title} • Q{state.currentQuestionIndex + 1}/{visibleQuestions.length}
                 </Badge>
-                {currentQuestion.metadata?.validatedTool && (
+                {(currentQuestion.metadata as any)?.validatedTool && (
                   <Badge variant="secondary" className="text-xs">
-                    {currentQuestion.metadata.validatedTool}
+                    {(currentQuestion.metadata as any).validatedTool}
                   </Badge>
                 )}
               </div>
@@ -533,7 +531,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
               </h2>
 
               {/* Risk Warning */}
-              {currentQuestion.riskWeight && currentQuestion.riskWeight >= 8 && (
+              {(currentQuestion as any).riskWeight && (currentQuestion as any).riskWeight >= 8 && (
                 <Alert>
                   <Info className="w-4 h-4" />
                   <AlertDescription>
@@ -544,7 +542,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
 
               {/* Validation Error */}
               {(showError || state.validationErrors[currentQuestion.id]) && (
-                <Alert variant="destructive" className="bg-red-50 border-red-200">
+                <Alert variant="error" className="bg-red-50 border-red-200">
                   <AlertCircle className="w-4 h-4 text-red-600" />
                   <AlertDescription className="text-red-800 font-medium">
                     {validationMessage || state.validationErrors[currentQuestion.id] || 'Erro de validação'}
@@ -592,7 +590,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
                       <>
                         {state.currentQuestionIndex < visibleQuestions.length - 1
                           ? 'Próximo'
-                          : state.currentSectionIndex < (state.sections?.length || 0) - 1
+                          : state.currentSectionIndex < (questionnaireConfig.sections.length - 1)
                             ? 'Próxima Seção'
                             : 'Finalizar'}
                         <ChevronRight className="w-4 h-4 ml-1" />
@@ -638,7 +636,7 @@ export const QuestionRenderer = memo(function QuestionRenderer(props: { config?:
         console.error('Question renderer error:', error, errorInfo);
         // Could also send to error tracking service
       }}
-      resetKeys={[props.config]}
+      resetKeys={[JSON.stringify(props.config || {})]}
       resetOnPropsChange={true}
       fallback={
         <div className="p-8 text-center">
@@ -647,7 +645,11 @@ export const QuestionRenderer = memo(function QuestionRenderer(props: { config?:
           <p className="text-gray-600 mb-4">
             Houve um problema ao carregar esta pergunta. Por favor, tente recarregar a página.
           </p>
-          <Button onClick={() => window.location.reload()}>
+          <Button onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.location.reload();
+            }
+          }}>
             Recarregar Página
           </Button>
         </div>

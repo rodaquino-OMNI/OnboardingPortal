@@ -69,37 +69,37 @@ function GamificationFeatureInner({ config }: { config?: GamificationConfig }) {
 
     // Check for achievements
     checkAchievements(responseCount, totalPoints);
-  }, [state.responses]);
+  }, [state.responses, checkAchievements, gamificationState.streak]);
 
   // Check and unlock achievements
-  const checkAchievements = (responseCount: number, points: number) => {
+  const checkAchievements = useCallback((responseCount: number, points: number) => {
     try {
       const achievements = [...gamificationState.achievements];
       let newUnlock: Achievement | null = null;
 
       // First Response Achievement
-      if (responseCount >= 1 && !achievements[0].unlocked) {
+      if (responseCount >= 1 && achievements[0] && !achievements[0].unlocked) {
         achievements[0].unlocked = true;
         achievements[0].unlockedAt = new Date();
         newUnlock = achievements[0];
       }
 
       // Quick Starter (5 responses total, regardless of section) - Fixed logic
-      if (responseCount >= 5 && !achievements[1].unlocked) {
+      if (responseCount >= 5 && achievements[1] && !achievements[1].unlocked) {
         achievements[1].unlocked = true;
         achievements[1].unlockedAt = new Date();
         newUnlock = achievements[1];
       }
 
       // Half Way There
-      if (progress >= 50 && !achievements[2].unlocked) {
+      if (progress >= 50 && achievements[2] && !achievements[2].unlocked) {
         achievements[2].unlocked = true;
         achievements[2].unlockedAt = new Date();
         newUnlock = achievements[2];
       }
 
     // Level Up
-    if (gamificationState.level >= 3 && !achievements[3].unlocked) {
+    if (gamificationState.level >= 3 && achievements[3] && !achievements[3].unlocked) {
       achievements[3].unlocked = true;
       achievements[3].unlockedAt = new Date();
       newUnlock = achievements[3];
@@ -116,7 +116,7 @@ function GamificationFeatureInner({ config }: { config?: GamificationConfig }) {
       console.error('Error checking achievements:', error);
       captureError(error as Error);
     }
-  };
+  }, [gamificationState.achievements, gamificationState.level, progress, showAnimations, captureError]);
 
   // Calculate XP for next level
   const currentLevelXP = (gamificationState.level - 1) * 100;
@@ -334,7 +334,7 @@ export function GamificationFeature(props: { config?: GamificationConfig }) {
         console.error('Gamification Feature error:', error, errorInfo);
         // Could send to error tracking service here
       }}
-      resetKeys={[props.config]}
+      resetKeys={[JSON.stringify(props.config || {})]}
       fallback={
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
           <Trophy className="mx-auto h-8 w-8 text-yellow-500 mb-2" />

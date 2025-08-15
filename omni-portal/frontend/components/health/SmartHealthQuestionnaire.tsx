@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Heart, Brain, Activity, Shield, AlertTriangle, 
   CheckCircle, Trophy, Sparkles, ChevronRight,
@@ -50,20 +50,22 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
   const { captureError } = useErrorHandler();
 
   const currentSection = HEALTH_QUESTIONNAIRE_SECTIONS[currentSectionIndex];
-  const visibleQuestions = currentSection?.questions?.filter(q => {
-    if (!q.conditionalOn) return true;
-    const conditionValue = responses[q.conditionalOn.questionId];
-    if (q.conditionalOn.values.includes('*')) {
-      return conditionValue && (Array.isArray(conditionValue) ? conditionValue.length > 0 : true);
-    }
-    return q.conditionalOn.values.includes(conditionValue);
-  }) || [];
+  const visibleQuestions = useMemo(() => {
+    return currentSection?.questions?.filter(q => {
+      if (!q.conditionalOn) return true;
+      const conditionValue = responses[q.conditionalOn.questionId];
+      if (q.conditionalOn.values.includes('*')) {
+        return conditionValue && (Array.isArray(conditionValue) ? conditionValue.length > 0 : true);
+      }
+      return q.conditionalOn.values.includes(conditionValue);
+    }) || [];
+  }, [currentSection?.questions, responses]);
   const currentQuestion = visibleQuestions[currentQuestionIndex];
   const totalQuestions = visibleQuestions.length;
   
   // Calculate overall progress
   const allQuestions = HEALTH_QUESTIONNAIRE_SECTIONS.flatMap(section => section.questions || []);
-  const overallProgress = currentSectionIndex * 20 + (currentQuestionIndex / totalQuestions) * 20;
+  const progressCalculation = currentSectionIndex * 20 + (currentQuestionIndex / totalQuestions) * 20;
   const completedQuestions = currentSectionIndex * 20 + currentQuestionIndex;
 
   // Define handleCriticalRisk BEFORE it's used in useEffect
@@ -160,7 +162,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
     return null;
   };
 
-  const validateCurrentSection = (): boolean => {
+  const validateCurrentSection = useCallback((): boolean => {
     const errors: Record<string, string> = {};
     let hasErrors = false;
     
@@ -174,9 +176,36 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
     
     setValidationErrors(errors);
     return !hasErrors;
-  };
+  }, [visibleQuestions, responses]);
 
   // Unified navigation handlers
+  const handleSectionComplete = useCallback(() => {
+    if (!validateCurrentSection()) {
+      return; // Don't proceed if validation fails
+    }
+    
+    // Update section progress
+    setSectionProgress(prev => ({
+      ...prev,
+      [currentSection?.id || 'unknown']: 100
+    }));
+
+    if (currentSectionIndex < HEALTH_QUESTIONNAIRE_SECTIONS.length - 1) {
+      setCurrentSectionIndex(prev => prev + 1);
+      setCurrentQuestionIndex(0);
+    } else {
+      // Complete questionnaire
+      const finalScore = calculateHealthScore(responses, fraudIndicators!);
+      onComplete({
+        responses,
+        riskScore,
+        fraudIndicators,
+        healthScore: finalScore,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [validateCurrentSection, currentSection, currentSectionIndex, responses, fraudIndicators, riskScore, onComplete]);
+
   const handleNextQuestion = useCallback(() => {
     if (!currentQuestion) return;
     
@@ -185,7 +214,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
     } else {
       handleSectionComplete();
     }
-  }, [currentQuestion, currentQuestionIndex, totalQuestions]);
+  }, [currentQuestion, currentQuestionIndex, totalQuestions, handleSectionComplete]);
 
   const handlePreviousQuestion = useCallback(() => {
     if (currentQuestionIndex > 0) {
@@ -209,7 +238,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
   // Use unified navigation system
   const navigation = useUnifiedNavigation(
     currentQuestion,
-    responses[currentQuestion?.id],
+    currentQuestion?.id ? responses[currentQuestion.id] : undefined,
     NAVIGATION_PROFILES.health, // Use the new health profile
     {
       onNext: handleNextQuestion,
@@ -265,33 +294,6 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
     await navigation.handleResponse(value);
   }, [currentQuestion, responses, validationErrors, navigation]);
 
-  const handleSectionComplete = () => {
-    if (!validateCurrentSection()) {
-      return; // Don't proceed if validation fails
-    }
-    
-    // Update section progress
-    setSectionProgress(prev => ({
-      ...prev,
-      [currentSection.id]: 100
-    }));
-
-    if (currentSectionIndex < HEALTH_QUESTIONNAIRE_SECTIONS.length - 1) {
-      setCurrentSectionIndex(prev => prev + 1);
-      setCurrentQuestionIndex(0);
-    } else {
-      // Complete questionnaire
-      const finalScore = calculateHealthScore(responses, fraudIndicators!);
-      onComplete({
-        responses,
-        riskScore,
-        fraudIndicators,
-        healthScore: finalScore,
-        timestamp: new Date().toISOString()
-      });
-    }
-  };
-
   const renderQuestion = () => {
     if (!currentQuestion) return null;
 
@@ -303,7 +305,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
                    aria-describedby={currentQuestion.validation ? `question-${currentQuestion.id}-help` : undefined}>
             <legend className="sr-only">{currentQuestion.text}</legend>
             <Button
-              variant={responses[currentQuestion.id] === true ? 'default' : 'outline'}
+              variant={responses[currentQuestion.id] === true ? 'primary' : 'outline'}
               onClick={() => handleResponse(true)}
               className="py-8 text-lg"
               role="radio"
@@ -314,7 +316,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
               Sim
             </Button>
             <Button
-              variant={responses[currentQuestion.id] === false ? 'default' : 'outline'}
+              variant={responses[currentQuestion.id] === false ? 'primary' : 'outline'}
               onClick={() => handleResponse(false)}
               className="py-8 text-lg"
               role="radio"
@@ -368,7 +370,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
                 return (
                   <Button
                     key={`${option.value}-${index}`}
-                    variant={isSelected ? 'default' : 'outline'}
+                    variant={isSelected ? 'primary' : 'outline'}
                     onClick={() => handleResponse(option.value)}
                     className="w-full justify-start py-4"
                     role="radio"
@@ -382,13 +384,13 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
                         const nextIndex = (index + 1) % selectOptions.length;
                         const nextButton = document.getElementById(`${currentQuestion.id}-option-${nextIndex}`);
                         nextButton?.focus();
-                        handleResponse(selectOptions[nextIndex].value);
+                        handleResponse(selectOptions[nextIndex]?.value);
                       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
                         e.preventDefault();
                         const prevIndex = index === 0 ? selectOptions.length - 1 : index - 1;
                         const prevButton = document.getElementById(`${currentQuestion.id}-option-${prevIndex}`);
                         prevButton?.focus();
-                        handleResponse(selectOptions[prevIndex].value);
+                        handleResponse(selectOptions[prevIndex]?.value);
                       } else if (e.key === ' ' || e.key === 'Enter') {
                         e.preventDefault();
                         handleResponse(option.value);
@@ -497,7 +499,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
                 return (
                   <Button
                     key={`${option.value}-${index}`}
-                    variant={selected ? 'default' : 'outline'}
+                    variant={selected ? 'primary' : 'outline'}
                     onClick={() => {
                       const current = responses[currentQuestion.id] || [];
                       if (option.value === 'none') {
@@ -610,12 +612,12 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
       {/* Trust Score and Privacy Toggle */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Badge variant={trustScore > 80 ? 'default' : 'secondary'}>
+          <Badge variant={trustScore > 80 ? 'success' : 'secondary'}>
             <Shield className="w-4 h-4 mr-1" />
             Confiabilidade: {trustScore}%
           </Badge>
           {fraudIndicators?.recommendation === 'flag' && (
-            <Badge variant="destructive">
+            <Badge variant="error">
               <AlertTriangle className="w-4 h-4 mr-1" />
               Revisar respostas
             </Badge>
@@ -645,7 +647,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
             currentStep={currentQuestionIndex + 1}
             totalSteps={totalQuestions}
             completedSteps={currentQuestionIndex}
-            currentDomain={currentSection?.id}
+            currentDomain={currentSection?.id || 'unknown'}
             completedDomains={Object.keys(sectionProgress).filter(id => sectionProgress[id] === 100)}
             showStepNumbers={true}
             showDomainInfo={true}

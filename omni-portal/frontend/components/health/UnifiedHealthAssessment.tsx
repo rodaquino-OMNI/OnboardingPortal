@@ -58,9 +58,9 @@ function UnifiedHealthAssessmentInner({
 
   useEffect(() => {
     initializeAssessment();
-  }, []);
+  }, [initializeAssessment]);
 
-  const initializeAssessment = async () => {
+  const initializeAssessment = useCallback(async () => {
     try {
       addBotMessage(
         "Olá! Vou fazer uma avaliação personalizada da sua saúde. " +
@@ -80,14 +80,14 @@ function UnifiedHealthAssessmentInner({
         'error'
       );
     }
-  };
+  }, [addBotMessage, flow, handleFlowResult, captureError]);
 
   const addBotMessage = useCallback((content: string, domain?: string) => {
     setConversationHistory(prev => [...prev, {
       type: 'bot',
       content,
       timestamp: new Date(),
-      domain
+      ...(domain !== undefined && { domain })
     }]);
   }, [setConversationHistory]);
 
@@ -119,7 +119,7 @@ function UnifiedHealthAssessmentInner({
     }
   };
 
-  const handleFlowResult = (result: FlowResult) => {
+  const handleFlowResult = useCallback((result: FlowResult) => {
     setFlowResult(result);
     
     // Update progress whenever we get a new flow result
@@ -152,8 +152,10 @@ function UnifiedHealthAssessmentInner({
           id: '_continue_domain',
           type: 'boolean',
           text: 'Pronto para continuar com a próxima seção?',
-          domain: result.domain!.id
-        });
+          domain: result.domain!.id,
+          riskWeight: 1,
+          required: false
+        } as any);
         break;
 
       case 'complete':
@@ -166,7 +168,7 @@ function UnifiedHealthAssessmentInner({
         // Remove auto-advancement - user will click continue button in the complete view
         break;
     }
-  };
+  }, [onProgressUpdate, onGamificationEvent]);
 
   const formatResponseForDisplay = useCallback((question: HealthQuestion, value: any): string => {
     if (question.type === 'scale') {
@@ -215,7 +217,7 @@ function UnifiedHealthAssessmentInner({
               {currentQuestion.options?.map(option => (
                 <Button
                   key={option.value}
-                  variant={responses[currentQuestion.id] === option.value ? 'default' : 'outline'}
+                  variant={responses[currentQuestion.id] === option.value ? 'primary' : 'outline'}
                   onClick={() => {
                     const newResponses = { ...responses, [currentQuestion.id]: option.value };
                     setResponses(newResponses);
@@ -511,7 +513,7 @@ function MultiSelectQuestion({ question, onComplete }: { question: HealthQuestio
       {question.options?.map(option => (
         <Button
           key={option.value}
-          variant={selected.includes(option.value) ? 'default' : 'outline'}
+          variant={selected.includes(option.value) ? 'primary' : 'outline'}
           onClick={() => toggleOption(option.value)}
           className="w-full justify-start py-3 text-left"
         >
@@ -579,7 +581,7 @@ export function UnifiedHealthAssessment(props: UnifiedHealthAssessmentProps) {
         console.error('Unified Health Assessment error:', error, errorInfo);
         // Could send to error tracking service here
       }}
-      resetKeys={[props]}
+      resetKeys={[JSON.stringify(props)]}
     >
       <UnifiedHealthAssessmentInner {...props} />
     </HealthQuestionnaireErrorBoundary>

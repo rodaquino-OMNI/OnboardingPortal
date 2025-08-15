@@ -83,10 +83,6 @@ export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState('30days');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [loadAnalytics]); // Include loadAnalytics dependency
-
   const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
@@ -151,6 +147,10 @@ export default function AnalyticsPage() {
       setLoading(false);
     }
   }, [timeframe]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]); // Include loadAnalytics dependency
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {

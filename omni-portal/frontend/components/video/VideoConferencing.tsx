@@ -144,10 +144,10 @@ export function VideoConferencing({
         setIsConnecting(false);
       }
     }
-  }, [interviewId, participantInfo, onError, makeRequest]); // All dependencies included
+  }, [interviewId, participantInfo, onError, makeRequest, setupWebRTC]); // All dependencies included
 
   // Setup WebRTC connection with HIPAA compliance
-  const setupWebRTC = async (sessionData: VideoSession) => {
+  const setupWebRTC = useCallback(async (sessionData: VideoSession) => {
     try {
       // Initialize HIPAA-compliant video service
       const hipaaService = new HIPAAVideoService({
@@ -216,7 +216,7 @@ export function VideoConferencing({
       onError?.('HIPAA video initialization failed');
       return;
     }
-  };
+  }, [participantInfo.id, participantInfo.role]);
 
   // Analyze connection statistics for quality monitoring
   const analyzeConnectionStats = (stats: any): 'excellent' | 'good' | 'poor' => {
@@ -253,7 +253,7 @@ export function VideoConferencing({
     } finally {
       setIsConnecting(false);
     }
-  }, [session]); // session is the dependency
+  }, [session, setupWebRTC]); // All dependencies included
 
   // Toggle local video
   const toggleVideo = useCallback(() => {
@@ -334,7 +334,7 @@ export function VideoConferencing({
         }
       }
     }
-  }, [makeRequest]); // Remove stopScreenShare to prevent circular dependency
+  }, [makeRequest]); // makeRequest dependency only
 
   // Stop screen sharing
   const stopScreenShare = useCallback(async () => {

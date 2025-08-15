@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { 
   Calendar, 
   Lock, 
@@ -50,14 +50,7 @@ export default function InterviewUnlockCard() {
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false);
   const [hovering, setHovering] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      checkOnboardingProgress();
-      fetchAll();
-    }
-  }, [isAuthenticated, fetchAll]);
-
-  const checkOnboardingProgress = async () => {
+  const checkOnboardingProgress = useCallback(async () => {
     try {
       // Use ONLY real data - no demo contamination
       const profileComplete = !!(user?.name && user?.email);
@@ -79,10 +72,7 @@ export default function InterviewUnlockCard() {
         missingSteps.push('Envie seus documentos (+100 pontos)');
       }
       if (!healthQuestionnaireCompleted) {
-        missingSteps.push('Questionário de saúde (+100 pontos)');
-      }
-      if (realPoints < 200) {
-        missingSteps.push('Ganhe mais pontos com atividades diárias');
+        missingSteps.push('Complete o questionário de saúde (+100 pontos)');
       }
 
       setOnboardingProgress({
@@ -96,18 +86,22 @@ export default function InterviewUnlockCard() {
         missingSteps
       });
 
-      // Trigger unlock animation if just unlocked
-      const wasUnlocked = localStorage.getItem('premium_consultation_unlocked');
-      if (isUnlocked && !wasUnlocked) {
+      // Trigger unlock animation if newly unlocked
+      if (isUnlocked && !showUnlockAnimation) {
         setShowUnlockAnimation(true);
-        localStorage.setItem('premium_consultation_unlocked', 'true');
-        setTimeout(() => setShowUnlockAnimation(false), 4000);
+        setTimeout(() => setShowUnlockAnimation(false), 3000);
       }
-
     } catch (error) {
-      console.error('Error checking onboarding progress:', error);
+      console.error('Failed to check onboarding progress:', error);
     }
-  };
+  }, [user?.name, user?.email, progress?.total_points, showUnlockAnimation]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkOnboardingProgress();
+      fetchAll();
+    }
+  }, [isAuthenticated, fetchAll, checkOnboardingProgress]);
 
   const handleUnlockClick = () => {
     if (onboardingProgress?.isUnlocked) {

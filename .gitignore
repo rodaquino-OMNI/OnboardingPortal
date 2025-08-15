@@ -18,6 +18,8 @@ node_modules/
 .env.development
 .env.development.secure
 .env.production.secure
+.env.docker
+**/.env.docker
 
 # SSL certificates and keys (NEVER commit these)
 *.pem
@@ -59,6 +61,9 @@ yarn-error.log*
 memory/
 coordination/
 claude-flow*
+
+# Archive directory (legacy cleanup)
+archive/
 
 # Root-level package.json files (Claude Flow artifacts)
 /package.json
@@ -409,6 +414,7 @@ CLAUDE.md
 
 # Performance test reports (auto-generated)
 **/performance/reports/performance-report-*.json
+
 
 
 

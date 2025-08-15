@@ -71,10 +71,6 @@ export default function HealthRisksDashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]); // Include loadDashboardData dependency
-
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -88,6 +84,10 @@ export default function HealthRisksDashboard() {
       setLoading(false);
     }
   }, [timeframe]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]); // Include loadDashboardData dependency
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

@@ -1,4 +1,4 @@
-version: '3.8'
+# Version removed as it's obsolete in Docker Compose v2
 
 services:
   mysql:
@@ -40,9 +40,15 @@ services:
     container_name: austa_backend
     restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
+      APP_KEY: base64:8PjYvEQlF3lRXrX9mWqCkYoNHN4n8YdTqvQFWqoaLHI=
+      APP_ENV: local
+      APP_DEBUG: true
+      APP_URL: http://localhost:8000
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: 3306
@@ -57,15 +63,18 @@ services:
     volumes:
       - ./backend:/var/www/backend
     healthcheck:
-      test: ["CMD", "php-fpm", "-t"]
+      test: ["CMD", "sh", "-c", "cd /var/www/backend && php artisan health:check"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
+      start_period: 60s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api
     container_name: austa_frontend
     restart: unless-stopped
     ports:
@@ -73,8 +82,14 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api
       NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: 1
+      HOSTNAME: "0.0.0.0"
+      PORT: 3000
+    depends_on:
+      backend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "healthcheck.js"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -89,15 +104,19 @@ services:
       - "8443:443"
     volumes:
       - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/nginx/ssl:/etc/nginx/ssl
       - ./backend/public:/var/www/backend/public
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
+      start_period: 30s
 
   # Monitoring services
   prometheus:
@@ -129,12 +148,22 @@ services:
     image: prom/mysqld-exporter:v0.15.0
     container_name: austa_mysql_exporter
     restart: unless-stopped
+    command: 
+      - "--mysqld.username=root"
+      - "--mysqld.address=mysql:3306"
     environment:
-      DATA_SOURCE_NAME: "onboarding:password@(mysql:3306)/onboarding_portal"
+      MYSQLD_EXPORTER_PASSWORD: "root"
     ports:
       - "9104:9104"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9104/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   mysql_data:

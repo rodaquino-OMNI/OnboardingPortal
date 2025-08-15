@@ -116,13 +116,9 @@ export default function TelemedicineSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, isBooking]);
+  }, [router]);
 
-  useEffect(() => {
-    checkEligibility();
-  }, [checkEligibility]);
-
-  const loadAppointmentTypes = async () => {
+  const loadAppointmentTypes = useCallback(async () => {
     try {
       const response = await fetch('/api/telemedicine/appointment-types', {
         method: 'GET',
@@ -154,7 +150,11 @@ export default function TelemedicineSchedulePage() {
       console.error('Error loading appointment types:', error);
       toast.error('Erro ao carregar tipos de consulta');
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkEligibility();
+  }, [checkEligibility]);
 
   const loadAvailableSlots = async (appointmentTypeId: number) => {
     try {
@@ -441,7 +441,7 @@ export default function TelemedicineSchedulePage() {
     const slotsByDate = availableSlots.reduce((acc, slot) => {
       const date = slot.display_date;
       if (!acc[date]) acc[date] = [];
-      acc[date].push(slot);
+      acc[date]!.push(slot);
       return acc;
     }, {} as Record<string, TimeSlot[]>);
 

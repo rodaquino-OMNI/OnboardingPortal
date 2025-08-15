@@ -10,6 +10,7 @@ interface ServiceWorkerProviderProps {
 export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) {
   const [showUpdateNotification, setShowUpdateNotification] = useState(false);
   const [showOfflineNotification, setShowOfflineNotification] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const isOnline = useConnectionStatus();
 
   const {
@@ -29,6 +30,11 @@ export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) 
       console.error('Service worker error:', error);
     }
   });
+
+  // Set mounted state for client-only rendering
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Show offline notification
   useEffect(() => {
@@ -116,7 +122,7 @@ export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) 
       )}
 
       {/* Connection Status Debug (Development Only) */}
-      {process.env.NODE_ENV === 'development' && (
+      {process.env.NODE_ENV === 'development' && mounted && (
         <div className="fixed bottom-4 left-4 z-40 bg-gray-800 text-white px-3 py-2 rounded text-xs">
           <div>SW: {isSupported ? (isRegistered ? '✓' : '⏳') : '✗'}</div>
           <div>Connection: {isOnline ? '🟢' : '🔴'}</div>

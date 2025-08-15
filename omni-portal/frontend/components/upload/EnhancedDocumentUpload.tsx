@@ -89,7 +89,7 @@ export function EnhancedDocumentUpload({
       mountedRef.current = false;
       cleanupRef.current?.();
     };
-  }, [isMobileDevice]);
+  }, [isMobileDevice, cancelAll]);
 
   const handleFileSelect = useCallback(async (selectedFile: File) => {
     if (!selectedFile.type.match(/^image\/(jpeg|jpg|png)$/) && 
@@ -130,7 +130,7 @@ export function EnhancedDocumentUpload({
     if (isMobile && selectedFile.type.startsWith('image/')) {
       setTimeout(() => handleFileUpload(selectedFile), 500);
     }
-  }, [isMobile]);
+  }, [isMobile, handleFileUpload]);
 
   const processFile = useCallback(async (
     file: File,
@@ -210,8 +210,8 @@ export function EnhancedDocumentUpload({
 
           const result: UploadResult = {
             file: processedFile,
-            ocrData: ocrResult,
-            validation,
+            ocrData: ocrResult as any,
+            validation: validation as any || { isValid: true, errors: [] },
             status: validation?.isValid ? 'success' : validation ? 'warning' : 'success',
             message: validation?.errors?.[0] || 'Documento processado com sucesso',
           };
@@ -287,7 +287,7 @@ export function EnhancedDocumentUpload({
 
       throw new Error(errorMessage);
     }
-  }, [documentType, expectedData, mountedRef]);
+  }, [documentType, expectedData, makeRequest]);
 
   const handleFileUpload = useCallback(async (selectedFile: File) => {
     try {
@@ -316,7 +316,7 @@ export function EnhancedDocumentUpload({
       setValidationResult(null);
       handleFileUpload(file);
     }
-  }, [file]);
+  }, [file, handleFileUpload]);
 
   const handleUploadNew = useCallback(() => {
     setFile(null);
@@ -534,7 +534,7 @@ export function EnhancedDocumentUpload({
                     </AlertDescription>
                   </Alert>
                 ) : (
-                  <Alert variant="destructive">
+                  <Alert variant="error">
                     <XCircle className="h-4 w-4" />
                     <AlertDescription>
                       {validationResult.errors.join(', ')}
@@ -557,7 +557,7 @@ export function EnhancedDocumentUpload({
               <ImageProcessingError
                 error={processingError.message}
                 suggestions={processingError.suggestions}
-                onRetry={file ? handleRetry : undefined}
+                {...(file && { onRetry: handleRetry })}
                 onUploadNew={handleUploadNew}
               />
             )}
