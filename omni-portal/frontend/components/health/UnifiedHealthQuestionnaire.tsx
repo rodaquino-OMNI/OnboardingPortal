@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { BaseHealthQuestionnaire, QuestionnaireConfig } from './unified/BaseHealthQuestionnaire';
+import { useSafeQuestionnaireOptimization } from '@/hooks/useSafeQuestionnaireOptimization';
 import { QuestionRendererFeatureDefinition } from './unified/QuestionRenderer';
 // AI Assistant feature removed for clean clinical UX
 import { GamificationFeatureDefinition } from './unified/features/GamificationFeature';
@@ -78,6 +79,22 @@ export function UnifiedHealthQuestionnaire({
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const startTimeRef = useRef(new Date());
   const { fetchProgress, fetchBadges } = useGamification();
+  
+  // INTEGRATION: Safe optimization features
+  const optimization = useSafeQuestionnaireOptimization({
+    enableCache: true,
+    enableTouchOptimization: true,
+    enablePerformanceMonitoring: true,
+    debugMode: false
+  });
+  
+  // Monitor optimization health
+  useEffect(() => {
+    const metrics = optimization.getMetrics();
+    if (!metrics.isHealthy) {
+      console.warn('[UnifiedHealthQuestionnaire] Optimization unhealthy:', metrics);
+    }
+  }, [optimization]);
   // Configure features based on mode and explicit settings
   const getEnabledFeatures = () => {
     const baseFeatures = [QuestionRendererFeatureDefinition];
@@ -146,7 +163,7 @@ export function UnifiedHealthQuestionnaire({
   console.log('[UnifiedHealthQuestionnaire] Enabled features:', getEnabledFeatures().map(f => f.name));
   
   const config: QuestionnaireConfig = {
-    sections: HEALTH_QUESTIONNAIRE_SECTIONS,
+    sections: HEALTH_QUESTIONNAIRE_SECTIONS as any,
     features: getEnabledFeatures(),
     theme: getTheme(),
     validation: {
@@ -169,14 +186,104 @@ export function UnifiedHealthQuestionnaire({
 
   // Handle completion with enriched data and backend submission
   const handleComplete = async (data: any) => {
-    const enrichedData = {
-      ...data,
-      userId,
-      mode,
-      completedAt: new Date().toISOString(),
-      features: Object.keys(features).filter(f => features[f as keyof typeof features]),
-      version: '2.0.0'
+    console.log('[UnifiedHealthQuestionnaire] handleComplete - Raw data received:', data);
+    
+    // Extract responses properly - data contains { responses, metadata, timestamp }
+    const responses = data.responses || {};
+    const metadata = data.metadata || {};
+    
+    // Calculate completed domains based on responses
+    const completedDomains: string[] = [];
+    const domainResponses: Record<string, number> = {};
+    
+    // Group responses by section/domain
+    HEALTH_QUESTIONNAIRE_SECTIONS.forEach(section => {
+      const sectionResponses = section.questions.filter(q => 
+        responses[q.id] !== undefined && responses[q.id] !== null
+      );
+      if (sectionResponses.length > 0) {
+        completedDomains.push(section.id);
+        domainResponses[section.id] = sectionResponses.length;
+      }
+    });
+    
+    // Calculate basic risk scores (simplified version)
+    const calculateBasicRiskScore = () => {
+      let totalScore = 0;
+      let categories = {
+        cardiovascular: 0,
+        mental_health: 0,
+        substance_abuse: 0,
+        chronic_disease: 0,
+        allergy_risk: 0,
+        safety_risk: 0
+      };
+      
+      // Basic risk calculation based on responses
+      if (responses.phq9_9 > 0) categories.safety_risk += 50;
+      if (responses.smoking_status === 'current') categories.cardiovascular += 20;
+      if (responses.chronic_conditions?.length > 2) categories.chronic_disease += 30;
+      
+      totalScore = Object.values(categories).reduce((sum, val) => sum + val, 0);
+      
+      return { totalScore, categories };
     };
+    
+    const riskScoreData = calculateBasicRiskScore();
+    
+    // Determine risk level
+    const getRiskLevel = (score: number): string => {
+      if (score >= 100) return 'critical';
+      if (score >= 75) return 'high';
+      if (score >= 50) return 'moderate';
+      return 'low';
+    };
+    
+    // Generate recommendations based on responses
+    const generateRecommendations = () => {
+      const recommendations = [];
+      
+      if (responses.exercise_frequency < 3) {
+        recommendations.push('Aumentar atividade física para pelo menos 3x por semana');
+      }
+      if (responses.sleep_hours < 7) {
+        recommendations.push('Melhorar rotina de sono para 7-9 horas por noite');
+      }
+      if (responses.smoking_status === 'current') {
+        recommendations.push('Considerar programa de cessação do tabagismo');
+      }
+      if (completedDomains.includes('mental_health_screening')) {
+        recommendations.push('Continuar monitoramento de saúde mental');
+      }
+      
+      return recommendations.length > 0 ? recommendations : 
+        ['Manter hábitos saudáveis atuais', 'Realizar check-ups regulares'];
+    };
+    
+    // Create properly structured HealthAssessmentResults
+    const healthAssessmentResults = {
+      completedDomains,
+      riskLevel: getRiskLevel(riskScoreData.totalScore),
+      totalRiskScore: riskScoreData.totalScore,
+      riskScores: riskScoreData.categories,
+      recommendations: generateRecommendations(),
+      nextSteps: [
+        'Agendar consulta médica para revisão',
+        'Baixar relatório de saúde em PDF',
+        'Compartilhar resultados com profissional de saúde'
+      ],
+      responses,
+      metadata: {
+        ...metadata,
+        userId,
+        mode,
+        completedAt: new Date().toISOString(),
+        features: Object.keys(features).filter(f => features[f as keyof typeof features]),
+        version: '2.0.0'
+      }
+    };
+
+    console.log('[UnifiedHealthQuestionnaire] Structured healthAssessmentResults:', healthAssessmentResults);
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -185,20 +292,45 @@ export function UnifiedHealthQuestionnaire({
       // Prepare submission data
       const submissionData = healthAPI.prepareSubmissionData(
         {
-          responses: enrichedData,
-          completedDomains: Object.keys(data).filter(key => key.startsWith('domain_')),
-          riskScores: {},
-          validationPairs: {},
+          responses: responses,
+          completedDomains: completedDomains,
+          riskScores: riskScoreData.categories,
           fraudScore: 0,
           sessionId: `session-${Date.now()}`,
           userId: userId || 'anonymous'
-        },
+        } as any,
         mode === 'clinical' ? 'smart' : 'unified',
         startTimeRef.current
       );
       
-      // Submit to backend
-      const result = await healthAPI.submitQuestionnaire(submissionData);
+      // FIX: Submit with correct data structure for backend
+      const correctSubmissionData = {
+        questionnaire_type: 'unified',
+        responses: responses,
+        metadata: {
+          version: '2.0.0',
+          completed_at: new Date().toISOString(),
+          time_taken_seconds: Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000),
+          domains_completed: completedDomains,
+          risk_scores: riskScoreData.categories,
+          validation_pairs: {},
+          fraud_score: 0
+        },
+        // Required fields at root level
+        risk_scores: riskScoreData.categories,
+        completed_domains: completedDomains,
+        total_risk_score: riskScoreData.totalScore,
+        risk_level: getRiskLevel(riskScoreData.totalScore),
+        recommendations: generateRecommendations(),
+        next_steps: healthAssessmentResults.nextSteps,
+        fraud_detection_score: 0,
+        timestamp: new Date().toISOString(),
+        session_id: `session-${Date.now()}`,
+        user_id: userId || undefined
+      };
+      
+      // Submit to backend with correct endpoint
+      const result = await healthAPI.submitQuestionnaire(correctSubmissionData as any);
       
       // Update gamification state if enabled
       if (features.gamification !== false && result.gamification_rewards) {
@@ -216,17 +348,17 @@ export function UnifiedHealthQuestionnaire({
         localStorage.removeItem(key);
       }
       
-      // Call parent onComplete with full results
+      // Call parent onComplete with properly structured results
       onComplete({
-        ...enrichedData,
+        ...healthAssessmentResults,
         submission_result: result
       });
     } catch (error) {
       console.error('[UnifiedHealthQuestionnaire] Submission error:', error);
       setSubmitError('Erro ao enviar questionário. Por favor, tente novamente.');
       
-      // Still call onComplete to allow navigation even on error
-      onComplete(enrichedData);
+      // Still call onComplete with structured data to allow navigation even on error
+      onComplete(healthAssessmentResults);
     } finally {
       setIsSubmitting(false);
     }
@@ -250,7 +382,7 @@ export function UnifiedHealthQuestionnaire({
               </Alert>
             )}
             {submitError && (
-              <Alert variant="destructive">
+              <Alert variant="error">
                 <AlertDescription>{submitError}</AlertDescription>
               </Alert>
             )}
@@ -268,7 +400,7 @@ export function UnifiedHealthQuestionnaire({
         <BaseHealthQuestionnaire
           config={config}
           onComplete={handleComplete}
-          onProgressUpdate={onProgressUpdate}
+          {...(onProgressUpdate && { onProgressUpdate })}
         />
       </div>
     </ErrorBoundary>

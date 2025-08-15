@@ -1,0 +1,86 @@
+# CodeQL Configuration for AUSTA Onboarding Portal
+# Technical Excellence Security Configuration
+
+name: "AUSTA Security Analysis"
+
+disable-default-rules: false
+
+queries:
+  - name: security-and-quality
+    uses: security-and-quality
+  - name: security-extended  
+    uses: security-extended
+  - name: php-security-queries
+    uses: ./.github/codeql/queries/php-security.ql
+  - name: javascript-security-queries
+    uses: ./.github/codeql/queries/javascript-security.ql
+
+paths-ignore:
+  - node_modules/
+  - vendor/
+  - storage/
+  - bootstrap/cache/
+  - public/storage/
+  - coverage/
+  - test-results/
+  - playwright-report/
+  - .next/
+  - dist/
+  - build/
+
+paths:
+  - omni-portal/backend/app/
+  - omni-portal/backend/routes/
+  - omni-portal/backend/config/
+  - omni-portal/frontend/app/
+  - omni-portal/frontend/components/
+  - omni-portal/frontend/lib/
+  - omni-portal/frontend/hooks/
+
+# Healthcare-specific security rules
+healthcare-security:
+  - name: "PHI Data Protection"
+    description: "Detect potential PHI data exposure"
+    severity: "error"
+    patterns:
+      - "cpf"
+      - "social_security"
+      - "medical_record"
+      - "patient_id"
+      - "health_data"
+
+  - name: "LGPD Compliance"
+    description: "Brazilian data protection compliance"
+    severity: "warning"
+    patterns:
+      - "personal_data"
+      - "consent"
+      - "data_retention"
+
+  - name: "HIPAA Requirements"
+    description: "Healthcare data security requirements"  
+    severity: "error"
+    patterns:
+      - "audit_log"
+      - "access_control"
+      - "encryption"
+
+# Docker & Container Security
+container-security:
+  - name: "Container Secrets"
+    description: "Detect hardcoded secrets in containers"
+    severity: "error"
+    paths:
+      - "Dockerfile"
+      - "docker-compose*.yml"
+      - ".env*"
+
+# Performance & Quality Metrics
+quality-gates:
+  complexity-threshold: 15
+  test-coverage-minimum: 80
+  security-severity: "medium"
+  performance-budget:
+    bundle-size: "500KB"
+    first-contentful-paint: "1.5s"
+    largest-contentful-paint: "2.5s"

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\DocumentReviewController;
 use App\Http\Controllers\Api\InterviewController;
 use App\Http\Controllers\Api\InterviewSlotController;
 use App\Http\Controllers\Api\TelemedicineSchedulingController;
+use App\Http\Controllers\Api\TestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,9 +34,11 @@ use App\Http\Controllers\Api\TelemedicineSchedulingController;
 // Base API route - returns API information
 Route::get('/', [App\Http\Controllers\Api\ApiInfoController::class, 'index']);
 Route::get('/test', function() { return ['test' => 'working']; });
+Route::get('/test/redis-session', [TestController::class, 'testRedisSession']);
+Route::get('/test/redis-config', [TestController::class, 'testRedisConfig']);
 
 // Health check and monitoring endpoints
-Route::get('/health', [App\Http\Controllers\Api\ApiInfoController::class, 'health']);
+require __DIR__ . '/health.php';
 Route::get('/status', [App\Http\Controllers\Api\MetricsController::class, 'status']);
 Route::get('/metrics', [App\Http\Controllers\Api\MetricsController::class, 'metrics']);
 
@@ -56,7 +59,25 @@ Route::prefix('gamification/public')->group(function () {
 
 // Public authentication routes
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
+    // Handle CORS preflight for login
+    Route::match(['OPTIONS', 'POST'], '/login', function (Request $request) {
+        if ($request->isMethod('OPTIONS')) {
+            \Log::info('CORS OPTIONS request received', [
+                'origin' => $request->header('Origin'),
+                'method' => $request->header('Access-Control-Request-Method')
+            ]);
+            
+            return response('', 200)
+                ->header('Access-Control-Allow-Origin', $request->header('Origin') ?: 'http://localhost:3004')
+                ->header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, X-CSRF-Token')
+                ->header('Access-Control-Allow-Credentials', 'true')
+                ->header('Access-Control-Max-Age', '86400');
+        }
+        
+        // For POST requests, delegate to AuthController
+        return app(AuthController::class)->login($request);
+    });
     Route::post('/register', [RegisterController::class, 'register']);
     Route::post('/check-email', [AuthController::class, 'checkEmail']);
     Route::post('/check-cpf', [AuthController::class, 'checkCpf']);

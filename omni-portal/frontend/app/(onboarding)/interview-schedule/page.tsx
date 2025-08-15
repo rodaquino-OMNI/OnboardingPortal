@@ -43,17 +43,26 @@ export default function InterviewSchedulePage() {
       const partialProgress = localStorage.getItem('onboarding_partial_progress');
       const localData = partialProgress ? JSON.parse(partialProgress) : null;
 
-      const profileComplete = (profileResponse.status === 'fulfilled' && 
-        profileResponse.value?.data?.profile_complete === true) || 
-        (user?.name && user?.email); // Basic profile exists
+      const profileComplete = Boolean((profileResponse.status === 'fulfilled' && 
+        profileResponse.value?.data && 
+        typeof profileResponse.value.data === 'object' &&
+        'profile_complete' in profileResponse.value.data &&
+        (profileResponse.value.data as any).profile_complete === true) || 
+        (user?.name && user?.email)); // Basic profile exists
       
-      const documentsUploaded = (documentsResponse.status === 'fulfilled' && 
-        documentsResponse.value?.data?.required_documents_uploaded === true) ||
-        (localData?.documentUploads && Object.keys(localData.documentUploads).length > 0);
+      const documentsUploaded = Boolean((documentsResponse.status === 'fulfilled' && 
+        documentsResponse.value?.data && 
+        typeof documentsResponse.value.data === 'object' &&
+        'required_documents_uploaded' in documentsResponse.value.data &&
+        (documentsResponse.value.data as any).required_documents_uploaded === true) ||
+        (localData?.documentUploads && Object.keys(localData.documentUploads).length > 0));
       
-      const healthQuestionnaireCompleted = (healthResponse.status === 'fulfilled' && 
-        healthResponse.value?.data?.questionnaire_completed === true) ||
-        (localStorage.getItem('health_questionnaire_completed') === 'true');
+      const healthQuestionnaireCompleted = Boolean((healthResponse.status === 'fulfilled' && 
+        healthResponse.value?.data && 
+        typeof healthResponse.value.data === 'object' &&
+        'questionnaire_completed' in healthResponse.value.data &&
+        (healthResponse.value.data as any).questionnaire_completed === true) ||
+        (localStorage.getItem('health_questionnaire_completed') === 'true'));
 
       const onboardingComplete = profileComplete && documentsUploaded && healthQuestionnaireCompleted;
       
@@ -95,7 +104,7 @@ export default function InterviewSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.email, user?.name]);
 
   useEffect(() => {
     if (!isCountdownActive) return;

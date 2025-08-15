@@ -72,9 +72,16 @@ export interface HealthQuestion {
   id: string;
   type: QuestionType;
   title: string;
+  text?: string; // Alternative to title for compatibility
+  category?: string; // For categorization
   description?: string;
   options?: QuestionOption[];
   validation?: QuestionValidation;
+  required?: boolean;
+  conditionalOn?: {
+    questionId: string;
+    values: QuestionValue[];
+  };
   metadata?: Record<string, unknown>;
 }
 

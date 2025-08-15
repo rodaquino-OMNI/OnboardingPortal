@@ -1,0 +1,390 @@
+name: Security Audit & Compliance
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6 AM UTC
+  push:
+    branches: [main]
+    paths:
+      - '**.php'
+      - '**.js'
+      - '**.ts'
+      - '**.tsx'
+      - 'composer.json'
+      - 'package.json'
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Type of security scan'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - dependencies
+          - containers
+          - code
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ===============================
+  # DEPENDENCY VULNERABILITY SCAN
+  # ===============================
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    if: ${{ inputs.scan_type == 'full' || inputs.scan_type == 'dependencies' || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP for Composer Audit
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      - name: Setup Node.js for NPM Audit
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.19.0'
+
+      - name: Run Composer Security Audit (Backend)
+        working-directory: omni-portal/backend
+        run: |
+          composer install --no-dev --no-scripts
+          composer audit --format=json > composer-audit.json || true
+          cat composer-audit.json
+
+      - name: Run NPM Security Audit (Frontend)
+        working-directory: omni-portal/frontend
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+          cat npm-audit.json
+
+      - name: Run NPM Security Audit (Root)
+        run: |
+          npm audit --audit-level=moderate --json > npm-audit-root.json || true
+          cat npm-audit-root.json
+
+      - name: Upload Audit Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-results
+          path: |
+            omni-portal/backend/composer-audit.json
+            omni-portal/frontend/npm-audit.json
+            npm-audit-root.json
+
+  # ===============================
+  # CODE SECURITY ANALYSIS
+  # ===============================
+  code-security:
+    name: Static Code Security Analysis
+    runs-on: ubuntu-latest
+    if: ${{ inputs.scan_type == 'full' || inputs.scan_type == 'code' || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript, php
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript,php"
+
+      - name: Run Semgrep Security Scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/owasp-top-ten
+            p/php-security
+            p/javascript
+          generateSarif: "1"
+
+      - name: Upload Semgrep results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+  # ===============================
+  # CONTAINER SECURITY SCAN
+  # ===============================
+  container-security:
+    name: Container Security Analysis
+    runs-on: ubuntu-latest
+    if: ${{ inputs.scan_type == 'full' || inputs.scan_type == 'containers' || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: ./omni-portal/${{ matrix.service }}
+          file: ./omni-portal/${{ matrix.service }}/Dockerfile
+          target: production
+          tags: local/${{ matrix.service }}:security-scan
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local/${{ matrix.service }}:security-scan'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}-results.sarif'
+
+      - name: Run Docker Scout (if available)
+        continue-on-error: true
+        run: |
+          if command -v docker-scout &> /dev/null; then
+            docker scout cves local/${{ matrix.service }}:security-scan --format sarif --output docker-scout-${{ matrix.service }}.sarif
+          else
+            echo "Docker Scout not available, skipping..."
+          fi
+
+  # ===============================
+  # INFRASTRUCTURE SECURITY
+  # ===============================
+  infrastructure-security:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    if: ${{ inputs.scan_type == 'full' || github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Checkov (Infrastructure as Code Security)
+        id: checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: dockerfile,docker_compose
+          soft_fail: true
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Upload Checkov scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+      - name: Docker Compose Security Validation
+        run: |
+          echo "🔒 Performing Docker Compose security validation..."
+          
+          # Check for privileged containers
+          if grep -q "privileged: true" docker-compose*.yml; then
+            echo "❌ Privileged containers detected!"
+            grep -n "privileged: true" docker-compose*.yml
+            exit 1
+          fi
+          
+          # Check for host network mode
+          if grep -q "network_mode: host" docker-compose*.yml; then
+            echo "❌ Host network mode detected!"
+            exit 1
+          fi
+          
+          # Check for bind mounts to sensitive directories
+          if grep -q "/etc:/etc\|/var/run:/var/run\|/proc:/proc\|/sys:/sys" docker-compose*.yml; then
+            echo "⚠️ Sensitive directory bind mounts detected!"
+            grep -n "/etc:/etc\|/var/run:/var/run\|/proc:/proc\|/sys:/sys" docker-compose*.yml
+          fi
+          
+          # Check for default passwords
+          if grep -qi "password.*admin\|password.*root\|password.*default" docker-compose*.yml .env*; then
+            echo "❌ Default passwords detected!"
+            exit 1
+          fi
+          
+          echo "✅ Docker Compose security validation passed"
+
+  # ===============================
+  # COMPLIANCE & GDPR/LGPD CHECK
+  # ===============================
+  compliance-check:
+    name: HIPAA/GDPR/LGPD Compliance Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.scan_type == 'full' || github.event_name == 'schedule' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: HIPAA Compliance Check
+        run: |
+          echo "🏥 Checking HIPAA compliance requirements..."
+          
+          # Check for encryption at rest
+          if ! grep -q "encryption" docker-compose*.yml; then
+            echo "⚠️ No encryption configuration found"
+          fi
+          
+          # Check for audit logging
+          if ! grep -rq "audit\|log" omni-portal/backend/app/; then
+            echo "⚠️ Limited audit logging configuration"
+          fi
+          
+          # Check for access controls
+          if ! grep -rq "permission\|role\|auth" omni-portal/backend/app/; then
+            echo "⚠️ Access control implementation not detected"
+          fi
+          
+          echo "✅ HIPAA compliance check completed"
+
+      - name: GDPR/LGPD Data Protection Check
+        run: |
+          echo "🛡️ Checking GDPR/LGPD compliance..."
+          
+          # Check for data encryption
+          encryption_files=$(find . -name "*.php" -o -name "*.js" -o -name "*.ts" | xargs grep -l "encrypt\|decrypt" | wc -l)
+          echo "📊 Files with encryption: $encryption_files"
+          
+          # Check for consent management
+          consent_files=$(find . -name "*.php" -o -name "*.js" -o -name "*.ts" | xargs grep -l "consent\|gdpr\|lgpd" | wc -l)
+          echo "📊 Files with consent management: $consent_files"
+          
+          # Check for data deletion capabilities
+          deletion_files=$(find . -name "*.php" | xargs grep -l "delete\|remove" | wc -l)
+          echo "📊 Files with deletion capabilities: $deletion_files"
+          
+          echo "✅ GDPR/LGPD compliance check completed"
+
+  # ===============================
+  # SECURITY REPORT GENERATION
+  # ===============================
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, code-security, container-security, infrastructure-security, compliance-check]
+    if: always() && (github.event_name == 'schedule' || inputs.scan_type == 'full')
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+
+      - name: Generate Security Report
+        run: |
+          cat > security-report.md << 'EOF'
+          # 🔒 AUSTA Onboarding Portal Security Report
+          
+          **Generated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          
+          ## 📊 Security Scan Results
+          
+          ### Dependency Vulnerabilities
+          - **Backend (Composer):** ${{ needs.dependency-scan.result }}
+          - **Frontend (NPM):** ${{ needs.dependency-scan.result }}
+          
+          ### Code Security Analysis  
+          - **CodeQL Analysis:** ${{ needs.code-security.result }}
+          - **Semgrep Security:** ${{ needs.code-security.result }}
+          
+          ### Container Security
+          - **Backend Container:** ${{ needs.container-security.result }}
+          - **Frontend Container:** ${{ needs.container-security.result }}
+          
+          ### Infrastructure Security
+          - **IaC Security (Checkov):** ${{ needs.infrastructure-security.result }}
+          - **Docker Compose:** ${{ needs.infrastructure-security.result }}
+          
+          ### Compliance Checks
+          - **HIPAA Compliance:** ${{ needs.compliance-check.result }}
+          - **GDPR/LGPD Compliance:** ${{ needs.compliance-check.result }}
+          
+          ## 🛡️ Security Recommendations
+          
+          1. **Regular Dependency Updates:** Keep all dependencies up to date
+          2. **Container Hardening:** Use non-root users and minimal base images
+          3. **Encryption:** Ensure all data is encrypted at rest and in transit
+          4. **Access Controls:** Implement proper authentication and authorization
+          5. **Audit Logging:** Maintain comprehensive audit trails
+          
+          ## 📋 Next Steps
+          
+          - Review any security findings in the GitHub Security tab
+          - Address critical and high severity vulnerabilities immediately
+          - Update security policies based on compliance requirements
+          - Schedule regular security reviews and penetration testing
+          
+          ---
+          *This report was generated automatically by the AUSTA Security Audit workflow*
+          EOF
+          
+          echo "📄 Security report generated"
+          cat security-report.md
+
+      - name: Create Security Issue (if findings)
+        if: needs.dependency-scan.result == 'failure' || needs.code-security.result == 'failure' || needs.container-security.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('security-report.md', 'utf8');
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔒 Security Vulnerabilities Detected - ${new Date().toISOString().split('T')[0]}`,
+              body: report,
+              labels: ['security', 'priority-high', 'needs-review']
+            });
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security-report.md

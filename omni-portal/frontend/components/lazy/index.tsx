@@ -10,17 +10,17 @@ const Loading: React.FC = () => (
 
 // Lazy load heavy components
 export const LazyHealthQuestionnaire = dynamic(
-  () => import('@/components/health/UnifiedHealthQuestionnaire'),
+  () => import('@/components/health/UnifiedHealthQuestionnaire').then(mod => ({ default: mod.UnifiedHealthQuestionnaire })),
   { 
-    loading: Loading,
+    loading: () => <Loading />,
     ssr: false 
   }
 );
 
 export const LazyDocumentUpload = dynamic(
-  () => import('@/components/upload/EnhancedDocumentUpload'),
+  () => import('@/components/upload/EnhancedDocumentUpload').then(mod => ({ default: mod.EnhancedDocumentUpload })),
   { 
-    loading: Loading,
+    loading: () => <Loading />,
     ssr: false 
   }
 );

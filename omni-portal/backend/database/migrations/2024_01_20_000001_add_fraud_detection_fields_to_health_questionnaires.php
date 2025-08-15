@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::table('health_questionnaires', function (Blueprint $table) {
             // Fraud Detection Fields
-            $table->json('response_timestamps')->nullable()->after('responses');
+            $table->json('response_timestamps')->nullable()->after('custom_responses');
             $table->json('response_durations')->nullable()->after('response_timestamps');
             $table->integer('total_duration_seconds')->nullable()->after('response_durations');
             $table->boolean('has_suspicious_patterns')->default(false)->after('total_duration_seconds');
             $table->json('suspicious_patterns')->nullable()->after('has_suspicious_patterns');
             
             // Risk Scoring Fields
-            $table->decimal('fraud_risk_score', 5, 2)->nullable()->after('risk_level');
+            $table->decimal('fraud_risk_score', 5, 2)->nullable()->after('accuracy_score');
             $table->json('risk_factors')->nullable()->after('fraud_risk_score');
             $table->json('consistency_checks')->nullable()->after('risk_factors');
             

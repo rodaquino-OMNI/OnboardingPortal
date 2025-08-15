@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,9 +73,9 @@ export default function HealthRisksDashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, [timeframe]);
+  }, [loadDashboardData]); // Include loadDashboardData dependency
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -87,7 +87,7 @@ export default function HealthRisksDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeframe]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -311,7 +311,7 @@ export default function HealthRisksDashboard() {
                     })}
                   </td>
                   <td className="py-3 px-4">
-                    <Badge variant={alert.sla_status === 'overdue' ? 'destructive' : 'outline'}>
+                    <Badge variant={alert.sla_status === 'overdue' ? 'error' : 'outline'}>
                       {alert.sla_status}
                     </Badge>
                   </td>

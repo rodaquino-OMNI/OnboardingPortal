@@ -89,6 +89,8 @@ export function PDFGenerationCenter({
 
       return () => clearTimeout(timer);
     }
+    // Return empty cleanup function for the else case
+    return () => {};
   }, [safeHealthResults, showImmediately]);
 
   const simulateProgress = useCallback((
@@ -122,7 +124,7 @@ export function PDFGenerationCenter({
         setState(prev => ({
           ...prev,
           progress,
-          currentTask: tasks[currentTaskIndex],
+          currentTask: tasks[currentTaskIndex] || '',
           completedTasks: tasks.slice(0, currentTaskIndex)
         }));
       } else {

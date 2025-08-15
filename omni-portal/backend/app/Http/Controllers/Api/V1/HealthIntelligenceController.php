@@ -339,27 +339,44 @@ class HealthIntelligenceController extends Controller
 
         $total = $query->count();
         
-        // Risk distribution
+        // Risk distribution - optimized with single query
+        $riskDistribution = DB::select("
+            SELECT 
+                SUM(CASE WHEN JSON_EXTRACT(risk_scores, '$.overall_risk_score') >= 150 THEN 1 ELSE 0 END) as critical,
+                SUM(CASE WHEN JSON_EXTRACT(risk_scores, '$.overall_risk_score') BETWEEN 100 AND 149 THEN 1 ELSE 0 END) as high,
+                SUM(CASE WHEN JSON_EXTRACT(risk_scores, '$.overall_risk_score') BETWEEN 50 AND 99 THEN 1 ELSE 0 END) as moderate,
+                SUM(CASE WHEN JSON_EXTRACT(risk_scores, '$.overall_risk_score') < 50 THEN 1 ELSE 0 END) as low
+            FROM ({$query->toSql()}) as subquery
+        ", $query->getBindings());
+        
         $riskDistribution = [
-            'critical' => $query->clone()->whereRaw("JSON_EXTRACT(risk_scores, '$.overall_risk_score') >= 150")->count(),
-            'high' => $query->clone()->whereRaw("JSON_EXTRACT(risk_scores, '$.overall_risk_score') BETWEEN 100 AND 149")->count(),
-            'moderate' => $query->clone()->whereRaw("JSON_EXTRACT(risk_scores, '$.overall_risk_score') BETWEEN 50 AND 99")->count(),
-            'low' => $query->clone()->whereRaw("JSON_EXTRACT(risk_scores, '$.overall_risk_score') < 50")->count()
+            'critical' => (int) $riskDistribution[0]->critical,
+            'high' => (int) $riskDistribution[0]->high,
+            'moderate' => (int) $riskDistribution[0]->moderate,
+            'low' => (int) $riskDistribution[0]->low
         ];
 
-        // Category averages
-        $categoryAverages = [];
+        // Category averages - optimized with single query
         $categories = ['mental_health', 'cardiovascular', 'substance_abuse', 'chronic_disease'];
-        
+        $categorySelect = [];
         foreach ($categories as $category) {
-            $avg = $query->clone()
-                ->selectRaw("AVG(JSON_EXTRACT(risk_scores, '$.categories.{$category}')) as average")
-                ->value('average');
-            $categoryAverages[$category] = round($avg ?? 0, 2);
+            $categorySelect[] = "AVG(JSON_EXTRACT(risk_scores, '$.categories.{$category}')) as {$category}";
+        }
+        
+        $categoryAveragesResult = DB::select("
+            SELECT " . implode(', ', $categorySelect) . "
+            FROM ({$query->toSql()}) as subquery
+        ", $query->getBindings());
+        
+        $categoryAverages = [];
+        foreach ($categories as $category) {
+            $categoryAverages[$category] = round($categoryAveragesResult[0]->$category ?? 0, 2);
         }
 
-        // Top risk factors
-        $topRiskFactors = $this->identifyTopRiskFactors($query->clone()->limit(1000)->get());
+        // Top risk factors - optimized with eager loading
+        $topRiskFactors = $this->identifyTopRiskFactors(
+            $query->clone()->select(['risk_scores'])->limit(1000)->get()
+        );
 
         return [
             'total_population' => $total,

@@ -186,7 +186,7 @@ export function GamificationTester() {
               <AlertCircle className="w-4 h-4" />
               <AlertDescription>
                 Erro: {error}
-                <Button onClick={clearError} variant="link" size="sm" className="ml-2">
+                <Button onClick={clearError} variant="ghost" size="sm" className="ml-2">
                   Limpar
                 </Button>
               </AlertDescription>

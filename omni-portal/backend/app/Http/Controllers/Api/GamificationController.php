@@ -10,6 +10,7 @@ use App\Services\GamificationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -68,6 +69,7 @@ class GamificationController extends Controller
                         'earned' => [],
                         'available' => GamificationBadge::where('is_active', true)
                             ->where('is_secret', false)
+                            ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
                             ->get()
                             ->map(function ($badge) {
                                 return $this->formatBadge($badge);
@@ -76,9 +78,12 @@ class GamificationController extends Controller
                 ]);
             }
             
-            $earnedBadges = $beneficiary->badges()->get();
+            $earnedBadges = $beneficiary->badges()
+                ->select(['gamification_badges.id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria', 'beneficiary_badges.earned_at'])
+                ->get();
             $availableBadges = GamificationBadge::where('is_active', true)
                 ->where('is_secret', false)
+                ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
                 ->get();
             
             return response()->json([
@@ -344,8 +349,9 @@ class GamificationController extends Controller
             // Get recent activities from various sources
             $activities = collect();
             
-            // Add badge activities
+            // Add badge activities with selective loading
             $beneficiary->badges()
+                ->select(['gamification_badges.id', 'name', 'icon_name', 'points_value', 'beneficiary_badges.earned_at'])
                 ->orderBy('beneficiary_badges.earned_at', 'desc')
                 ->limit(5)
                 ->get()
@@ -409,8 +415,12 @@ class GamificationController extends Controller
             }
             
             $progress = $beneficiary->getOrCreateGamificationProgress();
-            $earnedBadges = $beneficiary->badges()->count();
-            $totalBadges = GamificationBadge::where('is_active', true)->where('is_secret', false)->count();
+            // Use loaded relationships to avoid N+1 queries
+            $beneficiary->loadCount('badges');
+            $earnedBadges = $beneficiary->badges_count;
+            $totalBadges = Cache::remember('total_active_badges_count', 3600, function () {
+                return GamificationBadge::where('is_active', true)->where('is_secret', false)->count();
+            });
             
             $summary = [
                 'user' => [
@@ -428,6 +438,7 @@ class GamificationController extends Controller
                     'engagement_score' => $progress->engagement_score,
                 ],
                 'recent_achievements' => $beneficiary->badges()
+                    ->select(['gamification_badges.id', 'name', 'icon_name', 'beneficiary_badges.earned_at'])
                     ->orderBy('beneficiary_badges.earned_at', 'desc')
                     ->limit(3)
                     ->get()
@@ -638,7 +649,9 @@ class GamificationController extends Controller
                 'current_level' => 1,
                 'streak_days' => 0,
                 'badges_earned' => 0,
-                'badges_total' => GamificationBadge::where('is_active', true)->where('is_secret', false)->count(),
+                'badges_total' => Cache::remember('total_active_badges_count', 3600, function () {
+                    return GamificationBadge::where('is_active', true)->where('is_secret', false)->count();
+                }),
                 'tasks_completed' => 0,
                 'engagement_score' => 0,
             ],

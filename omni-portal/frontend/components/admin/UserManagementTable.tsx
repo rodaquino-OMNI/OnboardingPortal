@@ -28,7 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAdminUsers, AdminUser } from '@/hooks/useAdminUsers';
+import { useAdminUsers } from '@/hooks/useAdminUsers';
+import { AdminUser } from '@/types/admin';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { formatDate } from '@/lib/utils';
 import { 
@@ -41,9 +42,10 @@ import {
   Shield,
   UserX
 } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 export const UserManagementTable: React.FC = () => {
+  const { toast } = useToast();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
@@ -81,35 +83,35 @@ export const UserManagementTable: React.FC = () => {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     if (!canManageRoles) {
-      toast.error('You do not have permission to change roles');
+      toast({ title: 'Erro', description: 'You do not have permission to change roles', variant: 'destructive' });
       return;
     }
 
     try {
       await updateUser(userId, { role: newRole });
-      toast.success('User role updated successfully');
+      toast({ title: 'Sucesso', description: 'User role updated successfully' });
     } catch (error) {
-      toast.error('Failed to update user role');
+      toast({ title: 'Erro', description: 'Failed to update user role', variant: 'destructive' });
     }
   };
 
   const handleStatusToggle = async (userId: string) => {
     if (!canEdit) {
-      toast.error('You do not have permission to change user status');
+      toast({ title: 'Erro', description: 'You do not have permission to change user status', variant: 'destructive' });
       return;
     }
 
     try {
       await toggleUserStatus(userId);
-      toast.success('User status updated successfully');
+      toast({ title: 'Sucesso', description: 'User status updated successfully' });
     } catch (error) {
-      toast.error('Failed to update user status');
+      toast({ title: 'Erro', description: 'Failed to update user status', variant: 'destructive' });
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
     if (!canDelete) {
-      toast.error('You do not have permission to delete users');
+      toast({ title: 'Erro', description: 'You do not have permission to delete users', variant: 'destructive' });
       return;
     }
 
@@ -119,9 +121,9 @@ export const UserManagementTable: React.FC = () => {
 
     try {
       await deleteUser(userId);
-      toast.success('User deleted successfully');
+      toast({ title: 'Sucesso', description: 'User deleted successfully' });
     } catch (error) {
-      toast.error('Failed to delete user');
+      toast({ title: 'Erro', description: 'Failed to delete user', variant: 'destructive' });
     }
   };
 
@@ -219,7 +221,7 @@ export const UserManagementTable: React.FC = () => {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Company</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -251,18 +253,18 @@ export const UserManagementTable: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge
-                        variant={user.isActive ? 'default' : 'secondary'}
+                        variant={user.is_active ? 'default' : 'secondary'}
                         className="cursor-pointer"
-                        onClick={() => handleStatusToggle(user.id)}
+                        onClick={() => handleStatusToggle(user.id.toString())}
                       >
-                        {user.isActive ? 'Active' : 'Inactive'}
+                        {user.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.company?.name || 'N/A'}
+                      {user.department || 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {user.lastLogin ? formatDate(user.lastLogin) : 'Never'}
+                      {user.last_login_at ? formatDate(user.last_login_at) : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -288,7 +290,7 @@ export const UserManagementTable: React.FC = () => {
                           {canDelete && (
                             <DropdownMenuItem
                               className="text-red-600"
-                              onClick={() => handleDeleteUser(user.id)}
+                              onClick={() => handleDeleteUser(user.id.toString())}
                             >
                               <UserX className="w-4 h-4 mr-2" />
                               Delete user

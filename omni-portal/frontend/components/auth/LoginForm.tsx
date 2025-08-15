@@ -152,7 +152,7 @@ export default function LoginForm() {
       <div className="w-full max-w-md">
         <TwoFactorAuth 
           sessionToken={sessionToken}
-          onVerify={handle2FAVerification}
+          onSuccess={handle2FAVerification}
         />
       </div>
     );

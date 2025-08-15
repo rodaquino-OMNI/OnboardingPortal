@@ -30,9 +30,8 @@ const ProgressCard = memo(function ProgressCard({ className, showDetails = true 
   const calculatedData = useMemo(() => {
     // Safe extraction with null checks and defaults - ensure we get number, not object
     const currentLevel = (
-      (typeof stats?.current_level === 'number' ? stats.current_level : stats?.current_level?.number) ||
-      (typeof stats?.level === 'number' ? stats.level : stats?.level?.number) ||
-      progress?.current_level?.number ||
+      (typeof stats?.current_level === 'number' ? stats.current_level : (stats?.current_level as any)?.number) ||
+      (progress?.current_level as any)?.number ||
       1
     );
     const nextLevel = currentLevel + 1;
@@ -42,7 +41,6 @@ const ProgressCard = memo(function ProgressCard({ className, showDetails = true 
       0
     );
     const experienceToNext = (
-      (typeof stats?.experienceToNext === 'number' ? stats.experienceToNext : 0) ||
       (typeof progress?.next_level?.points_remaining === 'number' ? progress.next_level.points_remaining : 0) ||
       (1000 - (totalPoints % 1000))
     );

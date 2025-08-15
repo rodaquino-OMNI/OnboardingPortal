@@ -47,7 +47,7 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
   const [dataChannelState, setDataChannelState] = useState<'connecting' | 'open' | 'closed'>('connecting');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { post, get } = useApi();
+  const { execute } = useApi();
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -137,7 +137,7 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
   useEffect(() => {
     const loadChatHistory = async () => {
       try {
-        const response = await get(`/api/video/sessions/${sessionId}/chat`);
+        const response = await execute(() => fetch(`/api/video/sessions/${sessionId}/chat`).then(r => r.json())) as any;
         if (response.success) {
           setMessages(response.messages.map((msg: any) => ({
             ...msg,
@@ -152,7 +152,7 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
     if (sessionId) {
       loadChatHistory();
     }
-  }, [sessionId, get]);
+  }, [sessionId, execute]);
 
   // WebSocket connection for real-time chat (simplified implementation)
   useEffect(() => {
@@ -160,7 +160,7 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
     // For now, we'll use polling as a fallback
     const pollInterval = setInterval(async () => {
       try {
-        const response = await get(`/api/video/sessions/${sessionId}/chat/latest`);
+        const response = await execute(() => fetch(`/api/video/sessions/${sessionId}/chat/latest`).then(r => r.json())) as any;
         if (response.success && response.messages.length > 0) {
           const newMessages = response.messages.map((msg: any) => ({
             ...msg,
@@ -179,7 +179,7 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [sessionId, get]);
+  }, [sessionId, execute]);
 
   // Send message (encrypted if available)
   const sendMessage = async () => {
@@ -213,10 +213,14 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
         setMessages(prev => [...prev, message]);
       } else {
         // Fallback to API (still encrypted on server)
-        const response = await post(`/api/video/sessions/${sessionId}/chat`, {
-          content: messageContent,
-          type: 'text'
-        });
+        const response = await execute(() => fetch(`/api/video/sessions/${sessionId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: messageContent,
+            type: 'text'
+          })
+        }).then(r => r.json())) as any;
 
         if (response.success) {
           const message: ChatMessage = {
@@ -248,12 +252,12 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
     if (!isTyping && value.length > 0) {
       setIsTyping(true);
       // Send typing indicator
-      post(`/api/video/sessions/${sessionId}/typing`, { typing: true });
+      execute(() => fetch(`/api/video/sessions/${sessionId}/typing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ typing: true }) }));
       
       // Clear typing after 3 seconds of inactivity
       setTimeout(() => {
         setIsTyping(false);
-        post(`/api/video/sessions/${sessionId}/typing`, { typing: false });
+        execute(() => fetch(`/api/video/sessions/${sessionId}/typing`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ typing: false }) }));
       }, 3000);
     }
   };
@@ -299,10 +303,14 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
         
         setMessages(prev => [...prev, message]);
       } else {
-        await post(`/api/video/sessions/${sessionId}/chat`, {
-          content: emergencyContent,
-          type: 'emergency'
-        });
+        await execute(() => fetch(`/api/video/sessions/${sessionId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: emergencyContent,
+            type: 'emergency'
+          })
+        }).then(r => r.json()));
       }
     } catch (error) {
       console.error('Failed to send emergency message:', error);
@@ -394,9 +402,9 @@ export function VideoChat({ sessionId, currentUser, isVisible, onClose, videoSer
                   {formatTime(message.timestamp)}
                   {message.encrypted && (
                     message.encryptionVerified ? (
-                      <Shield className="w-3 h-3 inline ml-1" title="End-to-end encrypted" />
+                      <Shield className="w-3 h-3 inline ml-1" />
                     ) : (
-                      <Lock className="w-3 h-3 inline ml-1" title="Server encrypted" />
+                      <Lock className="w-3 h-3 inline ml-1" />
                     )
                   )}
                 </div>

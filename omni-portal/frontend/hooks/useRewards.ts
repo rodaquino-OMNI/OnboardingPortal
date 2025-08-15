@@ -118,7 +118,7 @@ export const useRewards = create<RewardsState>()(
                 reward.id === id 
                   ? { 
                       ...reward, 
-                      user_status: 'claimed',
+                      user_status: 'claimed' as const,
                       can_claim: false,
                       redemption_code: response.data.redemption_code,
                       claimed_at: new Date().toISOString()
@@ -161,7 +161,7 @@ export const useRewards = create<RewardsState>()(
             if (state.rewards) {
               const updatedRewards = state.rewards.map(reward => 
                 reward.id === id 
-                  ? { ...reward, user_status: 'delivered' }
+                  ? { ...reward, user_status: 'delivered' as const }
                   : reward
               );
               

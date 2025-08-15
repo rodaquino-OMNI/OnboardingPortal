@@ -1,8 +1,6 @@
-# Multi-stage build for Laravel PHP application
-ARG PHP_VERSION=8.2
-
+# Multi-stage Dockerfile for Laravel Backend with Technical Excellence
 # Stage 1: Dependencies
-FROM php:${PHP_VERSION}-fpm-alpine AS dependencies
+FROM php:8.3-fpm-alpine AS dependencies
 
 # Install system dependencies
 RUN apk add --no-cache \
@@ -14,167 +12,149 @@ RUN apk add --no-cache \
     libzip-dev \
     zip \
     unzip \
-    mysql-client \
-    postgresql-dev \
+    icu-dev \
     oniguruma-dev \
     libxml2-dev \
+    postgresql-dev \
     imagemagick-dev \
-    $PHPIZE_DEPS
+    imagemagick \
+    ghostscript \
+    tesseract-ocr \
+    tesseract-ocr-data-por \
+    tesseract-ocr-data-eng \
+    supervisor \
+    linux-headers \
+    && rm -rf /var/cache/apk/*
 
-# Install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install \
+# Install PHP extensions with proper configuration  
+ENV MAKEFLAGS="-j1"
+RUN docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install -j$(nproc) \
     pdo \
     pdo_mysql \
     pdo_pgsql \
-    mbstring \
-    zip \
-    exif \
-    pcntl \
     gd \
-    xml \
-    bcmath \
     opcache \
-    intl
+    bcmath \
+    pcntl \
+    exif \
+    zip \
+    intl \
+    mbstring \
+    xml \
+    soap \
+    sockets
 
-# Install Redis extension
-RUN pecl install redis && docker-php-ext-enable redis
+# Install PECL extensions (before autoconf gets purged)
+RUN set -eux \
+    && apk add --no-cache --virtual .build-deps autoconf g++ make \
+    && pecl install redis imagick \
+    && docker-php-ext-enable redis imagick \
+    && apk del .build-deps \
+    && rm -rf /tmp/pear
 
-# Install ImageMagick extension
-RUN pecl install imagick && docker-php-ext-enable imagick
+# Install Composer with signature verification
+COPY --from=composer:2.7.1 /usr/bin/composer /usr/bin/composer
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# Stage 2: Application Build
+FROM dependencies AS builder
 
-# Set working directory
-WORKDIR /var/www
+WORKDIR /var/www/html
 
-# Copy composer files
+# Copy composer files first for better caching
 COPY composer.json composer.lock ./
 
 # Install PHP dependencies
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
-
-# Stage 2: Builder
-FROM dependencies AS builder
-
-WORKDIR /var/www
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-autoloader \
+    --prefer-dist \
+    --no-interaction \
+    --optimize-autoloader
 
 # Copy application code
 COPY . .
 
-# Copy dependencies from previous stage
-COPY --from=dependencies /var/www/vendor ./vendor
+# Generate optimized autoloader
+RUN composer dump-autoload \
+    --no-dev \
+    --optimize \
+    --classmap-authoritative
 
-# Generate optimized autoloader and run post-install scripts
-RUN composer dump-autoload --optimize --classmap-authoritative && \
-    composer run-script post-autoload-dump
+# Stage 3: Production Image
+FROM dependencies AS production
 
-# Stage 3: Production
-FROM php:${PHP_VERSION}-fpm-alpine AS production
+# Create non-root user for security
+RUN addgroup -g 1000 -S appgroup && \
+    adduser -u 1000 -S appuser -G appgroup
 
-# Install runtime dependencies only
-RUN apk add --no-cache \
-    curl \
-    libpng \
-    libjpeg-turbo \
-    freetype \
-    libzip \
-    mysql-client \
-    postgresql \
-    oniguruma \
-    libxml2 \
-    imagemagick \
-    supervisor \
-    nginx
+WORKDIR /var/www/html
 
-# Install PHP extensions (same as dependencies stage)
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install \
-    pdo \
-    pdo_mysql \
-    pdo_pgsql \
-    mbstring \
-    zip \
-    exif \
-    pcntl \
-    gd \
-    xml \
-    bcmath \
-    opcache \
-    intl
+# Copy application from builder
+COPY --from=builder --chown=appuser:appgroup /var/www/html /var/www/html
 
-# Install Redis and ImageMagick extensions
-RUN pecl install redis imagick \
-    && docker-php-ext-enable redis imagick
-
-# Create non-root user
-RUN addgroup -g 1001 -S laravel && \
-    adduser -S laravel -u 1001 -G laravel
+# Create necessary directories with proper permissions
+RUN mkdir -p \
+    storage/app/public \
+    storage/app/documents \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/testing \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
+    && chown -R appuser:appgroup storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 # Copy PHP configuration
 COPY docker/php/php.ini /usr/local/etc/php/php.ini
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY docker/php/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY docker/php/opcache-simple.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # Copy supervisor configuration
 COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Set working directory
-WORKDIR /var/www
-
-# Copy application from builder stage
-COPY --from=builder --chown=laravel:laravel /var/www .
-
-# Create required directories and set permissions
-RUN mkdir -p /var/www/storage/logs \
-    /var/www/storage/framework/cache \
-    /var/www/storage/framework/sessions \
-    /var/www/storage/framework/views \
-    /var/www/bootstrap/cache && \
-    chown -R laravel:laravel /var/www && \
-    chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-# Create health check script
-RUN echo '#!/bin/sh' > /usr/local/bin/health-check.sh && \
-    echo 'php artisan config:cache' >> /usr/local/bin/health-check.sh && \
-    echo 'php artisan route:cache' >> /usr/local/bin/health-check.sh && \
-    echo 'php artisan view:cache' >> /usr/local/bin/health-check.sh && \
-    chmod +x /usr/local/bin/health-check.sh
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD php artisan health:check || exit 1
 
 # Switch to non-root user
-USER laravel
+USER appuser
 
 # Expose port
 EXPOSE 9000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9000/health || exit 1
-
-# Use supervisor to run PHP-FPM and other services
+# Start supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
 
-# Development stage
-FROM builder AS development
+# Stage 4: Development Image
+FROM production AS development
+
+USER root
 
 # Install development dependencies
-RUN composer install --dev
+RUN apk add --no-cache \
+    vim \
+    nano \
+    nodejs \
+    npm \
+    && rm -rf /var/cache/apk/*
 
-# Install Xdebug for development
-RUN apk add --no-cache $PHPIZE_DEPS \
-    && pecl install xdebug \
-    && docker-php-ext-enable xdebug \
-    && apk del $PHPIZE_DEPS
+# Install Xdebug for development (optional - skip on failure)
+RUN set +e; \
+    apk add --no-cache --virtual .build-deps autoconf g++ make linux-headers zlib-dev pkgconfig && \
+    pecl install xdebug && \
+    docker-php-ext-enable xdebug && \
+    apk del .build-deps && \
+    rm -rf /tmp/pear || \
+    echo "XDebug installation failed - continuing without debug support"
 
-# Copy Xdebug configuration
-COPY docker/php/xdebug.ini /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+# Copy Xdebug configuration if file exists
+COPY docker/php/xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
 
-# Set development environment
-ENV APP_ENV=local
-ENV APP_DEBUG=true
-
-# Expose port for development
-EXPOSE 8000
-
-# Development command
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Development command (no Composer install to avoid proc_open issue)
+CMD ["php-fpm"]

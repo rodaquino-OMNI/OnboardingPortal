@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CheckCircle, Loader2, Shield, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ export default function DocumentUploadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const documents = [
+  const documents = useMemo(() => [
     { 
       id: 'rg_cnh', 
       name: 'RG ou CNH', 
@@ -75,8 +75,8 @@ export default function DocumentUploadPage() {
       description: 'Foto recente tipo documento',
       examples: ['Foto 3x4 impressa', 'Foto digital em boa qualidade'],
       tips: 'Fundo claro, rosto descoberto, sem óculos escuros. Use a câmera para melhor qualidade'
-    },
-  ];
+    }
+  ], []);
 
   const getProgressPercentage = () => {
     const uploadedCount = Object.values(uploads).filter(u => u.uploaded).length;
@@ -98,8 +98,8 @@ export default function DocumentUploadPage() {
           uploaded: false,
           error: null,
           progress: 80,
-          ocrData: result.ocrData,
-          validation: result.validation
+          ...(result.ocrData && { ocrData: result.ocrData }),
+          ...(result.validation && { validation: result.validation })
         }
       }));
 
@@ -114,7 +114,7 @@ export default function DocumentUploadPage() {
           formData.append('ocr_data', JSON.stringify({
             text: result.ocrData.text,
             confidence: result.ocrData.confidence,
-            extractedData: result.ocrData.extractedData
+            extractedFields: result.ocrData.extractedFields
           }));
         }
         
@@ -134,12 +134,15 @@ export default function DocumentUploadPage() {
           setUploads(prev => ({
             ...prev,
             [docId]: {
-              ...prev[docId],
+              file: prev[docId]?.file || null,
+              error: prev[docId]?.error || null,
               uploading: false,
               uploaded: true,
               progress: 100,
-              status: 'approved'
-            }
+              status: 'approved' as const,
+              ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
+              ...(prev[docId]?.validation && { validation: prev[docId]?.validation })
+            } as UploadState
           }));
           
           // Points are automatically awarded by the backend:
@@ -169,11 +172,16 @@ export default function DocumentUploadPage() {
         setUploads(prev => ({
           ...prev,
           [docId]: {
-            ...prev[docId],
+            file: prev[docId]?.file || null,
+            uploaded: prev[docId]?.uploaded || false,
             uploading: false,
             error: error instanceof Error ? error.message : 'Erro ao fazer upload',
-            progress: 0
-          }
+            progress: 0,
+            ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
+            ...(prev[docId]?.validation && { validation: prev[docId]?.validation }),
+            ...(prev[docId]?.status && { status: prev[docId]?.status }),
+            ...(prev[docId]?.rejectionReason && { rejectionReason: prev[docId]?.rejectionReason })
+          } as UploadState
         }));
       }
     } else {
@@ -186,21 +194,27 @@ export default function DocumentUploadPage() {
           uploaded: false,
           error: result.message || 'Erro no processamento',
           progress: 0,
-          ocrData: result.ocrData,
-          validation: result.validation
-        }
+          ...(result.ocrData && { ocrData: result.ocrData }),
+          ...(result.validation && { validation: result.validation })
+        } as UploadState
       }));
     }
-  }, []);
+  }, [documents, uploads]);
 
   const handleEnhancedUploadProgress = useCallback((docId: string, progress: number) => {
     setUploads(prev => ({
       ...prev,
       [docId]: {
-        ...prev[docId],
+        file: prev[docId]?.file || null,
+        uploaded: prev[docId]?.uploaded || false,
+        error: prev[docId]?.error || null,
         progress: Math.min(progress * 0.8, 80), // Reserve 20% for backend upload
-        uploading: progress > 0 && progress < 100
-      }
+        uploading: progress > 0 && progress < 100,
+        ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
+        ...(prev[docId]?.validation && { validation: prev[docId]?.validation }),
+        ...(prev[docId]?.status && { status: prev[docId]?.status }),
+        ...(prev[docId]?.rejectionReason && { rejectionReason: prev[docId]?.rejectionReason })
+      } as UploadState
     }));
   }, []);
 
@@ -369,7 +383,7 @@ export default function DocumentUploadPage() {
           </div>
           
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="error">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}

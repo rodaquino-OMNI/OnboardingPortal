@@ -1,0 +1,74 @@
+# Vendor directory (will be rebuilt in container)
+/vendor/
+
+# Storage (except structure)
+/storage/app/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/logs/*
+!/storage/app/.gitkeep
+!/storage/framework/cache/.gitkeep
+!/storage/framework/sessions/.gitkeep
+!/storage/framework/testing/.gitkeep
+!/storage/framework/views/.gitkeep
+!/storage/logs/.gitkeep
+
+# Public storage symlink
+/public/storage
+/public/hot
+
+# Environment files
+.env
+.env.backup
+.env.production
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing
+.phpunit.result.cache
+phpunit.xml
+coverage/
+.phpunit.cache/
+
+# Laravel specific
+Homestead.json
+Homestead.yaml
+Vagrantfile
+.vagrant/
+
+# Node modules (if any frontend assets)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+CHANGELOG.md
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+*.log
+
+# Backup files
+*.bak
+*.backup

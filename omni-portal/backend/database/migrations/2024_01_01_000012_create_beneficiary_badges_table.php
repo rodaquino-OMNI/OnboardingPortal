@@ -21,11 +21,11 @@ return new class extends Migration
             $table->boolean('is_featured')->default(false); // If user wants to showcase this badge
             $table->timestamps();
             
-            // Indexes
-            $table->unique(['beneficiary_id', 'gamification_badge_id', 'earned_count']);
-            $table->index('beneficiary_id');
-            $table->index('gamification_badge_id');
-            $table->index('earned_at');
+            // Indexes with proper constraint name (MySQL 64-char limit)
+            $table->unique(['beneficiary_id', 'gamification_badge_id', 'earned_count'], 'bb_user_badge_count_unique');
+            $table->index('beneficiary_id', 'bb_beneficiary_id_index');
+            $table->index('gamification_badge_id', 'bb_badge_id_index');
+            $table->index('earned_at', 'bb_earned_at_index');
         });
     }
 

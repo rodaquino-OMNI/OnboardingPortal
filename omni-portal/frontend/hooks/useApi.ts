@@ -29,7 +29,7 @@ export function useApi<T = unknown>(options?: UseApiOptions) {
         const error = err as AxiosError<ApiError>;
         const apiError: ApiError = {
           message: error.response?.data?.message || 'Ocorreu um erro inesperado',
-          errors: error.response?.data?.errors,
+          ...(error.response?.data?.errors && { errors: error.response.data.errors }),
         };
         setError(apiError);
         options?.onError?.(apiError);

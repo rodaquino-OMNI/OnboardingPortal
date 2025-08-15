@@ -15,7 +15,7 @@ export function CompletionContent() {
   const { user } = useAuth();
   const { reset } = useRegistration();
   const searchParams = useSearchParams();
-  const isTelemedicineCompletion = searchParams.get('telemedicine') === 'true';
+  const isTelemedicineCompletion = searchParams?.get('telemedicine') === 'true';
   const [gamificationData, setGamificationData] = useState<GamificationProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -38,7 +38,7 @@ export function CompletionContent() {
     } else {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user]); // user is the only external dependency
   
   const handleGoToDashboard = () => {
     // Clear registration data since process is complete
@@ -68,7 +68,7 @@ export function CompletionContent() {
           )}
         </div>
         <h1 className="dashboard-title mb-4 text-2xl sm:text-3xl">
-          {isTelemedicineCompletion ? '🎉 Consulta Agendada!' : 'Parabéns,'} {user?.fullName?.split(' ')[0] || 'Candidato'}!
+          {isTelemedicineCompletion ? '🎉 Consulta Agendada!' : 'Parabéns,'} {user?.name?.split(' ')[0] || 'Candidato'}!
         </h1>
         <p className="text-base sm:text-lg text-gray-600">
           {isTelemedicineCompletion 

@@ -1,17 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { adminApi } from '@/lib/api/admin';
+import AdminAPI from '@/lib/api/admin';
 import { User } from '@/types/auth';
-
-export interface AdminUser extends User {
-  createdAt: string;
-  updatedAt: string;
-  lastLogin?: string;
-  isActive: boolean;
-  company?: {
-    id: string;
-    name: string;
-  };
-}
+import { AdminUser, PaginatedResponse } from '@/types/admin';
 
 export interface UseAdminUsersOptions {
   page?: number;
@@ -37,13 +27,12 @@ export const useAdminUsers = (options: UseAdminUsersOptions = {}) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await adminApi.getUsers({ page, limit, search, ...filters });
+      const response = await AdminAPI.getUsers({ page, per_page: limit, search, ...filters });
       
-      if (response.success && response.data) {
-        setUsers(response.data.users || []);
-        setTotalUsers(response.data.total || 0);
-        setTotalPages(response.data.totalPages || 0);
-      }
+      // Handle PaginatedResponse<AdminUser>
+      setUsers(response.data || []);
+      setTotalUsers(response.pagination?.total || 0);
+      setTotalPages(response.pagination?.last_page || 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch users');
     } finally {
@@ -53,12 +42,9 @@ export const useAdminUsers = (options: UseAdminUsersOptions = {}) => {
 
   const updateUser = async (userId: string, updates: Partial<AdminUser>) => {
     try {
-      const response = await adminApi.updateUser(userId, updates);
-      if (response.success) {
-        await fetchUsers();
-        return response.data;
-      }
-      throw new Error(response.error?.message || 'Failed to update user');
+      const updatedUser = await AdminAPI.updateUser(parseInt(userId), updates);
+      await fetchUsers();
+      return updatedUser;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
       throw err;
@@ -67,12 +53,8 @@ export const useAdminUsers = (options: UseAdminUsersOptions = {}) => {
 
   const deleteUser = async (userId: string) => {
     try {
-      const response = await adminApi.deleteUser(userId);
-      if (response.success) {
-        await fetchUsers();
-        return true;
-      }
-      throw new Error(response.error?.message || 'Failed to delete user');
+      // TODO: Implement deleteUser method in AdminAPI
+      throw new Error('Delete user functionality not yet implemented');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
       throw err;
@@ -80,10 +62,10 @@ export const useAdminUsers = (options: UseAdminUsersOptions = {}) => {
   };
 
   const toggleUserStatus = async (userId: string) => {
-    const user = users.find(u => u.id === userId);
+    const user = users.find(u => u.id.toString() === userId);
     if (!user) return;
     
-    return updateUser(userId, { isActive: !user.isActive });
+    return updateUser(userId, { is_active: !user.is_active });
   };
 
   useEffect(() => {

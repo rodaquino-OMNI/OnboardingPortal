@@ -22,6 +22,7 @@ export default function TwoFactorAuth({ sessionToken, onSuccess, onCancel }: Two
     } else {
       setCanResend(true);
     }
+    return () => {};
   }, [resendCountdown]);
 
   const handleCodeChange = (index: number, value: string) => {

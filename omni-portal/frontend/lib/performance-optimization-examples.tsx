@@ -90,6 +90,7 @@ export function VirtualizedList({ items, itemHeight, height }: VirtualListProps)
       {items[index].name}
     </div>
   ));
+  Row.displayName = 'VirtualizedListRow';
 
   return (
     <List

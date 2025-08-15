@@ -60,7 +60,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'diabetes',
     name: 'Diabetes',
     category: 'Metabólica',
-    icon: Droplets,
+    icon: Droplets as any,
     color: 'bg-red-100 border-red-200 text-red-700',
     riskScore: 3,
     commonAge: 'Adultos 45+',
@@ -70,7 +70,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'hypertension',
     name: 'Pressão Alta',
     category: 'Cardiovascular',
-    icon: Heart,
+    icon: Heart as any,
     color: 'bg-orange-100 border-orange-200 text-orange-700',
     riskScore: 2,
     commonAge: 'Adultos 40+',
@@ -80,7 +80,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'heart_disease',
     name: 'Doença Cardíaca',
     category: 'Cardiovascular',
-    icon: Heart,
+    icon: Heart as any,
     color: 'bg-red-100 border-red-200 text-red-700',
     riskScore: 4,
     commonAge: 'Adultos 50+',
@@ -90,7 +90,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'asthma',
     name: 'Asma',
     category: 'Respiratória',
-    icon: Wind,
+    icon: Wind as any,
     color: 'bg-blue-100 border-blue-200 text-blue-700',
     riskScore: 2,
     commonAge: 'Qualquer idade',
@@ -100,7 +100,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'copd',
     name: 'DPOC',
     category: 'Respiratória',
-    icon: Wind,
+    icon: Wind as any,
     color: 'bg-purple-100 border-purple-200 text-purple-700',
     riskScore: 3,
     commonAge: 'Adultos 60+',
@@ -110,7 +110,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'arthritis',
     name: 'Artrite/Artrose',
     category: 'Articular',
-    icon: Bone,
+    icon: Bone as any,
     color: 'bg-yellow-100 border-yellow-200 text-yellow-700',
     riskScore: 1,
     commonAge: 'Adultos 50+',
@@ -120,7 +120,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'cancer',
     name: 'Câncer',
     category: 'Oncológica',
-    icon: Shield,
+    icon: Shield as any,
     color: 'bg-gray-100 border-gray-200 text-gray-700',
     riskScore: 5,
     commonAge: 'Qualquer idade',
@@ -130,7 +130,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'kidney_disease',
     name: 'Doença Renal',
     category: 'Renal',
-    icon: Droplet,
+    icon: Droplet as any,
     color: 'bg-teal-100 border-teal-200 text-teal-700',
     riskScore: 4,
     commonAge: 'Adultos 60+',
@@ -140,7 +140,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'liver_disease',
     name: 'Doença Hepática',
     category: 'Hepática',
-    icon: Circle,
+    icon: Circle as any,
     color: 'bg-green-100 border-green-200 text-green-700',
     riskScore: 3,
     commonAge: 'Adultos 40+',
@@ -150,7 +150,7 @@ const CHRONIC_CONDITIONS: ChronicCondition[] = [
     id: 'thyroid',
     name: 'Problemas de Tireoide',
     category: 'Endócrina',
-    icon: Activity,
+    icon: Activity as any,
     color: 'bg-indigo-100 border-indigo-200 text-indigo-700',
     riskScore: 1,
     commonAge: 'Adultos 30+',
@@ -201,7 +201,7 @@ function ChronicConditionSelectorInner({
   // Auto-expand first selected condition
   useEffect(() => {
     if (selectedConditions.length === 1 && !expandedCondition) {
-      setExpandedCondition(selectedConditions[0]);
+      setExpandedCondition(selectedConditions[0] || null);
     }
   }, [selectedConditions, expandedCondition]);
 
@@ -221,7 +221,7 @@ function ChronicConditionSelectorInner({
           
           // Close expansion if removing current expanded
           if (expandedCondition === conditionId) {
-            setExpandedCondition(newSelected.length > 0 ? newSelected[0] : null);
+            setExpandedCondition(newSelected.length > 0 ? (newSelected[0] || null) : null);
           }
           
           setErrors(prevErrors => {
@@ -259,9 +259,15 @@ function ChronicConditionSelectorInner({
     setDiagnosisData(prev => ({
       ...prev,
       [conditionId]: {
+        conditionId,
+        diagnosisTime: undefined,
+        ageAtDiagnosis: undefined,
+        severity: undefined,
+        treatment: undefined,
+        controlled: undefined,
         ...prev[conditionId],
         [field]: value
-      }
+      } as DiagnosisInfo
     }));
 
     // Clear error for this field
@@ -296,9 +302,9 @@ function ChronicConditionSelectorInner({
       return;
     }
 
-    const results: DiagnosisInfo[] = selectedConditions.map(conditionId => 
-      diagnosisData[conditionId]
-    ).filter(Boolean);
+    const results: DiagnosisInfo[] = selectedConditions
+      .map(conditionId => diagnosisData[conditionId])
+      .filter((data): data is DiagnosisInfo => Boolean(data));
 
     onComplete(results);
   }, [selectedConditions, diagnosisData, validateDiagnosisData, onComplete]);
@@ -587,7 +593,7 @@ export function ChronicConditionSelector(props: ChronicConditionSelectorProps) {
         console.error('Chronic Condition Selector error:', error, errorInfo);
         // Could send to error tracking service here
       }}
-      resetKeys={[props.initialValue]}
+      resetKeys={[props.initialValue?.length || 0]}
       fallback={
         <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />

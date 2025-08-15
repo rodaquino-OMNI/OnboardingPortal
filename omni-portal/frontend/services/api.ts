@@ -68,7 +68,10 @@ class ApiService {
         if (error.response?.status === 401) {
           // Handle unauthorized access
           this.clearAuthToken();
-          window.location.href = '/login';
+          // SSR guard: Only redirect on client side
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(error);
       }

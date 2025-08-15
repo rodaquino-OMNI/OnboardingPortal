@@ -73,7 +73,7 @@ export function UserAnalyticsChart({ data }: UserAnalyticsChartProps) {
           title: (context: any) => {
             const index = context[0]?.dataIndex;
             if (index === undefined || !sortedData[index]) return '';
-            return format(new Date(sortedData[index].date), "dd 'de' MMMM", { locale: ptBR });
+            return format(new Date(sortedData[index]!.date), "dd 'de' MMMM", { locale: ptBR });
           },
         },
       },

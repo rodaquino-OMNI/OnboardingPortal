@@ -5,6 +5,12 @@ export interface LoginResponse {
     name: string;
     email: string;
     cpf: string;
+    phone?: string;
+    age?: number;
+    role?: string;
+    roles?: { name: string }[];
+    permissions?: { name: string }[];
+    registration_step?: string;
     gamification_progress?: {
       points: number;
       level: number;
@@ -46,7 +52,12 @@ export interface User {
   name: string;
   email: string;
   cpf: string;
+  phone?: string;
+  age?: number;
   role?: string;
+  roles?: { name: string }[];
+  permissions?: { name: string }[];
+  registration_step?: string;
   gamification_progress?: {
     points: number;
     level: number;

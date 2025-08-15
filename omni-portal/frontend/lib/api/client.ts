@@ -1,7 +1,8 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use relative URLs to work with Next.js rewrites/proxy
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const API_TIMEOUT = 30000; // 30 seconds
 
 // Create axios instance with optimized configuration
@@ -23,7 +24,7 @@ let csrfToken: string | null = null;
  */
 async function fetchCsrfToken(): Promise<void> {
   try {
-    await axios.get(`${API_BASE_URL}/sanctum/csrf-cookie`, {
+    await axios.get('/sanctum/csrf-cookie', {
       withCredentials: true,
     });
     

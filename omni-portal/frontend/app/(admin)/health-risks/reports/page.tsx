@@ -150,7 +150,7 @@ export default function ReportsListPage() {
         );
       case 'failed':
         return (
-          <Badge variant="destructive">
+          <Badge variant="error">
             <AlertTriangle className="w-3 h-3 mr-1" />
             Falhou
           </Badge>

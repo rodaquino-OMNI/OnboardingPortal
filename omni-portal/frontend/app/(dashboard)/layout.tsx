@@ -109,7 +109,7 @@ export default function DashboardLayout({
     return () => {
       authSync.stopMonitoring();
     };
-  }, [clientReady]); // Run once after client is ready
+  }, [clientReady, isAuthenticated, isLoading, checkAuth, router]); // Include all dependencies
 
   // REMOVED the second useEffect that was causing premature redirects
   // The auth check is now handled entirely in the first useEffect

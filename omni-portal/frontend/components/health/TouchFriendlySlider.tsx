@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Minus, Plus } from 'lucide-react';
 import type { HealthQuestion } from '@/lib/unified-health-flow';
@@ -18,29 +18,29 @@ export function TouchFriendlySlider({ question, onComplete, isProcessing }: Touc
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleValueChange = (newValue: number) => {
+  const handleValueChange = useCallback((newValue: number) => {
     const clampedValue = Math.max(min, Math.min(max, newValue));
     setValue(clampedValue);
-  };
+  }, [min, max]);
 
-  const handleSliderInteraction = (clientX: number) => {
+  const handleSliderInteraction = useCallback((clientX: number) => {
     if (!sliderRef.current) return;
     
     const rect = sliderRef.current.getBoundingClientRect();
     const percentage = (clientX - rect.left) / rect.width;
     const newValue = Math.round(min + (max - min) * percentage);
     handleValueChange(newValue);
-  };
+  }, [min, max, handleValueChange]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsDragging(true);
-    handleSliderInteraction(e.touches[0].clientX);
+    handleSliderInteraction(e.touches[0]?.clientX || 0);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging) return;
     e.preventDefault();
-    handleSliderInteraction(e.touches[0].clientX);
+    handleSliderInteraction(e.touches[0]?.clientX || 0);
   };
 
   const handleTouchEnd = () => {
@@ -84,7 +84,7 @@ export function TouchFriendlySlider({ question, onComplete, isProcessing }: Touc
       document.removeEventListener('mousemove', handleGlobalMouseMove);
       document.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, handleSliderInteraction]);
 
   // Cleanup on unmount to prevent memory leaks
   useEffect(() => {

@@ -6,7 +6,13 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useQuestionnaire, QuestionnaireFeature, FeatureHooks } from '../BaseHealthQuestionnaire';
-import { HealthSection } from '@/types/health';
+// Local HealthSection interface since it's not exported from types/health
+interface HealthSection {
+  id: string;
+  title: string;
+  questions: any[];
+  estimatedMinutes?: number;
+}
 
 interface ScreeningPath {
   id: string;
@@ -98,7 +104,7 @@ export function ProgressiveScreeningFeatureComponent({ config }: { config?: Prog
       .slice(state.currentSectionIndex)
       .filter(s => !shouldSkipSection(s.id));
     
-    return remainingSections.reduce((acc, section) => acc + section.estimatedMinutes, 0);
+    return remainingSections.reduce((acc, section) => acc + ((section as any).estimatedMinutes || 5), 0);
   };
 
   return (
@@ -168,10 +174,10 @@ export const progressiveScreeningHooks: FeatureHooks = {
         ...question,
         text: 'Com que frequência você faz atividades físicas adaptadas às suas necessidades?',
         options: [
-          { value: 'daily', label: 'Diariamente (exercícios adaptados)' },
-          { value: 'weekly', label: 'Semanalmente (fisioterapia ou similar)' },
-          { value: 'rarely', label: 'Raramente' },
-          { value: 'never', label: 'Nunca' }
+          { id: 'daily', value: 'daily', label: 'Diariamente (exercícios adaptados)' },
+          { id: 'weekly', value: 'weekly', label: 'Semanalmente (fisioterapia ou similar)' },
+          { id: 'rarely', value: 'rarely', label: 'Raramente' },
+          { id: 'never', value: 'never', label: 'Nunca' }
         ]
       };
     }

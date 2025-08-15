@@ -77,9 +77,9 @@ export function AuthDebugPanel() {
         {events.length === 0 ? (
           <div className="text-gray-500 text-center py-4">No events captured yet</div>
         ) : (
-          events.slice(-50).reverse().map((event, i) => {
+          events.slice(-50).reverse().map((event: any, i) => {
             const time = new Date(event.timestamp).toLocaleTimeString();
-            const color = {
+            const colorMap: Record<string, string> = {
               'REDIRECT': 'bg-red-100 border-red-300 text-red-900',
               'AUTH_CHECK': 'bg-blue-100 border-blue-300 text-blue-900',
               'STATE_CHANGE': 'bg-green-100 border-green-300 text-green-900',
@@ -88,7 +88,8 @@ export function AuthDebugPanel() {
               'ERROR': 'bg-red-200 border-red-400 text-red-900',
               'MOUNT': 'bg-gray-100 border-gray-300 text-gray-900',
               'AUTH_MONITOR': 'bg-yellow-100 border-yellow-300 text-yellow-900'
-            }[event.type] || 'bg-gray-100 border-gray-300';
+            };
+            const color = colorMap[event.type] || 'bg-gray-100 border-gray-300';
             
             return (
               <div key={`${event.timestamp}-${i}`} className={`mb-1 p-2 border rounded ${color}`}>

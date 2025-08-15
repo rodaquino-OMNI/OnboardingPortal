@@ -15,7 +15,7 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'login', 'logout', 'register/*'],
 
     'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
@@ -28,7 +28,9 @@ return [
         : [
             env('FRONTEND_URL', 'http://localhost:3000'),
             'http://localhost:3000',
+            'http://localhost:3004', // Port 3004 support
             'http://127.0.0.1:3000',
+            'http://127.0.0.1:3004',
             'http://localhost:8080', // For testing
         ],
 

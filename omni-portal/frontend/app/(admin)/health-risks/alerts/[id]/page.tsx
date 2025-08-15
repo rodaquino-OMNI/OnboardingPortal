@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import {
   Clock,
   User,
   Calendar,
-  FileText,
   MessageSquare,
   CheckCircle,
   XCircle,
@@ -95,8 +94,9 @@ interface WorkflowEntry {
 export default function AlertDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const alertId = params.id as string;
-  
+  const alertId = params?.id as string;
+
+  // Initialize all hooks before early returns
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState<AlertDetails | null>(null);
   const [workflow, setWorkflow] = useState<WorkflowEntry[]>([]);
@@ -104,14 +104,7 @@ export default function AlertDetailPage() {
   const [updating, setUpdating] = useState(false);
   const [showInterventionForm, setShowInterventionForm] = useState(false);
 
-  useEffect(() => {
-    if (alertId) {
-      loadAlertDetails();
-      loadWorkflow();
-    }
-  }, [alertId]);
-
-  const loadAlertDetails = async () => {
+  const loadAlertDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -123,16 +116,16 @@ export default function AlertDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [alertId]);
 
-  const loadWorkflow = async () => {
+  const loadWorkflow = useCallback(async () => {
     try {
       const response = await healthRisksApi.alerts.getWorkflow(alertId);
       setWorkflow(response.data.data);
     } catch (err) {
       console.error('Error loading workflow:', err);
     }
-  };
+  }, [alertId]);
 
   const handleAcknowledge = async () => {
     try {
@@ -288,7 +281,7 @@ export default function AlertDetailPage() {
                 {alert.status.replace('_', ' ')}
               </Badge>
               {alert.sla_status === 'overdue' && (
-                <Badge variant="destructive">
+                <Badge variant="error">
                   <AlertOctagon className="w-3 h-3 mr-1" />
                   SLA Vencido
                 </Badge>
@@ -476,7 +469,7 @@ export default function AlertDetailPage() {
               <div>
                 <p className="text-sm text-gray-600">Status do SLA</p>
                 <Badge 
-                  variant={alert.sla_status === 'overdue' ? 'destructive' : 'outline'}
+                  variant={alert.sla_status === 'overdue' ? 'error' : 'outline'}
                   className="mt-1"
                 >
                   {alert.sla_status === 'overdue' ? 'Vencido' : 'Dentro do Prazo'}

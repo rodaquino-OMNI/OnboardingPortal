@@ -1,9 +1,18 @@
-import { Worker, RecognizeResult, createScheduler, Scheduler } from 'tesseract.js';
-import { createTesseractWorker } from './tesseract-runtime-loader';
-import { OCRWorkerManager } from './web-worker-ocr';
-import { compressImage, validateImageQuality } from './image-optimizer';
 import type { OCRResult, OCRBlock, BoundingBox, ExtractedDocumentData, DocumentValidation } from '@/types/ocr';
 import { makeCancellable, type CancellableRequest } from './async-utils';
+import { loadTesseract } from './dynamic-imports';
+
+// Dynamic imports for Tesseract.js
+let tesseractWorker: any = null;
+let tesseractUtils: any = null;
+
+const initializeTesseract = async () => {
+  if (!tesseractUtils) {
+    const { createWorker } = await loadTesseract();
+    tesseractUtils = { createWorker };
+  }
+  return tesseractUtils;
+};
 
 // OCR interfaces are now imported from @/types/ocr
 
@@ -57,7 +66,8 @@ export class OCRService {
     try {
       // Technical Excellence: Lazy loading implementation with runtime download
       // Files are downloaded only when OCR is actually used, preventing build hangs
-      this.worker = await createTesseractWorker({
+      const tesseract = await initializeTesseract();
+      this.worker = await tesseract.createWorker({
         langs: ['por', 'eng'],
         logger: (m: { status: string; progress: number }) => {
           // Check cancellation before progress updates

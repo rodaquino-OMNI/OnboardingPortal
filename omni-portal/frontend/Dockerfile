@@ -1,60 +1,140 @@
-# Multi-stage build for Next.js application
-ARG NODE_VERSION=18
-
+# Multi-stage Dockerfile for Next.js Frontend with Technical Excellence
 # Stage 1: Dependencies
-FROM node:${NODE_VERSION}-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:18.19.0-alpine AS dependencies
+
+# Install system dependencies for building native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    && rm -rf /var/cache/apk/*
+
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files and scripts for postinstall hook
+COPY package.json package-lock.json ./
+COPY scripts ./scripts
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies with memory optimization (disable Husky for Docker)
+ENV HUSKY=0
+RUN npm pkg delete scripts.prepare \
+    && npm ci --omit=dev \
+    && npm cache clean --force
 
-# Stage 2: Builder
-FROM node:${NODE_VERSION}-alpine AS builder
+# Stage 2: Development Dependencies
+FROM dependencies AS dev-dependencies
+
+# Install all dependencies including devDependencies
+RUN npm ci \
+    && npm cache clean --force
+
+# Stage 3: Builder
+FROM dev-dependencies AS builder
+
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy application source
 COPY . .
+
+# Setup Tesseract.js worker files
+RUN node scripts/setup-tesseract-lazy.js
+
+# Set build-time environment variables
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 # Build the application
 RUN npm run build
 
-# Stage 3: Runner
-FROM node:${NODE_VERSION}-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV production
+# Stage 4: Production Runtime
+FROM node:18.19.0-alpine AS production
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 -G nodejs
 
-# Copy necessary files
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+WORKDIR /app
 
-# Set correct permissions
-RUN chown -R nextjs:nodejs /app
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Copy built application from builder
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy production dependencies including zustand
+COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Copy Tesseract.js worker files
+COPY --from=builder --chown=nextjs:nodejs /app/public/tesseract ./public/tesseract
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tesseract.js/dist/worker.min.js ./public/tesseract/
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tesseract.js-core/tesseract-core-simd.wasm ./public/tesseract/
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tesseract.js-core/tesseract-core.wasm ./public/tesseract/
+
+# Create necessary directories
+RUN mkdir -p .next/cache && \
+    chown -R nextjs:nodejs .next
+
+# Health check configuration
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node healthcheck.js
+
+# Create health check script
+RUN echo "const http = require('http'); \
+    const options = { \
+      host: 'localhost', \
+      port: 3000, \
+      path: '/api/health', \
+      timeout: 2000 \
+    }; \
+    const req = http.request(options, (res) => { \
+      process.exit(res.statusCode === 200 ? 0 : 1); \
+    }); \
+    req.on('error', () => process.exit(1)); \
+    req.end();" > healthcheck.js && \
+    chown nextjs:nodejs healthcheck.js
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
+# Start the application
 CMD ["node", "server.js"]
 
-# Development Dockerfile
-# For development, use a simpler setup
-# FROM node:${NODE_VERSION}-alpine
-# WORKDIR /app
-# COPY package.json package-lock.json* ./
-# RUN npm install
-# COPY . .
-# EXPOSE 3000
-# CMD ["npm", "run", "dev"]
+# Stage 5: Development
+FROM dev-dependencies AS development
+
+WORKDIR /app
+
+# Install development tools
+RUN apk add --no-cache \
+    git \
+    vim \
+    && rm -rf /var/cache/apk/*
+
+# Copy source code
+COPY . .
+
+# Setup Tesseract.js for development
+RUN node scripts/setup-tesseract-lazy.js
+
+# Expose ports for development
+EXPOSE 3000
+EXPOSE 9229
+
+# Environment for development
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Development command with hot reload
+CMD ["npm", "run", "dev"]

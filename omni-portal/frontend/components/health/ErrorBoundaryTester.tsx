@@ -103,7 +103,7 @@ function ErrorTestComponent({ scenario, onError }: { scenario: ErrorScenario; on
       <div className="flex items-center justify-between mb-2">
         <h4 className="font-medium">{scenario.name}</h4>
         <Badge variant={
-          scenario.severity === 'critical' ? 'destructive' :
+          scenario.severity === 'critical' ? 'error' :
           scenario.severity === 'high' ? 'secondary' :
           scenario.severity === 'medium' ? 'outline' : 'default'
         }>

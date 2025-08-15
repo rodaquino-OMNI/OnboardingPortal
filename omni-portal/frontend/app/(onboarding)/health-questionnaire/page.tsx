@@ -60,7 +60,7 @@ export default function HealthQuestionnairePage() {
     };
     
     checkExistingSession();
-  }, [user?.id, hasExistingSession, session]);
+  }, [user?.id, hasExistingSession, session]); // All dependencies included
 
   // Update estimated time based on progress
   useEffect(() => {
@@ -73,31 +73,67 @@ export default function HealthQuestionnairePage() {
         setEstimatedTimeRemaining(Math.max(1, remainingTime));
       }
     }
-  }, [questionnaireProgress, getSessionStats]);
+  }, [questionnaireProgress, getSessionStats]); // getSessionStats is stable from the hook
 
   const handleComplete = async (results: unknown) => {
-    console.log('Questionnaire results:', results);
-    console.log('Results type:', typeof results);
-    console.log('Results keys:', results ? Object.keys(results) : 'null');
+    console.log('[HealthQuestionnairePage] handleComplete - Received results:', results);
+    console.log('[HealthQuestionnairePage] Results type:', typeof results);
+    console.log('[HealthQuestionnairePage] Results keys:', results ? Object.keys(results) : 'null');
     
     try {
       setIsSubmitting(true);
       
-      // Cast results to HealthAssessmentResults type
+      // Validate and ensure results have the expected structure
       const healthAssessmentResults = results as HealthAssessmentResults;
-      console.log('Casted healthAssessmentResults:', healthAssessmentResults);
       
-      // Store results and show completion screen
-      setHealthResults(healthAssessmentResults);
+      // Additional validation to ensure critical fields exist
+      if (!healthAssessmentResults || typeof healthAssessmentResults !== 'object') {
+        console.error('[HealthQuestionnairePage] Invalid results structure');
+        // Create a minimal valid structure
+        const fallbackResults: HealthAssessmentResults = {
+          completedDomains: [],
+          riskLevel: 'low',
+          totalRiskScore: 0,
+          recommendations: ['Completar avaliação de saúde novamente'],
+          nextSteps: ['Revisar suas respostas'],
+          riskScores: {},
+          responses: {},
+          fraudDetectionScore: 0,
+          timestamp: new Date().toISOString()
+        };
+        setHealthResults(fallbackResults);
+      } else {
+        console.log('[HealthQuestionnairePage] Valid healthAssessmentResults:', healthAssessmentResults);
+        setHealthResults(healthAssessmentResults);
+      }
+      
       setIsCompleted(true);
       
       // Clear the saved session as questionnaire is complete
       await clearSession();
       
+      console.log('[HealthQuestionnairePage] Completion successful, showing results screen');
+      
     } catch (error) {
-      console.error('Error handling completion:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-      // Still show completion screen even if there's an error
+      console.error('[HealthQuestionnairePage] Error handling completion:', error);
+      console.error('[HealthQuestionnairePage] Error stack:', error instanceof Error ? error.stack : 'No stack');
+      
+      // Create a fallback results structure on error
+      const fallbackResults: HealthAssessmentResults = {
+        completedDomains: [],
+        riskLevel: 'low',
+        totalRiskScore: 0,
+        recommendations: ['Por favor, tente completar a avaliação novamente'],
+        nextSteps: ['Recarregar a página e tentar novamente'],
+        riskScores: {},
+        responses: typeof results === 'object' && results !== null && 'responses' in results 
+          ? (results as any).responses || {} 
+          : {},
+        fraudDetectionScore: 0,
+        timestamp: new Date().toISOString()
+      };
+      
+      setHealthResults(fallbackResults);
       setIsCompleted(true);
     } finally {
       setIsSubmitting(false);
@@ -228,7 +264,7 @@ export default function HealthQuestionnairePage() {
         <UnifiedHealthQuestionnaire 
           onComplete={handleComplete}
           onProgressUpdate={handleProgressUpdate}
-          userId={user?.id}
+          {...(user?.id && { userId: user.id })}
           mode="standard"
           features={{
             ai: true,

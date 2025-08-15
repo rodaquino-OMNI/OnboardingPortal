@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { adminApi } from '@/lib/api/admin';
+import AdminAPI from '@/lib/api/admin';
+import type { AdminPermission } from '@/types/admin';
 
 export interface Permission {
   id: string;
@@ -17,7 +18,7 @@ export interface Role {
 
 export const useAdminPermissions = () => {
   const { user } = useAuth();
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [permissions, setPermissions] = useState<AdminPermission[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,11 +34,10 @@ export const useAdminPermissions = () => {
     const fetchPermissions = async () => {
       try {
         setLoading(true);
-        const response = await adminApi.getPermissions();
-        if (response.success && response.data) {
-          setPermissions(response.data.permissions || []);
-          setRoles(response.data.roles || []);
-        }
+        const permissions = await AdminAPI.getPermissions();
+        setPermissions(permissions || []);
+        // Note: roles would need a separate API call if needed
+        setRoles([]);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch permissions');
       } finally {

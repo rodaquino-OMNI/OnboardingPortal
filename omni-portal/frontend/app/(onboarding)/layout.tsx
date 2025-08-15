@@ -47,11 +47,11 @@ export default function OnboardingLayout({
                       <ChevronLeft className="w-4 h-4" />
                     </div>
                     <span className="text-gray-600 font-medium">
-                      {pathname.includes('document-upload') && 'Upload de Documentos'}
-                      {pathname.includes('health-questionnaire') && 'Questionário de Saúde'}
-                      {pathname.includes('interview-schedule') && 'Agendamento de Entrevista'}
-                      {pathname.includes('telemedicine-schedule') && 'Telemedicina'}
-                      {pathname.includes('completion') && 'Conclusão'}
+                      {pathname?.includes('document-upload') && 'Upload de Documentos'}
+                      {pathname?.includes('health-questionnaire') && 'Questionário de Saúde'}
+                      {pathname?.includes('interview-schedule') && 'Agendamento de Entrevista'}
+                      {pathname?.includes('telemedicine-schedule') && 'Telemedicina'}
+                      {pathname?.includes('completion') && 'Conclusão'}
                     </span>
                   </>
                 )}

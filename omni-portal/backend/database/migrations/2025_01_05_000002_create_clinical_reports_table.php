@@ -35,7 +35,7 @@ return new class extends Migration
             $table->integer('file_size')->nullable();
             
             // Report Sections
-            $table->json('sections_included')->default('[]');
+            $table->json('sections_included')->nullable(); // Default set in model
             $table->json('filters_applied')->nullable();
             
             // Statistical Summary

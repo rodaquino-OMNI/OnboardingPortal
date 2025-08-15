@@ -114,7 +114,7 @@ export function MedicationSelector({
   const groupedSuggestions = useMemo(() => {
     const groups = filteredMedications.reduce((acc, med) => {
       if (!acc[med.category]) acc[med.category] = [];
-      acc[med.category].push(med);
+      acc[med.category]!.push(med);
       return acc;
     }, {} as Record<string, MedicationOption[]>);
     
@@ -132,7 +132,7 @@ export function MedicationSelector({
       name: medication.name,
       category: medication.category,
       emoji: medication.emoji,
-      dosage: medication.commonDosages[0], // Default to first dosage
+      dosage: medication.commonDosages[0] || 'Dose não especificada', // Default to first dosage
       frequency: '1x ao dia' // Default frequency
     };
     

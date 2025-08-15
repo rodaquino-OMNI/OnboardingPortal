@@ -14,6 +14,19 @@ node_modules/
 .env.local
 .env.production.local
 .env.development.local
+.env.production
+.env.development
+.env.development.secure
+.env.production.secure
+
+# SSL certificates and keys (NEVER commit these)
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+docker/nginx/ssl/
 
 # IDE and editor files
 .vscode/
@@ -382,6 +395,24 @@ test-types.d.ts
 
 
 
+
+# Claude Code configuration and instructions (sensitive)
+CLAUDE.md
+**/CLAUDE.md
+
+
+
+
+
+
+
+
+# Performance test reports (auto-generated)
+**/performance/reports/performance-report-*.json
+
+
+
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
@@ -406,7 +437,3 @@ claude-flow
 claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
-
-# Claude Code configuration and instructions (sensitive)
-CLAUDE.md
-**/CLAUDE.md

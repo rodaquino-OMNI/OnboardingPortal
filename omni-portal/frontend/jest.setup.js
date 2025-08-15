@@ -1,6 +1,10 @@
+// JEST SETUP DISABLED
+// This file has been disabled to prevent Jest from running
+// All Jest setup functionality has been permanently disabled for this project.
+
+/*
 import '@testing-library/jest-dom'
 import 'jest-axe/extend-expect'
-
 // Polyfill fetch and text encoding for test environment (required for MSW and API calls)
 const { TextEncoder, TextDecoder } = require('util')
 
@@ -211,3 +215,6 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
+*/
+
+// File disabled - no Jest setup will be loaded

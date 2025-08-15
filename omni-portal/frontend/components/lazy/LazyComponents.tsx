@@ -3,6 +3,7 @@
  * CRITICAL FIX: Implement lazy loading for heavy components
  */
 
+import React from 'react';
 import dynamic from 'next/dynamic';
 import { ComponentType } from 'react';
 
@@ -99,7 +100,7 @@ export function withLazyLoading<P extends object>(
   return dynamic(
     () => Promise.resolve({ default: Component }),
     {
-      loading: options.loading || LoadingSpinner,
+      loading: () => React.createElement(options.loading || LoadingSpinner),
       ssr: options.ssr !== false,
     }
   );

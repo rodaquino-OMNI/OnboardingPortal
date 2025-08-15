@@ -116,11 +116,11 @@ export default function GenerateReportPage() {
         format: config.format,
         timeframe: config.timeframe,
         filters: {
-          priority: config.selectedPriorities.length > 0 ? config.selectedPriorities : undefined,
-          categories: config.selectedCategories.length > 0 ? config.selectedCategories : undefined
+          ...(config.selectedPriorities.length > 0 && { priority: config.selectedPriorities }),
+          ...(config.selectedCategories.length > 0 && { categories: config.selectedCategories })
         },
-        include_charts: config.include_charts,
-        include_recommendations: config.include_recommendations
+        include_charts: config.include_charts ?? false,
+        include_recommendations: config.include_recommendations ?? false
       };
 
       const response = await healthRisksApi.reports.generate(reportData);
@@ -219,7 +219,7 @@ export default function GenerateReportPage() {
               {timeframes.map((timeframe) => (
                 <Button
                   key={timeframe.value}
-                  variant={config.timeframe === timeframe.value ? 'default' : 'outline'}
+                  variant={config.timeframe === timeframe.value ? 'primary' : 'outline'}
                   onClick={() => setConfig({ ...config, timeframe: timeframe.value })}
                   className="justify-start"
                 >

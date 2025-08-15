@@ -76,8 +76,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
   const currentLevel = (() => {
     // CRITICAL FIX: Extract number from potential object {number, name, color, icon}
     const level = (
-      (typeof stats?.current_level === 'number' ? stats.current_level : stats?.current_level?.number) ||
-      (typeof stats?.level === 'number' ? stats.level : stats?.level?.number) ||
+      (typeof stats?.current_level === 'number' ? stats.current_level : (stats?.current_level as any)?.number) ||
       1
     );
     console.log('[ProgressCard] currentLevel (safe):', level, 'type:', typeof level);
@@ -98,10 +97,7 @@ export function ProgressCard({ className, showDetails = true }: ProgressCardProp
   
   const experienceToNext = (() => {
     // ULTRA THINKING: Safe calculation with type checking
-    const exp = (
-      (typeof stats?.experienceToNext === 'number' ? stats.experienceToNext : 0) ||
-      (1000 - (totalPoints % 1000))
-    );
+    const exp = (1000 - (totalPoints % 1000));
     console.log('[ProgressCard] experienceToNext (safe):', exp);
     return exp;
   })();

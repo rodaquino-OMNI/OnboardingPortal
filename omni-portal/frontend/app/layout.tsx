@@ -5,6 +5,8 @@ import { SkipLinks } from '@/components/ui/SkipLinks';
 import { ClearDemoData } from '@/components/ClearDemoData';
 import { ServiceWorkerCleanup } from '@/components/ServiceWorkerCleanup';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Providers } from './providers';
+import { ServiceWorkerProvider } from '@/components/ServiceWorkerProvider';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,6 +17,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Omni Portal - Employee Onboarding",
   description: "Your onboarding journey starts here - Complete your employee onboarding process with ease",
+  manifest: "/manifest.json",
+  themeColor: "#667eea",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Omni Portal",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
@@ -32,12 +44,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <head />
-      <body className="font-sans antialiased" suppressHydrationWarning>
+      <body className="font-sans antialiased" suppressHydrationWarning={true}>
         <ErrorBoundary>
-          <ServiceWorkerCleanup />
-          <ClearDemoData />
-          <SkipLinks />
-          <main id="main-content">{children}</main>
+          <Providers>
+            <ServiceWorkerProvider>
+              <ServiceWorkerCleanup />
+              <ClearDemoData />
+              <SkipLinks />
+              <main id="main-content">{children}</main>
+            </ServiceWorkerProvider>
+          </Providers>
         </ErrorBoundary>
       </body>
     </html>

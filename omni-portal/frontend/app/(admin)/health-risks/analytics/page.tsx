@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -85,9 +85,9 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeframe]);
+  }, [loadAnalytics]); // Include loadAnalytics dependency
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeframe]);
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -456,7 +456,7 @@ export default function AnalyticsPage() {
                   </td>
                   <td className="py-3 px-4">
                     <Badge 
-                      variant={beneficiary.averageRiskScore >= 70 ? 'destructive' : 'outline'}
+                      variant={beneficiary.averageRiskScore >= 70 ? 'error' : 'outline'}
                     >
                       {beneficiary.averageRiskScore >= 70 ? 'Alto' : 'Moderado'}
                     </Badge>

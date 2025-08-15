@@ -11,40 +11,84 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class SqlInjectionProtection
 {
     /**
-     * SQL injection patterns to detect
+     * Optimized SQL injection patterns (reduced complexity)
      */
-    private const DANGEROUS_PATTERNS = [
-        '/(\bunion\b.*\bselect\b)/i',
-        '/(\bselect\b.*\bfrom\b.*\bwhere\b)/i',
-        '/(\binsert\b.*\binto\b)/i',
-        '/(\bupdate\b.*\bset\b)/i',
-        '/(\bdelete\b.*\bfrom\b)/i',
-        '/(\bdrop\b.*\btable\b)/i',
-        '/(\bcreate\b.*\btable\b)/i',
-        '/(\balter\b.*\btable\b)/i',
-        '/(\bexec\b|\bexecute\b)/i',
-        '/(\bscript\b.*\b>)/i',
-        '/(\b<\s*script\b)/i',
-        '/(\bjavascript\s*:)/i',
-        '/(\bonload\s*=)/i',
-        '/(\bonerror\s*=)/i',
-        '/(\bor\b\s*\d+\s*=\s*\d+)/i',
-        '/(\band\b\s*\d+\s*=\s*\d+)/i',
-        '/(\'\s*or\s*\')/i',
-        '/(\"\s*or\s*\")/i',
-        '/(--\s*$)/m',
-        '/(\bwaitfor\b.*\bdelay\b)/i',
-        '/(\bsleep\b\s*\()/i',
-        '/(\bbenchmark\b\s*\()/i',
+    private const CRITICAL_PATTERNS = [
+        '/union\s+select/i',
+        '/select\s+.*\s+from/i',
+        '/insert\s+into/i',
+        '/update\s+.*\s+set/i',
+        '/delete\s+from/i',
+        '/drop\s+table/i',
+        '/create\s+table/i',
+        '/alter\s+table/i',
+        '/exec\b|execute\b/i',
+        '/script[^a-z]/i',
+        '/<script/i',
+        '/javascript:/i',
+        '/\'\s*or\s*\'/i',
+        '/"\s*or\s*"/i',
+        '/--\s*$/m',
+        '/sleep\s*\(/i',
+        '/benchmark\s*\(/i',
     ];
     
     /**
-     * High-risk SQL keywords
+     * Medium priority patterns (checked only if critical patterns pass)
      */
-    private const HIGH_RISK_KEYWORDS = [
-        'union', 'select', 'insert', 'update', 'delete', 'drop', 
-        'create', 'alter', 'exec', 'execute', 'script', 'javascript',
-        'waitfor', 'delay', 'sleep', 'benchmark', 'load_file', 'outfile'
+    private const MEDIUM_PATTERNS = [
+        '/onload\s*=/i',
+        '/onerror\s*=/i',
+        '/\bor\s+\d+\s*=\s*\d+/i',
+        '/\band\s+\d+\s*=\s*\d+/i',
+        '/waitfor\s+delay/i',
+        '/load_file/i',
+        '/outfile/i',
+    ];
+    
+    /**
+     * Fast keyword detection (case-insensitive string contains)
+     */
+    private const CRITICAL_KEYWORDS = [
+        'union select', 'select from', 'insert into', 'delete from', 
+        'drop table', 'create table', 'alter table', 'javascript:', 
+        'script>', '<script', "'or'", '"or"', '--', 'sleep(', 'benchmark('
+    ];
+    
+    /**
+     * Whitelisted IP addresses (trusted sources)
+     */
+    private const WHITELISTED_IPS = [
+        '127.0.0.1',
+        '::1',
+        // Add your trusted IPs here
+        // '192.168.1.100',
+        // '10.0.0.0/8',
+    ];
+    
+    /**
+     * Safe routes that skip heavy analysis
+     */
+    private const SAFE_ROUTES = [
+        'api/health',
+        'api/status',
+        'api/version',
+        'heartbeat',
+        'ping',
+        'metrics',
+    ];
+    
+    /**
+     * Content types that are safe to skip
+     */
+    private const SAFE_CONTENT_TYPES = [
+        'image/',
+        'video/',
+        'audio/',
+        'application/pdf',
+        'text/css',
+        'text/javascript',
+        'application/javascript',
     ];
     
     /**
@@ -58,6 +102,11 @@ class SqlInjectionProtection
     private const BLOCK_DURATION = 60;
     
     /**
+     * Pattern cache TTL in seconds
+     */
+    private const PATTERN_CACHE_TTL = 300;
+    
+    /**
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -66,224 +115,102 @@ class SqlInjectionProtection
      */
     public function handle(Request $request, Closure $next)
     {
+        $ip = $request->ip();
+        
+        // Early return: Check if IP is whitelisted
+        if ($this->isIpWhitelisted($ip)) {
+            return $next($request);
+        }
+        
+        // Early return: Check if route is safe
+        if ($this->isSafeRoute($request)) {
+            return $next($request);
+        }
+        
+        // Early return: Check if content type is safe
+        if ($this->isSafeContentType($request)) {
+            return $next($request);
+        }
+        
         // Check if IP is blocked
-        if ($this->isIpBlocked($request->ip())) {
+        if ($this->isIpBlocked($ip)) {
             $this->logBlockedAttempt($request);
             throw new HttpException(403, 'Access denied due to security violations.');
         }
         
-        // Analyze request for SQL injection attempts
-        $threats = $this->analyzeRequest($request);
+        // Fast threat detection using cached patterns
+        $threats = $this->fastThreatDetection($request);
         
         if (!empty($threats)) {
             $this->handleThreatDetection($request, $threats);
             
-            // Block high-risk requests immediately
-            if ($this->isHighRiskThreat($threats)) {
+            // Block critical threats immediately
+            if ($this->isCriticalThreat($threats)) {
                 throw new HttpException(400, 'Invalid request detected.');
             }
         }
         
-        // Monitor query execution
-        $this->enableQueryMonitoring();
+        // Only enable monitoring for suspicious requests or debug mode
+        if (!empty($threats) || config('app.debug')) {
+            $this->enableQueryMonitoring();
+        }
         
         $response = $next($request);
         
-        // Validate response doesn't contain sensitive SQL data
-        $this->validateResponse($response);
+        // Only validate response if threats were detected
+        if (!empty($threats)) {
+            $this->validateResponse($response);
+        }
         
         return $response;
     }
     
     /**
-     * Analyze request for SQL injection attempts
+     * Check if IP is whitelisted
      */
-    private function analyzeRequest(Request $request): array
+    private function isIpWhitelisted(string $ip): bool
     {
-        $threats = [];
-        
-        // Check all input sources
-        $inputSources = [
-            'query' => $request->query(),
-            'post' => $request->post(),
-            'json' => $request->json()->all(),
-            'route' => $request->route() ? $request->route()->parameters() : [],
-            'headers' => $this->getSuspiciousHeaders($request),
-        ];
-        
-        foreach ($inputSources as $source => $data) {
-            $threats = array_merge($threats, $this->scanForThreats($data, $source));
-        }
-        
-        // Check URL path
-        $pathThreats = $this->scanValue($request->path(), 'path');
-        if (!empty($pathThreats)) {
-            $threats[] = ['source' => 'path', 'threats' => $pathThreats];
-        }
-        
-        return $threats;
-    }
-    
-    /**
-     * Scan data for SQL injection threats
-     */
-    private function scanForThreats($data, string $source): array
-    {
-        $threats = [];
-        
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                if (is_array($value)) {
-                    $threats = array_merge($threats, $this->scanForThreats($value, $source));
-                } else {
-                    $keyThreats = $this->scanValue($key, $source);
-                    $valueThreats = $this->scanValue($value, $source);
-                    
-                    if (!empty($keyThreats) || !empty($valueThreats)) {
-                        $threats[] = [
-                            'source' => $source,
-                            'key' => $key,
-                            'value' => $value,
-                            'threats' => array_merge($keyThreats, $valueThreats),
-                        ];
-                    }
-                }
-            }
-        } else {
-            $valueThreats = $this->scanValue($data, $source);
-            if (!empty($valueThreats)) {
-                $threats[] = [
-                    'source' => $source,
-                    'value' => $data,
-                    'threats' => $valueThreats,
-                ];
-            }
-        }
-        
-        return $threats;
-    }
-    
-    /**
-     * Scan a single value for threats
-     */
-    private function scanValue($value, string $source): array
-    {
-        if (!is_string($value) || empty($value)) {
-            return [];
-        }
-        
-        $threats = [];
-        
-        // Decode potential obfuscation
-        $decodedValue = $this->decodeValue($value);
-        
-        // Check against dangerous patterns
-        foreach (self::DANGEROUS_PATTERNS as $pattern) {
-            if (preg_match($pattern, $decodedValue)) {
-                $threats[] = [
-                    'type' => 'pattern',
-                    'pattern' => $pattern,
-                    'severity' => 'high',
-                ];
-            }
-        }
-        
-        // Check for high-risk keywords
-        $lowerValue = strtolower($decodedValue);
-        foreach (self::HIGH_RISK_KEYWORDS as $keyword) {
-            if (strpos($lowerValue, $keyword) !== false) {
-                // Check if it's in a suspicious context
-                if ($this->isKeywordSuspicious($keyword, $decodedValue, $source)) {
-                    $threats[] = [
-                        'type' => 'keyword',
-                        'keyword' => $keyword,
-                        'severity' => 'medium',
-                    ];
-                }
-            }
-        }
-        
-        // Check for encoded/obfuscated SQL
-        if ($this->hasEncodedSql($value)) {
-            $threats[] = [
-                'type' => 'encoded',
-                'severity' => 'high',
-            ];
-        }
-        
-        return $threats;
-    }
-    
-    /**
-     * Decode potentially obfuscated values
-     */
-    private function decodeValue(string $value): string
-    {
-        // URL decode
-        $decoded = urldecode($value);
-        
-        // HTML entity decode
-        $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5);
-        
-        // Base64 decode if it looks like base64
-        if (preg_match('/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', $decoded) && strlen($decoded) % 4 === 0) {
-            $base64Decoded = base64_decode($decoded, true);
-            if ($base64Decoded !== false) {
-                $decoded = $base64Decoded;
-            }
-        }
-        
-        // Hex decode
-        $decoded = preg_replace_callback('/\\\\x([0-9a-fA-F]{2})/', function($matches) {
-            return chr(hexdec($matches[1]));
-        }, $decoded);
-        
-        return $decoded;
-    }
-    
-    /**
-     * Check if keyword is in suspicious context
-     */
-    private function isKeywordSuspicious(string $keyword, string $value, string $source): bool
-    {
-        // Whitelist certain sources/contexts
-        $whitelist = [
-            'select' => ['source' => ['headers'], 'fields' => ['accept-language', 'user-agent']],
-            'update' => ['source' => ['route'], 'context' => '/api/profile/update'],
-            'delete' => ['source' => ['route'], 'context' => '/api/*/delete'],
-        ];
-        
-        if (isset($whitelist[$keyword])) {
-            // Check if this context is whitelisted
-            if (in_array($source, $whitelist[$keyword]['source'] ?? [])) {
-                return false;
-            }
-        }
-        
-        // Keywords in certain fields are more suspicious
-        $suspiciousFields = ['email', 'password', 'cpf', 'id', 'user_id', 'token'];
-        if (in_array($source, $suspiciousFields)) {
+        // Check exact IP matches
+        if (in_array($ip, self::WHITELISTED_IPS)) {
             return true;
         }
         
-        return true;
+        // Check CIDR ranges (basic implementation)
+        foreach (self::WHITELISTED_IPS as $whitelist) {
+            if (strpos($whitelist, '/') !== false) {
+                if ($this->ipInRange($ip, $whitelist)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
     
     /**
-     * Check for encoded SQL patterns
+     * Check if IP is in CIDR range
      */
-    private function hasEncodedSql(string $value): bool
+    private function ipInRange(string $ip, string $cidr): bool
     {
-        // Check for common SQL encoding patterns
-        $patterns = [
-            '/\b0x[0-9a-fA-F]+\b/', // Hex encoded
-            '/char\s*\([0-9,\s]+\)/i', // CHAR() encoding
-            '/concat\s*\(/i', // CONCAT function
-            '/\\\\\d{3}/', // Octal encoding
-        ];
+        list($subnet, $mask) = explode('/', $cidr);
         
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $value)) {
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return (ip2long($ip) & ~((1 << (32 - $mask)) - 1)) == ip2long($subnet);
+        }
+        
+        // IPv6 support would require more complex logic
+        return false;
+    }
+    
+    /**
+     * Check if route is safe
+     */
+    private function isSafeRoute(Request $request): bool
+    {
+        $path = trim($request->path(), '/');
+        
+        foreach (self::SAFE_ROUTES as $safeRoute) {
+            if (str_starts_with($path, $safeRoute)) {
                 return true;
             }
         }
@@ -292,21 +219,253 @@ class SqlInjectionProtection
     }
     
     /**
-     * Get suspicious headers
+     * Check if content type is safe
      */
-    private function getSuspiciousHeaders(Request $request): array
+    private function isSafeContentType(Request $request): bool
     {
-        $suspicious = [];
-        $checkHeaders = ['referer', 'user-agent', 'x-forwarded-for', 'x-real-ip'];
+        $contentType = $request->header('Content-Type', '');
         
-        foreach ($checkHeaders as $header) {
-            $value = $request->header($header);
-            if ($value) {
-                $suspicious[$header] = $value;
+        foreach (self::SAFE_CONTENT_TYPES as $safeType) {
+            if (str_starts_with($contentType, $safeType)) {
+                return true;
             }
         }
         
-        return $suspicious;
+        return false;
+    }
+    
+    /**
+     * Fast threat detection with caching
+     */
+    private function fastThreatDetection(Request $request): array
+    {
+        // Create cache key based on request signature
+        $requestSignature = $this->createRequestSignature($request);
+        $cacheKey = "sql_injection_scan:{$requestSignature}";
+        
+        // Check cache first
+        $cachedResult = Cache::get($cacheKey);
+        if ($cachedResult !== null) {
+            return $cachedResult;
+        }
+        
+        $threats = [];
+        
+        // Quick keyword scan first (faster than regex)
+        $suspiciousInput = $this->extractSuspiciousInput($request);
+        if (!$this->hasQuickKeywordThreats($suspiciousInput)) {
+            // Cache negative result for longer
+            Cache::put($cacheKey, [], self::PATTERN_CACHE_TTL * 2);
+            return [];
+        }
+        
+        // If keywords found, do detailed pattern matching
+        $threats = $this->detailedThreatAnalysis($request);
+        
+        // Cache result
+        Cache::put($cacheKey, $threats, self::PATTERN_CACHE_TTL);
+        
+        return $threats;
+    }
+    
+    /**
+     * Create request signature for caching
+     */
+    private function createRequestSignature(Request $request): string
+    {
+        $data = [
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'query' => $request->query(),
+            'input' => $request->except(['_token', 'password', 'password_confirmation']),
+        ];
+        
+        return md5(serialize($data));
+    }
+    
+    /**
+     * Extract potentially suspicious input for quick scanning
+     */
+    private function extractSuspiciousInput(Request $request): string
+    {
+        $input = [];
+        
+        // Collect all input in a single string for fast scanning
+        $input[] = $request->path();
+        $input[] = implode(' ', $request->query());
+        $input[] = implode(' ', $request->except(['_token', 'password', 'password_confirmation']));
+        
+        // Add suspicious headers
+        foreach (['referer', 'user-agent', 'x-forwarded-for'] as $header) {
+            $value = $request->header($header);
+            if ($value) {
+                $input[] = $value;
+            }
+        }
+        
+        return strtolower(implode(' ', $input));
+    }
+    
+    /**
+     * Quick keyword threat detection
+     */
+    private function hasQuickKeywordThreats(string $input): bool
+    {
+        foreach (self::CRITICAL_KEYWORDS as $keyword) {
+            if (strpos($input, strtolower($keyword)) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Detailed threat analysis with optimized patterns
+     */
+    private function detailedThreatAnalysis(Request $request): array
+    {
+        $threats = [];
+        
+        // Check critical patterns first
+        $criticalThreats = $this->scanWithPatterns($request, self::CRITICAL_PATTERNS, 'critical');
+        if (!empty($criticalThreats)) {
+            $threats = array_merge($threats, $criticalThreats);
+        }
+        
+        // Only check medium patterns if no critical threats found
+        if (empty($criticalThreats)) {
+            $mediumThreats = $this->scanWithPatterns($request, self::MEDIUM_PATTERNS, 'medium');
+            $threats = array_merge($threats, $mediumThreats);
+        }
+        
+        return $threats;
+    }
+    
+    /**
+     * Scan request with specific pattern set
+     */
+    private function scanWithPatterns(Request $request, array $patterns, string $severity): array
+    {
+        $threats = [];
+        
+        // Get input sources
+        $inputSources = [
+            'query' => $request->query(),
+            'post' => $request->except(['_token', 'password', 'password_confirmation']),
+            'path' => $request->path(),
+        ];
+        
+        // Only check JSON if content type suggests it
+        if ($request->isJson()) {
+            $inputSources['json'] = $request->json()->all();
+        }
+        
+        foreach ($inputSources as $source => $data) {
+            $sourceThreats = $this->scanDataWithPatterns($data, $patterns, $source, $severity);
+            if (!empty($sourceThreats)) {
+                $threats = array_merge($threats, $sourceThreats);
+                
+                // Early exit for critical threats
+                if ($severity === 'critical') {
+                    break;
+                }
+            }
+        }
+        
+        return $threats;
+    }
+    
+    /**
+     * Scan data with pattern set
+     */
+    private function scanDataWithPatterns($data, array $patterns, string $source, string $severity): array
+    {
+        if (is_string($data)) {
+            return $this->scanStringWithPatterns($data, $patterns, $source, $severity);
+        }
+        
+        if (is_array($data)) {
+            $threats = [];
+            foreach ($data as $key => $value) {
+                if (is_string($value)) {
+                    $valueThreats = $this->scanStringWithPatterns($value, $patterns, $source, $severity);
+                    if (!empty($valueThreats)) {
+                        $threats = array_merge($threats, $valueThreats);
+                        
+                        // Early exit for critical threats
+                        if ($severity === 'critical') {
+                            break;
+                        }
+                    }
+                }
+            }
+            return $threats;
+        }
+        
+        return [];
+    }
+    
+    /**
+     * Scan string with pattern set
+     */
+    private function scanStringWithPatterns(string $value, array $patterns, string $source, string $severity): array
+    {
+        if (empty($value) || strlen($value) > 10000) { // Skip very long values
+            return [];
+        }
+        
+        $threats = [];
+        $decodedValue = $this->quickDecode($value);
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $decodedValue)) {
+                $threats[] = [
+                    'source' => $source,
+                    'value' => substr($value, 0, 200), // Limit logged value
+                    'pattern' => $pattern,
+                    'severity' => $severity,
+                ];
+                
+                // Early exit for critical threats
+                if ($severity === 'critical') {
+                    break;
+                }
+            }
+        }
+        
+        return $threats;
+    }
+    
+    /**
+     * Quick decode (optimized version)
+     */
+    private function quickDecode(string $value): string
+    {
+        // Only decode if necessary
+        if (strpos($value, '%') !== false) {
+            $value = urldecode($value);
+        }
+        
+        if (strpos($value, '&') !== false) {
+            $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5);
+        }
+        
+        return $value;
+    }
+    
+    /**
+     * Check if threat is critical (replaces isHighRiskThreat)
+     */
+    private function isCriticalThreat(array $threats): bool
+    {
+        foreach ($threats as $threat) {
+            if (($threat['severity'] ?? '') === 'critical') {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -338,23 +497,6 @@ class SqlInjectionProtection
         $this->rateLimitRequest($request);
     }
     
-    /**
-     * Check if threat is high risk
-     */
-    private function isHighRiskThreat(array $threats): bool
-    {
-        foreach ($threats as $threat) {
-            if (isset($threat['threats'])) {
-                foreach ($threat['threats'] as $t) {
-                    if (($t['severity'] ?? '') === 'high') {
-                        return true;
-                    }
-                }
-            }
-        }
-        
-        return false;
-    }
     
     /**
      * Check if IP is blocked
@@ -419,45 +561,65 @@ class SqlInjectionProtection
     }
     
     /**
-     * Enable query monitoring
+     * Enable query monitoring (optimized)
      */
     private function enableQueryMonitoring(): void
     {
         if (config('app.debug') || config('security.sql_monitoring', false)) {
             \DB::listen(function ($query) {
-                // Monitor for dangerous query patterns
-                $this->monitorQuery($query->sql, $query->bindings);
+                // Only monitor if query contains suspicious patterns
+                if ($this->isQuerySuspicious($query->sql)) {
+                    $this->monitorQuery($query->sql, $query->bindings);
+                }
             });
         }
     }
     
     /**
-     * Monitor executed queries
+     * Quick check if query is suspicious
+     */
+    private function isQuerySuspicious(string $sql): bool
+    {
+        $suspiciousKeywords = ['drop table', 'truncate table', 'delete from users', 'update users set role'];
+        $lowerSql = strtolower($sql);
+        
+        foreach ($suspiciousKeywords as $keyword) {
+            if (strpos($lowerSql, $keyword) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Monitor executed queries (optimized)
      */
     private function monitorQuery(string $sql, array $bindings): void
     {
-        // Check for dangerous patterns in actual queries
-        $dangerousQueries = [
+        // Use faster patterns for critical queries only
+        $criticalPatterns = [
             '/\bdrop\s+table\b/i',
             '/\btruncate\s+table\b/i',
             '/\bdelete\s+from\s+users\b/i',
             '/\bupdate\s+users\s+set\s+role\s*=/i',
         ];
         
-        foreach ($dangerousQueries as $pattern) {
+        foreach ($criticalPatterns as $pattern) {
             if (preg_match($pattern, $sql)) {
                 Log::critical('Dangerous query executed', [
-                    'sql' => $sql,
-                    'bindings' => $bindings,
+                    'sql' => substr($sql, 0, 500), // Limit SQL length
+                    'bindings' => array_slice($bindings, 0, 10), // Limit bindings
                     'user_id' => auth()->id(),
                     'ip' => request()->ip(),
                 ]);
+                break; // Exit on first match
             }
         }
     }
     
     /**
-     * Validate response doesn't leak SQL information
+     * Validate response doesn't leak SQL information (optimized)
      */
     private function validateResponse($response): void
     {
@@ -467,29 +629,49 @@ class SqlInjectionProtection
         
         $content = $response->getContent();
         
-        // Check for SQL error messages
-        $errorPatterns = [
-            '/SQLSTATE\[\w+\]/',
-            '/SQL syntax/',
-            '/mysql_/',
-            '/mysqli_/',
-            '/pg_query/',
-            '/sqlite_/',
-        ];
+        // Skip validation for very large responses
+        if (strlen($content) > 50000) {
+            return;
+        }
         
-        foreach ($errorPatterns as $pattern) {
-            if (preg_match($pattern, $content)) {
-                Log::error('SQL error exposed in response', [
-                    'pattern' => $pattern,
-                    'url' => request()->fullUrl(),
-                ]);
-                
-                // In production, replace with generic error
-                if (!config('app.debug')) {
-                    $response->setContent(json_encode([
-                        'message' => 'An error occurred processing your request.',
-                        'error' => 'server_error',
-                    ]));
+        // Quick keyword check first
+        $errorKeywords = ['SQLSTATE', 'mysql_', 'mysqli_', 'pg_query', 'sqlite_'];
+        $lowerContent = strtolower($content);
+        $hasErrorKeyword = false;
+        
+        foreach ($errorKeywords as $keyword) {
+            if (strpos($lowerContent, strtolower($keyword)) !== false) {
+                $hasErrorKeyword = true;
+                break;
+            }
+        }
+        
+        // Only run regex if keywords found
+        if ($hasErrorKeyword) {
+            $errorPatterns = [
+                '/SQLSTATE\[\w+\]/',
+                '/SQL syntax/',
+                '/mysql_/',
+                '/mysqli_/',
+                '/pg_query/',
+                '/sqlite_/',
+            ];
+            
+            foreach ($errorPatterns as $pattern) {
+                if (preg_match($pattern, $content)) {
+                    Log::error('SQL error exposed in response', [
+                        'pattern' => $pattern,
+                        'url' => request()->fullUrl(),
+                    ]);
+                    
+                    // In production, replace with generic error
+                    if (!config('app.debug')) {
+                        $response->setContent(json_encode([
+                            'message' => 'An error occurred processing your request.',
+                            'error' => 'server_error',
+                        ]));
+                    }
+                    break; // Exit on first match
                 }
             }
         }

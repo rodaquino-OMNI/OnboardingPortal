@@ -1,0 +1,21 @@
+{
+  "name": "Omni Portal - Employee Onboarding",
+  "short_name": "Omni Portal",
+  "description": "Your onboarding journey starts here - Complete your employee onboarding process with ease",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "dir": "ltr"
+}

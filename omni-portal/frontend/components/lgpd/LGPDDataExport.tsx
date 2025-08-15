@@ -265,16 +265,14 @@ export function LGPDDataExport() {
                   </div>
                   
                   <div className="flex space-x-2">
-                    <Button
-                      as="a"
+                    <a
                       href={exportStatus.downloadUrl}
                       download
-                      size="sm"
-                      className="flex items-center space-x-2"
+                      className="inline-flex items-center space-x-2 px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                       <Download className="w-4 h-4" />
                       <span>Baixar Arquivo</span>
-                    </Button>
+                    </a>
                     <Button
                       onClick={() => setExportStatus({ type: null, message: '' })}
                       size="sm"

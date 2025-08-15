@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,9 +26,9 @@ export default function ExecutiveSummaryDashboard() {
 
   useEffect(() => {
     loadSummary();
-  }, [period]);
+  }, [period, loadSummary]);
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       setLoading(true);
       const response = await healthIntelligenceApi.getExecutiveSummary({
@@ -43,7 +43,7 @@ export default function ExecutiveSummaryDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
 
   const downloadPdfReport = async () => {
     try {

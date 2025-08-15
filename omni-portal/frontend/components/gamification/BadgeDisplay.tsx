@@ -118,7 +118,7 @@ const BadgeDisplay = memo(function BadgeDisplay({
               key={badge.id}
               className={`
                 relative p-4 rounded-lg border-2 transition-all hover:shadow-md
-                ${getRarityColor(badge.rarity)}
+                ${getRarityColor(badge.rarity as "common" | "rare" | "epic" | "legendary")}
                 ${activeTab === 'available' ? 'opacity-60' : ''}
               `}
             >
@@ -133,7 +133,7 @@ const BadgeDisplay = memo(function BadgeDisplay({
                   </span>
                 </div>
                 <div className="flex items-center justify-center space-x-1 mb-1">
-                  {getRarityIcon(badge.rarity)}
+                  {getRarityIcon(badge.rarity as "common" | "rare" | "epic" | "legendary")}
                   <span className="text-xs font-medium capitalize">
                     {badge.rarity}
                   </span>

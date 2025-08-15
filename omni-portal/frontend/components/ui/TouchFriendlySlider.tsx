@@ -110,6 +110,8 @@ export function TouchFriendlySlider({
     
     e.preventDefault();
     const touch = e.touches[0];
+    if (!touch) return;
+    
     const rect = sliderRef.current.getBoundingClientRect();
     
     let position: number;
@@ -152,6 +154,8 @@ export function TouchFriendlySlider({
     let position: number;
     if ('touches' in e) {
       const touch = e.touches[0] || e.changedTouches[0];
+      if (!touch) return;
+      
       if (orientation === 'horizontal') {
         position = ((touch.clientX - rect.left) / rect.width) * 100;
       } else {

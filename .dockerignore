@@ -1,0 +1,128 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+CHANGELOG.md
+LICENSE
+docs/
+Docs_For_development/
+
+# Docker
+.dockerignore
+docker-compose*.yml
+Dockerfile*
+docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+jenkins/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.yarn/
+
+# Build artifacts
+dist/
+build/
+out/
+.next/
+.nuxt/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+__tests__/
+__mocks__/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.docker
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Laravel specific
+/vendor/
+/public/hot
+/public/storage
+/storage/*.key
+/.idea
+/.vscode
+/.vagrant
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+.phpunit.result.cache
+
+# Next.js specific
+.next/
+out/
+.vercel/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Backup files
+*.bak
+*.backup
+*_backup
+backup/

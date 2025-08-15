@@ -1,0 +1,356 @@
+
+services:
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0.35
+    container_name: austa_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-austa_portal}
+      MYSQL_USER: ${DB_USERNAME:-austa_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-austa_password}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - ./docker/mysql/conf.d:/etc/mysql/conf.d
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-root_secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Redis Cache Service
+  redis:
+    image: redis:7.2.3-alpine
+    container_name: austa_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Laravel Backend Service
+  backend:
+    build:
+      context: ./omni-portal/backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: austa_backend
+    restart: unless-stopped
+    env_file:
+      - ./omni-portal/backend/.env.docker
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY:-base64:YourSecureAppKeyHere=}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-austa_portal}
+      DB_USERNAME: ${DB_USERNAME:-austa_user}
+      DB_PASSWORD: ${DB_PASSWORD:-austa_password}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+      REDIS_PORT: 6379
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: session
+      QUEUE_CONNECTION: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+      MAIL_USERNAME: null
+      MAIL_PASSWORD: null
+      MAIL_ENCRYPTION: null
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_BUCKET: ${AWS_BUCKET:-}
+      TEXTRACT_ENABLED: ${TEXTRACT_ENABLED:-false}
+      TESSERACT_ENABLED: ${TESSERACT_ENABLED:-true}
+    volumes:
+      - ./omni-portal/backend:/var/www/html
+      - backend_storage:/var/www/html/storage
+      - backend_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "php", "/var/www/html/scripts/healthcheck.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:1.25.3-alpine
+    container_name: austa_nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8000}:80"
+      - "${NGINX_SSL_PORT:-8443}:443"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/locations.inc:/etc/nginx/conf.d/locations.inc:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./omni-portal/backend/public:/var/www/html/public:ro
+      - backend_storage:/var/www/html/storage:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend Service
+  frontend:
+    build:
+      context: ./omni-portal/frontend
+      dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+    container_name: austa_frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+        reservations:
+          cpus: '0.5'
+          memory: 384M
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-AUSTA Onboarding Portal}
+      NEXT_PUBLIC_ENABLE_ANALYTICS: ${NEXT_PUBLIC_ENABLE_ANALYTICS:-false}
+      NEXT_PUBLIC_OCR_PROVIDER: ${NEXT_PUBLIC_OCR_PROVIDER:-tesseract}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./omni-portal/frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "node", "/app/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Queue Worker Service
+  queue-worker:
+    build:
+      context: ./omni-portal/backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: austa_queue_worker
+    restart: unless-stopped
+    command: php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    env_file:
+      - ./omni-portal/backend/.env.docker
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY:-base64:YourSecureAppKeyHere=}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-austa_portal}
+      DB_USERNAME: ${DB_USERNAME:-austa_user}
+      DB_PASSWORD: ${DB_PASSWORD:-austa_password}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+      REDIS_PORT: 6379
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: session
+      QUEUE_CONNECTION: redis
+    volumes:
+      - ./omni-portal/backend:/var/www/html
+      - backend_storage:/var/www/html/storage
+      - ./scripts:/scripts
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "php", "/scripts/queue-health.php"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Scheduler Service
+  scheduler:
+    build:
+      context: ./omni-portal/backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: austa_scheduler
+    restart: unless-stopped
+    command: /bin/sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
+    env_file:
+      - ./omni-portal/backend/.env.docker
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_KEY: ${APP_KEY:-base64:YourSecureAppKeyHere=}
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-austa_portal}
+      DB_USERNAME: ${DB_USERNAME:-austa_user}
+      DB_PASSWORD: ${DB_PASSWORD:-austa_password}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+      REDIS_PORT: 6379
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: session
+      QUEUE_CONNECTION: redis
+    volumes:
+      - ./omni-portal/backend:/var/www/html
+      - backend_storage:/var/www/html/storage
+      - ./scripts:/scripts
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - austa_network
+    healthcheck:
+      test: ["CMD", "php", "/scripts/scheduler-health.php"]
+      interval: 120s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  # MailHog Service (Development Only)
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: austa_mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_WEB_PORT:-8025}:8025"
+    networks:
+      - austa_network
+    profiles:
+      - development
+
+  # phpMyAdmin Service (Development Only)
+  phpmyadmin:
+    image: phpmyadmin:5.2.1
+    container_name: austa_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "${PMA_PORT:-8080}:80"
+    depends_on:
+      - mysql
+    networks:
+      - austa_network
+    profiles:
+      - development
+
+  # Redis Commander (Development Only)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: austa_redis_commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: redis:redis:6379:0:${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    depends_on:
+      - redis
+    networks:
+      - austa_network
+    profiles:
+      - development
+
+
+# Docker Networks
+networks:
+  austa_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Docker Volumes
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_storage:
+    driver: local
+  backend_cache:
+    driver: local

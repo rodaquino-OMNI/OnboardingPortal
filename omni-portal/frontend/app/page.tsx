@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Rocket, User, Shield, Heart } from 'lucide-react';
@@ -9,19 +9,31 @@ import { Card } from '@/components/ui/card';
 
 export default function Home() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, checkAuth, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Check authentication status when component mounts
+  useEffect(() => {
+    if (mounted) {
+      checkAuth();
+    }
+  }, [mounted, checkAuth]);
+
   useEffect(() => {
     // Only redirect after component is mounted and user is authenticated
-    if (mounted && isAuthenticated) {
-      router.push('/home');
+    // Add a flag to prevent multiple redirects
+    if (mounted && isAuthenticated && !isLoading) {
+      console.log('[RootPage] User is authenticated, redirecting to /home');
+      // Use replace instead of push to prevent back button issues
+      router.replace('/home');
+    } else if (mounted && !isLoading) {
+      console.log('[RootPage] User not authenticated, showing landing page');
     }
-  }, [mounted, isAuthenticated, router]);
+  }, [mounted, isAuthenticated, isLoading, router]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -41,14 +53,14 @@ export default function Home() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
             <Button
-              onClick={() => router.push('/login')}
+              onClick={useCallback(() => router.push('/login'), [router])}
               size="lg"
               className="px-8 py-3 text-lg"
             >
               Fazer Login
             </Button>
             <Button
-              onClick={() => router.push('/register')}
+              onClick={useCallback(() => router.push('/register'), [router])}
               variant="outline"
               size="lg"
               className="px-8 py-3 text-lg"

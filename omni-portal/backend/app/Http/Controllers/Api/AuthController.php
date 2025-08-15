@@ -99,6 +99,7 @@ class AuthController extends Controller
         $response = response()->json([
             'message' => 'Login realizado com sucesso',
             'user' => $user,
+            'token' => $token,  // Include token in response for frontend to use
             'success' => true,
         ]);
         

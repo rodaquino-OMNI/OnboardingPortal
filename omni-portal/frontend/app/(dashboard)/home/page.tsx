@@ -54,7 +54,9 @@ export default function DashboardPage() {
       console.log('[DashboardPage] Skipping gamification fetch - user not authenticated yet');
       hasFetchedRef.current = false; // Reset if user logs out
     }
-  }, [isAuthenticated, fetchAll]); // Properly include fetchAll in dependencies
+    // Return empty cleanup function for other paths
+    return () => {};
+  }, [isAuthenticated, fetchAll]); // fetchAll is stable from zustand store
 
   // State for onboarding progress to avoid hydration issues
   const [onboardingStatus, setOnboardingStatus] = useState({
@@ -130,7 +132,7 @@ export default function DashboardPage() {
 
   const quickStats = dashboardSummary?.quick_stats;
   const recentBadges = Array.isArray(dashboardSummary?.recent_badges) 
-    ? dashboardSummary.recent_badges 
+    ? dashboardSummary?.recent_badges 
     : [];
 
   return (
@@ -142,7 +144,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-10 animate-fade-in">
           <h1 className="dashboard-title mb-3 text-2xl sm:text-3xl lg:text-4xl">
-            {getGreeting()}, {user?.fullName || 'Usuário'}!
+            {getGreeting()}, {user?.name || 'Usuário'}!
           </h1>
           <p className="text-gray-600 text-base sm:text-lg">
             Bem-vindo ao seu painel de integração. Acompanhe seu progresso e conquistas.
@@ -321,7 +323,7 @@ export default function DashboardPage() {
             </Card>
 
             {/* Recent Achievements */}
-            {recentBadges.length > 0 && (
+            {recentBadges && recentBadges.length > 0 && (
               <Card className="card-modern p-4 sm:p-6">
                 <h3 className="section-title mb-4 sm:mb-5 text-base sm:text-lg">Conquistas Recentes</h3>
                 <div className="space-y-3">

@@ -1,179 +1,142 @@
 version: '3.8'
 
 services:
-  # Nginx Web Server
-  nginx:
-    build:
-      context: ./docker/nginx
-      dockerfile: Dockerfile
-    container_name: omni_nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./backend:/var/www/backend
-      - ./frontend/.next:/var/www/frontend/.next
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d
-      - ./docker/nginx/ssl:/etc/nginx/ssl
-    depends_on:
-      - php
-      - frontend
-    networks:
-      - omni_network
-    restart: unless-stopped
-
-  # PHP-FPM Service
-  php:
-    build:
-      context: ./docker/php
-      dockerfile: Dockerfile
-      args:
-        - PHP_VERSION=8.2
-    container_name: omni_php
-    volumes:
-      - ./backend:/var/www/backend
-      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
-    environment:
-      - APP_ENV=${APP_ENV:-local}
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - DB_CONNECTION=mysql
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_DATABASE=${DB_DATABASE:-omni_portal}
-      - DB_USERNAME=${DB_USERNAME:-omni_user}
-      - DB_PASSWORD=${DB_PASSWORD:-secure_password}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - omni_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "php-fpm", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Next.js Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - NODE_VERSION=18
-    container_name: omni_frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
-    environment:
-      - NODE_ENV=${NODE_ENV:-development}
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost/api}
-    command: ${FRONTEND_CMD:-npm run dev}
-    networks:
-      - omni_network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # MySQL Database
   mysql:
     image: mysql:8.0
-    container_name: omni_mysql
+    container_name: austa_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: onboarding_portal
+      MYSQL_USER: onboarding
+      MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
-      - MYSQL_DATABASE=${DB_DATABASE:-omni_portal}
-      - MYSQL_USER=${DB_USERNAME:-omni_user}
-      - MYSQL_PASSWORD=${DB_PASSWORD:-secure_password}
-    networks:
-      - omni_network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
-  # Redis Cache
   redis:
-    image: redis:7.0-alpine
-    container_name: omni_redis
+    image: redis:7-alpine
+    container_name: austa_redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    networks:
-      - omni_network
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # Queue Worker (Laravel)
-  queue:
+  backend:
     build:
-      context: ./docker/php
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: omni_queue
-    volumes:
-      - ./backend:/var/www/backend
-    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
-    environment:
-      - APP_ENV=${APP_ENV:-local}
-      - DB_HOST=mysql
-      - REDIS_HOST=redis
+    container_name: austa_backend
+    restart: unless-stopped
     depends_on:
-      - php
       - mysql
       - redis
-    networks:
-      - omni_network
-    restart: unless-stopped
-
-  # Scheduler (Laravel)
-  scheduler:
-    build:
-      context: ./docker/php
-      dockerfile: Dockerfile
-    container_name: omni_scheduler
+    environment:
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: onboarding_portal
+      DB_USERNAME: onboarding
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
     volumes:
       - ./backend:/var/www/backend
-    command: /bin/sh -c "while true; do php artisan schedule:run --verbose --no-interaction & sleep 60; done"
-    environment:
-      - APP_ENV=${APP_ENV:-local}
-      - DB_HOST=mysql
-      - REDIS_HOST=redis
-    depends_on:
-      - php
-      - mysql
-      - redis
-    networks:
-      - omni_network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-networks:
-  omni_network:
-    driver: bridge
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: austa_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.25.3-alpine
+    container_name: austa_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+      - "8443:443"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./backend/public:/var/www/backend/public
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Monitoring services
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: austa_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: austa_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  mysql_exporter:
+    image: prom/mysqld-exporter:v0.15.0
+    container_name: austa_mysql_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "onboarding:password@(mysql:3306)/onboarding_portal"
+    ports:
+      - "9104:9104"
+    depends_on:
+      - mysql
 
 volumes:
   mysql_data:
-    driver: local
-  redis_data:
-    driver: local
+  prometheus_data:
+  grafana_data:

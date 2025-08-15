@@ -1,8 +1,19 @@
 // PDF Generation Service - Health Assessment Summary & Certificate
 // Implements beautiful, professional PDF generation with zero disruption to existing code
 
-import { jsPDF } from 'jspdf';
 import { HealthAssessmentResults } from './unified-health-flow';
+import { loadJsPDF } from './dynamic-imports';
+
+// Dynamic jsPDF loading
+let jsPDFInstance: any = null;
+
+const initializeJsPDF = async () => {
+  if (!jsPDFInstance) {
+    const { jsPDF } = await loadJsPDF();
+    jsPDFInstance = jsPDF;
+  }
+  return jsPDFInstance;
+};
 
 // Enhanced interfaces for PDF generation
 export interface PDFGenerationOptions {
@@ -101,6 +112,7 @@ export class PDFGenerationService {
       templateStyle: 'professional'
     }
   ): Promise<Uint8Array> {
+    const jsPDF = await initializeJsPDF();
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -146,6 +158,7 @@ export class PDFGenerationService {
       templateStyle: 'university'
     }
   ): Promise<Uint8Array> {
+    const jsPDF = await initializeJsPDF();
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',

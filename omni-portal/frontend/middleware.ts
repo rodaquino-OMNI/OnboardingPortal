@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// Safe debug logging without global object manipulation
+let lastDebugTime = 0;
+const DEBUG_INTERVAL = 5000; // 5 seconds
+
 export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Handle Tesseract .needs-setup file (not meant to be served)
+  if (pathname === '/tesseract/.needs-setup') {
+    return new NextResponse(null, { status: 204 });
+  }
+
   // Handle CORS for API routes
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  if (pathname.startsWith('/api/')) {
     const response = NextResponse.next();
     
+    // Fixed CORS to match actual development port  
     response.headers.set('Access-Control-Allow-Origin', 'http://localhost:3000');
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-TOKEN');
@@ -15,31 +27,24 @@ export function middleware(request: NextRequest) {
   }
 
   // Enhanced auth check for protected routes
-  // Check multiple possible cookie names
   const authCookie = request.cookies.get('auth_token');
   const sessionCookie = request.cookies.get('omni_onboarding_portal_session');
   const laravelSession = request.cookies.get('austa_health_portal_session');
   const sanctumToken = request.cookies.get('XSRF-TOKEN');
   const authenticatedCookie = request.cookies.get('authenticated');
-  const pathname = request.nextUrl.pathname;
   
   // Check authentication - any of these cookies indicate authentication
   const isAuthenticated = !!(authCookie || sessionCookie || laravelSession || sanctumToken || authenticatedCookie);
   
-  // Debug logging to see what cookies are available - RATE LIMITED to prevent spam
-  const debugKey = `middleware_debug_${pathname}`;
+  // Safe debug logging without global object manipulation
   const now = Date.now();
-  const lastLog = global[debugKey as any] || 0;
-  
-  if ((pathname === '/home' || pathname === '/login') && (now - lastLog > 5000)) { // Only log once every 5 seconds
-    global[debugKey as any] = now;
-    console.log(`[MIDDLEWARE] Checking cookies for ${pathname}:`, {
-      authCookie: authCookie?.value?.substring(0, 20) + '...' || 'none',
-      sessionCookie: !!sessionCookie,
-      laravelSession: !!laravelSession,
-      sanctumToken: !!sanctumToken,
-      authenticatedCookie: !!authenticatedCookie,
-      allCookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value.substring(0, 20) + '...' })),
+  if ((pathname === '/home' || pathname === '/login') && (now - lastDebugTime > DEBUG_INTERVAL)) {
+    lastDebugTime = now;
+    console.log(`[MIDDLEWARE] Auth check for ${pathname}:`, {
+      hasAuthToken: !!authCookie,
+      hasSessionCookie: !!sessionCookie,
+      hasLaravelSession: !!laravelSession,
+      hasSanctumToken: !!sanctumToken,
       isAuthenticated
     });
   }
@@ -47,7 +52,7 @@ export function middleware(request: NextRequest) {
   // Public routes that don't require authentication
   const publicRoutes = [
     '/login',
-    '/register',
+    '/register', 
     '/forgot-password',
     '/callback',
     '/api',
@@ -59,43 +64,46 @@ export function middleware(request: NextRequest) {
     '/tesseract'
   ];
 
-  // Onboarding routes (temporarily public for testing)
-  const onboardingRoutes = [
+  // Protected onboarding routes (require authentication but allow partial completion)
+  const protectedRoutes = [
+    '/home',
+    '/profile',
     '/welcome',
-    '/company-info',
+    '/company-info', 
     '/health-questionnaire',
     '/document-upload',
     '/interview-schedule',
     '/telemedicine-schedule',
-    '/completion',
-    '/home' // TEMPORARY: Make home public to prevent redirect loop
+    '/completion'
   ];
 
   // Check if the current path is public
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) ||
-                        onboardingRoutes.some(route => pathname.startsWith(route)) ||
-                        pathname === '/';
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname === '/';
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // If it's a protected route and user is not authenticated, redirect to login
-  if (!isPublicRoute && !isAuthenticated) {
+  // For protected routes, require authentication
+  if (isProtectedRoute && !isAuthenticated) {
     // Prevent redirect loop - check if we're already being redirected
     const referer = request.headers.get('referer');
     if (referer && referer.includes('/login')) {
-      console.log('Preventing redirect loop - already coming from login');
+      console.log('[MIDDLEWARE] Preventing redirect loop - already from login');
       return NextResponse.next();
     }
     
-    console.log('Redirecting to login - no auth cookies found for:', pathname, {
-      authCookie: !!authCookie,
-      sessionCookie: !!sessionCookie,
-      laravelSession: !!laravelSession,
-      sanctumToken: !!sanctumToken,
-      authenticatedCookie: !!authenticatedCookie,
-      allCookies: request.cookies.getAll().map(c => c.name)
-    });
+    // Only log redirects for debugging, avoid spam
+    if (now - lastDebugTime > DEBUG_INTERVAL) {
+      console.log(`[MIDDLEWARE] Redirecting ${pathname} to login - no auth cookies found`);
+    }
+    
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // For all other routes not explicitly public, allow access (catch-all for admin, etc.)
+  if (!isPublicRoute && !isProtectedRoute) {
+    // These routes will handle their own authentication at the component level
+    return NextResponse.next();
   }
 
   // Add security headers to all responses

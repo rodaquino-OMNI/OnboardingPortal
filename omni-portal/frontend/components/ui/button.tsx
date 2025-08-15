@@ -45,25 +45,30 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, fullWidth = false, isLoading = false, children, ...props }, ref) => {
     const Comp = asChild ? React.Fragment : "button"
+    
+    // PERFORMANCE OPTIMIZATION: Memoize computed class names to prevent recalculation on every render
+    const computedClassName = React.useMemo(() => cn(
+      buttonVariants({ variant, size }),
+      fullWidth && "w-full",
+      className
+    ), [variant, size, fullWidth, className])
+    
+    // PERFORMANCE OPTIMIZATION: Memoize loading content to prevent recreation
+    const loadingContent = React.useMemo(() => (
+      <div className="flex items-center gap-2">
+        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        {children}
+      </div>
+    ), [children])
+    
     return (
       <Comp
-        className={cn(
-          buttonVariants({ variant, size }),
-          fullWidth && "w-full",
-          className
-        )}
+        className={computedClassName}
         disabled={isLoading || props.disabled}
         ref={ref}
         {...props}
       >
-        {isLoading ? (
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-            {children}
-          </div>
-        ) : (
-          children
-        )}
+        {isLoading ? loadingContent : children}
       </Comp>
     )
   }

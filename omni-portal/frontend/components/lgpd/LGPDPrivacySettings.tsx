@@ -54,7 +54,7 @@ export function LGPDPrivacySettings() {
       key: 'marketing_consent',
       label: 'Comunicações de Marketing',
       description: 'Receber e-mails promocionais, newsletters e ofertas especiais',
-      icon: Mail,
+      icon: Mail as any,
       category: 'communications',
       level: 'optional',
       legalBasis: 'Consentimento'
@@ -63,7 +63,7 @@ export function LGPDPrivacySettings() {
       key: 'analytics_consent',
       label: 'Análise de Uso',
       description: 'Permitir coleta de dados para análise de comportamento e melhorias',
-      icon: BarChart,
+      icon: BarChart as any,
       category: 'data_processing',
       level: 'functional',
       legalBasis: 'Interesse legítimo'
@@ -72,7 +72,7 @@ export function LGPDPrivacySettings() {
       key: 'communication_consent',
       label: 'Comunicações Gerais',
       description: 'Receber notificações importantes sobre sua conta e serviços',
-      icon: Mail,
+      icon: Mail as any,
       category: 'communications',
       level: 'essential',
       legalBasis: 'Execução de contrato'
@@ -81,7 +81,7 @@ export function LGPDPrivacySettings() {
       key: 'data_sharing_consent',
       label: 'Compartilhamento de Dados',
       description: 'Permitir compartilhamento de dados com parceiros autorizados',
-      icon: Share2,
+      icon: Share2 as any,
       category: 'data_processing',
       level: 'optional',
       legalBasis: 'Consentimento'
@@ -90,7 +90,7 @@ export function LGPDPrivacySettings() {
       key: 'activity_tracking',
       label: 'Rastreamento de Atividades',
       description: 'Monitorar interações no sistema para personalização',
-      icon: Activity,
+      icon: Activity as any,
       category: 'data_processing',
       level: 'functional',
       legalBasis: 'Interesse legítimo'
@@ -99,7 +99,7 @@ export function LGPDPrivacySettings() {
       key: 'automated_processing',
       label: 'Processamento Automatizado',
       description: 'Permitir tomada de decisões automatizadas baseadas em seus dados',
-      icon: Zap,
+      icon: Zap as any,
       category: 'data_processing',
       level: 'functional',
       legalBasis: 'Interesse legítimo'
@@ -108,7 +108,7 @@ export function LGPDPrivacySettings() {
       key: 'third_party_integrations',
       label: 'Integrações com Terceiros',
       description: 'Conectar com serviços externos para funcionalidades adicionais',
-      icon: Globe,
+      icon: Globe as any,
       category: 'integrations',
       level: 'optional',
       legalBasis: 'Consentimento'
@@ -196,7 +196,7 @@ export function LGPDPrivacySettings() {
     if (!acc[setting.category]) {
       acc[setting.category] = [];
     }
-    acc[setting.category].push(setting);
+    acc[setting.category]?.push(setting);
     return acc;
   }, {} as Record<string, PrivacySetting[]>);
 
@@ -229,7 +229,7 @@ export function LGPDPrivacySettings() {
 
       {/* Save Status */}
       {saveStatus.type && (
-        <Alert type={saveStatus.type}>
+        <Alert variant={saveStatus.type}>
           <div className="flex items-center space-x-2">
             {saveStatus.type === 'success' && <CheckCircle className="w-5 h-5" />}
             {saveStatus.type === 'error' && <AlertCircle className="w-5 h-5" />}

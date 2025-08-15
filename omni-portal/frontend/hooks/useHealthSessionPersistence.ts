@@ -40,90 +40,30 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
     onRestoreSession
   } = options;
 
+  const [isClient, setIsClient] = useState(false);
   const [currentSession, setCurrentSession] = useState<HealthSessionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // SSR hydration fix: Track when we're on client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const { makeRequest, cancelAll } = useCancellableRequest();
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSaveRef = useRef<Date | null>(null);
+  const hasInitializedRef = useRef(false);
 
   // Storage keys
   const getStorageKey = (suffix = '') => `health-session-${userId}${suffix}`;
   const primaryKey = getStorageKey();
   const backupKey = getStorageKey('-backup');
 
-  // Initialize session on mount
-  useEffect(() => {
-    initializeSession();
-    return () => {
-      cancelAll();
-      if (autoSaveTimerRef.current) {
-        clearInterval(autoSaveTimerRef.current);
-      }
-    };
-  }, [userId]);
-
-  // Auto-save timer
-  useEffect(() => {
-    if (currentSession && hasUnsavedChanges && autoSaveInterval > 0) {
-      if (autoSaveTimerRef.current) {
-        clearInterval(autoSaveTimerRef.current);
-      }
-
-      autoSaveTimerRef.current = setInterval(() => {
-        performAutoSave();
-      }, autoSaveInterval);
-
-      return () => {
-        if (autoSaveTimerRef.current) {
-          clearInterval(autoSaveTimerRef.current);
-        }
-      };
-    }
-  }, [currentSession, hasUnsavedChanges, autoSaveInterval]);
-
-  const initializeSession = async () => {
-    setIsLoading(true);
-    try {
-      // Try to restore from localStorage first
-      const existingSession = await restoreFromStorage();
-      
-      if (existingSession) {
-        setCurrentSession(existingSession);
-        onRestoreSession?.(existingSession);
-        setHasUnsavedChanges(false);
-      } else {
-        // Create new session
-        const newSession: HealthSessionData = {
-          userId,
-          sessionId,
-          responses: {},
-          currentSectionIndex: 0,
-          currentQuestionIndex: 0,
-          progress: 0,
-          lastSavedAt: new Date(),
-          metadata: {
-            startedAt: new Date(),
-            version: '2.0.0',
-            mode: 'standard',
-            features: [],
-            totalSections: 0
-          }
-        };
-        setCurrentSession(newSession);
-        await saveToStorage(newSession);
-      }
-    } catch (error) {
-      console.error('Failed to initialize session:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const restoreFromStorage = async (): Promise<HealthSessionData | null> => {
+  // Restore from storage function (defined early to avoid circular deps)
+  const restoreFromStorage = useCallback(async (): Promise<HealthSessionData | null> => {
     try {
       // Check if localStorage is available
       if (typeof window === 'undefined' || !window.localStorage) {
@@ -174,9 +114,49 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
     }
     
     return null;
-  };
+  }, [primaryKey, backupKey, enableBackupStorage]);
 
-  const saveToStorage = async (session: HealthSessionData): Promise<boolean> => {
+  // Declare initializeSession before using it
+  const initializeSession = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      // Try to restore from localStorage first
+      const existingSession = await restoreFromStorage();
+      
+      if (existingSession) {
+        setCurrentSession(existingSession);
+        onRestoreSession?.(existingSession);
+        setHasUnsavedChanges(false);
+      } else {
+        // Create new session
+        const newSession: HealthSessionData = {
+          userId,
+          sessionId,
+          responses: {},
+          currentSectionIndex: 0,
+          currentQuestionIndex: 0,
+          progress: 0,
+          lastSavedAt: new Date(),
+          metadata: {
+            startedAt: new Date(),
+            version: '1.0.0',
+            mode: 'standard',
+            features: [],
+            totalSections: 0
+          },
+        };
+        setCurrentSession(newSession);
+      }
+    } catch (error) {
+      console.error('Failed to initialize session:', error);
+      setLastSaveError('Falha ao inicializar sessão');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, sessionId, onRestoreSession, restoreFromStorage]);
+
+  // Save to storage function
+  const saveToStorage = useCallback(async (session: HealthSessionData): Promise<boolean> => {
     try {
       // Check if localStorage is available
       if (typeof window === 'undefined' || !window.localStorage) {
@@ -255,9 +235,10 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
       });
       return false;
     }
-  };
+  }, [primaryKey, backupKey, enableBackupStorage]);
 
-  const performAutoSave = async () => {
+  // Perform auto save function
+  const performAutoSave = useCallback(async () => {
     if (!currentSession || isSaving || !hasUnsavedChanges) return;
 
     try {
@@ -287,7 +268,49 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [currentSession, isSaving, hasUnsavedChanges, onAutoSave, saveToStorage]);
+
+  // Initialize session on mount (client-side only)
+  useEffect(() => {
+    // SSR guard: Only initialize on client side
+    if (!isClient) {
+      return;
+    }
+
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      initializeSession();
+    }
+    
+    return () => {
+      cancelAll();
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+    };
+  }, [isClient, initializeSession, cancelAll]); // Depend on isClient to ensure proper timing
+
+  // Auto-save timer (client-side only)
+  useEffect(() => {
+    // SSR guard: Only run auto-save on client side
+    if (!isClient || !currentSession || !hasUnsavedChanges || autoSaveInterval <= 0) {
+      return;
+    }
+
+    if (autoSaveTimerRef.current) {
+      clearInterval(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setInterval(() => {
+      performAutoSave();
+    }, autoSaveInterval);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+    };
+  }, [isClient, currentSession, hasUnsavedChanges, autoSaveInterval, performAutoSave]);
 
   // Update session data
   const updateSession = useCallback((updates: Partial<HealthSessionData>) => {
@@ -333,8 +356,12 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
       currentQuestionIndex: questionIndex,
       progress: progressPercentage,
       metadata: {
-        ...currentSession?.metadata,
-        estimatedTimeRemaining
+        startedAt: currentSession?.metadata?.startedAt || new Date(),
+        version: currentSession?.metadata?.version || '1.0',
+        mode: currentSession?.metadata?.mode || 'standard',
+        features: currentSession?.metadata?.features || [],
+        totalSections: currentSession?.metadata?.totalSections || 1,
+        ...(estimatedTimeRemaining !== undefined && { estimatedTimeRemaining })
       }
     });
   }, [updateSession, currentSession]);
@@ -371,12 +398,15 @@ export function useHealthSessionPersistence(options: SessionPersistenceOptions) 
     }
   }, [currentSession, isSaving]);
 
-  // Clear session
+  // Clear session (client-side only)
   const clearSession = useCallback(async () => {
     try {
-      localStorage.removeItem(primaryKey);
-      if (enableBackupStorage) {
-        localStorage.removeItem(backupKey);
+      // SSR guard: Only clear localStorage on client side
+      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+        localStorage.removeItem(primaryKey);
+        if (enableBackupStorage) {
+          localStorage.removeItem(backupKey);
+        }
       }
       
       setCurrentSession(null);

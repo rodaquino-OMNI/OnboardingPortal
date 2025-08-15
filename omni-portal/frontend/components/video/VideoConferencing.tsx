@@ -119,7 +119,7 @@ export function VideoConferencing({
           throw new Error(response.message || 'Failed to create session');
         }
 
-        return response.session;
+        return (response as any).session;
       },
       { timeout: 15000 }
     );
@@ -144,7 +144,7 @@ export function VideoConferencing({
         setIsConnecting(false);
       }
     }
-  }, [interviewId, participantInfo, onError, makeRequest]);
+  }, [interviewId, participantInfo, onError, makeRequest]); // All dependencies included
 
   // Setup WebRTC connection with HIPAA compliance
   const setupWebRTC = async (sessionData: VideoSession) => {
@@ -152,10 +152,10 @@ export function VideoConferencing({
       // Initialize HIPAA-compliant video service
       const hipaaService = new HIPAAVideoService({
         stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
-        turnServers: sessionData.turnServers || [],
-        turnUsername: sessionData.turnUsername,
-        turnCredential: sessionData.turnCredential,
-        sessionId: sessionData.sessionId,
+        turnServers: (sessionData as any).turnServers || [],
+        turnUsername: (sessionData as any).turnUsername,
+        turnCredential: (sessionData as any).turnCredential,
+        sessionId: (sessionData as any).sessionId,
         userId: participantInfo.id,
         role: participantInfo.role,
       });
@@ -214,6 +214,7 @@ export function VideoConferencing({
     } catch (err) {
       setError('Failed to initialize HIPAA-compliant video session');
       onError?.('HIPAA video initialization failed');
+      return;
     }
   };
 
@@ -252,7 +253,7 @@ export function VideoConferencing({
     } finally {
       setIsConnecting(false);
     }
-  }, [session]);
+  }, [session]); // session is the dependency
 
   // Toggle local video
   const toggleVideo = useCallback(() => {
@@ -308,17 +309,22 @@ export function VideoConferencing({
         // Replace video track in HIPAA service
         if (hipaaVideoServiceRef.current) {
           const videoTrack = screenStream.getVideoTracks()[0];
-          await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
+          if (videoTrack) {
+            await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
+          }
         }
 
         setIsScreenSharing(true);
 
         // Handle screen share end
-        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-          if (mountedRef.current) {
-            stopScreenShare();
-          }
-        });
+        const firstVideoTrack = screenStream.getVideoTracks()[0];
+        if (firstVideoTrack) {
+          firstVideoTrack.addEventListener('ended', () => {
+            if (mountedRef.current) {
+              stopScreenShare();
+            }
+          });
+        }
       }
     } catch (err) {
       if (mountedRef.current && !request.isCancelled()) {
@@ -328,7 +334,7 @@ export function VideoConferencing({
         }
       }
     }
-  }, [makeRequest]);
+  }, [makeRequest]); // Remove stopScreenShare to prevent circular dependency
 
   // Stop screen sharing
   const stopScreenShare = useCallback(async () => {
@@ -340,7 +346,9 @@ export function VideoConferencing({
     // Switch back to camera
     if (hipaaVideoServiceRef.current && localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
+      if (videoTrack) {
+        await hipaaVideoServiceRef.current.replaceVideoTrack(videoTrack);
+      }
     }
 
     setIsScreenSharing(false);
@@ -368,7 +376,7 @@ export function VideoConferencing({
     } catch (err) {
       setError('Failed to start encrypted recording');
     }
-  }, [session]);
+  }, [session]); // session is the dependency
 
   // Stop recording
   const stopRecording = useCallback(async () => {
@@ -387,7 +395,7 @@ export function VideoConferencing({
     } catch (err) {
       setError('Failed to stop recording');
     }
-  }, [session]);
+  }, [session]); // session is the dependency
 
   // End session with proper cleanup
   const endSession = useCallback(async () => {
@@ -417,7 +425,7 @@ export function VideoConferencing({
       
       if (mountedRef.current && !request.isCancelled()) {
         if (response.success) {
-          onSessionEnd?.(response.session);
+          onSessionEnd?.((response as any).session);
         }
       }
     } catch (err) {
@@ -457,7 +465,7 @@ export function VideoConferencing({
         setSession(null);
       }
     }
-  }, [session, isRecording, stopRecording, onSessionEnd, makeRequest]);
+  }, [session, isRecording, stopRecording, onSessionEnd, makeRequest]); // All dependencies included
 
   // Session duration timer with proper cleanup
   useEffect(() => {
@@ -569,7 +577,7 @@ export function VideoConferencing({
               {connectionQuality.charAt(0).toUpperCase() + connectionQuality.slice(1)}
             </Badge>
             {isRecording && (
-              <Badge variant="destructive" className="bg-red-600 text-white animate-pulse">
+              <Badge variant="error" className="bg-red-600 text-white animate-pulse">
                 <Circle className="w-4 h-4 mr-1" />
                 Recording (Encrypted)
               </Badge>
@@ -680,7 +688,7 @@ export function VideoConferencing({
 
           {/* Screen share */}
           <Button
-            variant={isScreenSharing ? "default" : "secondary"}
+            variant={isScreenSharing ? "primary" : "secondary"}
             size="lg"
             onClick={isScreenSharing ? stopScreenShare : startScreenShare}
             className="rounded-full w-12 h-12"
@@ -705,7 +713,7 @@ export function VideoConferencing({
 
           {/* Chat toggle */}
           <Button
-            variant={showChat ? "default" : "secondary"}
+            variant={showChat ? "primary" : "secondary"}
             size="lg"
             onClick={() => setShowChat(!showChat)}
             className="rounded-full w-12 h-12"
@@ -726,7 +734,7 @@ export function VideoConferencing({
             currentUser={participantInfo}
             isVisible={showChat}
             onClose={() => setShowChat(false)}
-            videoService={hipaaVideoServiceRef.current || undefined}
+            {...(hipaaVideoServiceRef.current && { videoService: hipaaVideoServiceRef.current })}
           />
         </div>
       )}

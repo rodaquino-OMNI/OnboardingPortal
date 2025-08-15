@@ -10,10 +10,17 @@ import React, {
   ReactNode,
   ComponentType
 } from 'react';
-import { HealthQuestion, HealthSection, QuestionValue } from '@/types/health';
+import { HealthQuestion, QuestionValue } from '@/types';
 import { HealthQuestionnaireErrorBoundary } from '../ErrorBoundary';
+import { useSafeQuestionnaireOptimization } from '@/hooks/useSafeQuestionnaireOptimization';
 
 // Core Types
+interface HealthSection {
+  id: string;
+  title: string;
+  questions: HealthQuestion[];
+}
+
 export interface QuestionnaireState {
   currentSectionIndex: number;
   currentQuestionIndex: number;
@@ -208,6 +215,14 @@ export function QuestionnaireProvider({
   children 
 }: QuestionnaireProviderProps) {
   const [state, dispatch] = useReducer(questionnaireReducer, initialState);
+  
+  // INTEGRATION: Safe optimization features
+  const optimization = useSafeQuestionnaireOptimization({
+    enableCache: true,
+    enableTouchOptimization: true,
+    enablePerformanceMonitoring: true,
+    debugMode: false
+  });
 
   // Initialize features
   useEffect(() => {
@@ -217,7 +232,7 @@ export function QuestionnaireProvider({
       .forEach(feature => {
         feature.hooks?.onInit?.(state);
       });
-  }, []);
+  }, [config.features, state]);
 
   // Auto-save with persistence
   useEffect(() => {
@@ -227,7 +242,8 @@ export function QuestionnaireProvider({
       }, config.persistence.saveInterval || 30000);
       return () => clearInterval(saveInterval);
     }
-  }, [state, config.persistence]);
+    return () => {}; // Return cleanup function even when condition is false
+  }, [state, config.persistence, saveState]);
 
   // Save state helper
   const saveState = useCallback((state: QuestionnaireState) => {
@@ -271,7 +287,7 @@ export function QuestionnaireProvider({
       
       // Handle array values (for multiselect conditions)
       if (Array.isArray(conditionValue)) {
-        return question.conditionalOn.values.some(val => conditionValue.includes(val));
+        return question.conditionalOn.values.some(val => (conditionValue as any[]).includes(val));
       }
       
       // Handle exact value matching with type coercion
@@ -303,8 +319,19 @@ export function QuestionnaireProvider({
       return visibleQuestions[0] || null;
     }
     
-    return visibleQuestions[state.currentQuestionIndex] || null;
-  }, [getVisibleQuestions, state.currentQuestionIndex]);
+    const question = visibleQuestions[state.currentQuestionIndex] || null;
+    
+    // OPTIMIZATION: Try to get cached response if question exists
+    if (question && !optimization.isCriticalQuestion(question.id)) {
+      const cachedValue = optimization.getCachedResponse(question.id);
+      if (cachedValue !== null && state.responses[question.id] === undefined) {
+        // Restore cached value if not already in state
+        dispatch({ type: 'SET_RESPONSE', payload: { questionId: question.id, value: cachedValue } });
+      }
+    }
+    
+    return question;
+  }, [getVisibleQuestions, state.currentQuestionIndex, state.responses, optimization]);
 
   // Validate question with feature hooks
   const validateQuestion = useCallback((
@@ -344,7 +371,7 @@ export function QuestionnaireProvider({
 
     // Custom validators from config
     if (config.validation?.customValidators?.[question.id]) {
-      const customError = config.validation.customValidators[question.id](value);
+      const customError = config.validation?.customValidators[question.id]?.(value);
       if (customError) return customError;
     }
 
@@ -359,10 +386,15 @@ export function QuestionnaireProvider({
     return null;
   }, [config]);
 
-  // Set response with feature hooks
+  // Set response with feature hooks and cache integration
   const setResponse = useCallback((questionId: string, value: QuestionValue) => {
     const question = getCurrentQuestion();
     if (!question || question.id !== questionId) return;
+
+    // SAFETY: Cache response only if not critical
+    if (!optimization.isCriticalQuestion(questionId)) {
+      optimization.cacheResponse(questionId, value);
+    }
 
     // Run feature hooks before setting response
     let processedValue = value;
@@ -383,7 +415,7 @@ export function QuestionnaireProvider({
         payload: { questionId, error } 
       });
     }
-  }, [getCurrentQuestion, config, state, validateQuestion]);
+  }, [getCurrentQuestion, config, state, validateQuestion, optimization]);
 
   // Navigation helpers with enhanced bounds checking
   const nextQuestion = useCallback(() => {
@@ -441,7 +473,7 @@ export function QuestionnaireProvider({
     });
 
     // Validate current question
-    const error = validateQuestion(currentQuestion, state.responses[currentQuestion.id]);
+    const error = validateQuestion(currentQuestion, state.responses[currentQuestion.id] ?? null);
     if (error) {
       dispatch({ 
         type: 'SET_VALIDATION_ERROR', 
@@ -600,24 +632,19 @@ export function BaseHealthQuestionnaire({
         console.error('Health questionnaire error:', error);
         // Could also send to error tracking service here
       }}
-      resetKeys={[config]}
+      resetKeys={[JSON.stringify(config)]}
     >
       <QuestionnaireProvider config={config} onComplete={onComplete}>
         <div className="health-questionnaire">
-          {/* Debug: Log features being rendered */}
-          {console.log('[BaseHealthQuestionnaire] Rendering features:', config.features.map(f => ({ 
-            id: f.id, 
-            name: f.name, 
-            enabled: f.enabled, 
-            hasComponent: !!f.component 
-          })))}
           
           {/* Feature components will be rendered here */}
           {config.features
             .filter(f => f.enabled && f.component)
             .sort((a, b) => b.priority - a.priority)
             .map(feature => {
-              console.log(`[BaseHealthQuestionnaire] Rendering feature: ${feature.name}`);
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`[BaseHealthQuestionnaire] Rendering feature: ${feature.name}`);
+              }
               const Component = feature.component!;
               return <Component key={feature.id} {...feature.config} onProgressUpdate={onProgressUpdate} />;
             })}

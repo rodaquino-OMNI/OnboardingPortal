@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,9 +18,9 @@ export default function PredictiveAnalyticsDashboard() {
 
   useEffect(() => {
     loadAnalytics();
-  }, [horizonDays, confidenceThreshold]);
+  }, [horizonDays, confidenceThreshold, loadAnalytics]);
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       const response = await healthIntelligenceApi.getPredictiveAnalytics({
@@ -35,7 +35,7 @@ export default function PredictiveAnalyticsDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [horizonDays, confidenceThreshold]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -54,7 +54,7 @@ export default function PredictiveAnalyticsDashboard() {
 
   if (error) {
     return (
-      <Alert variant="destructive">
+      <Alert variant="error">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>{error}</AlertDescription>
       </Alert>

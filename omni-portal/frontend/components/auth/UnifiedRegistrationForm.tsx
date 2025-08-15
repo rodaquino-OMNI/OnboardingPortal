@@ -13,6 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { unifiedAuthApi } from '@/lib/api/unified-auth';
 
+// Define explicit types to avoid Zod type inference issues
+type GenderType = 'masculine' | 'feminine' | 'non_binary' | 'prefer_not_to_say';
+type MaritalStatusType = 'single' | 'married' | 'divorced' | 'widowed' | 'separated' | 'common_law';
+type LanguageType = 'pt-BR' | 'en' | 'es';
+
 // Comprehensive registration schema matching backend validation exactly
 const unifiedRegistrationSchema = z.object({
   // Step 1: Personal Information (RegisterStep1Request)
@@ -33,13 +38,9 @@ const unifiedRegistrationSchema = z.object({
       return age >= 16 && age <= 120;
     }, 'Você deve ter entre 16 e 120 anos'),
   
-  gender: z.enum(['masculine', 'feminine', 'non_binary', 'prefer_not_to_say'], {
-    errorMap: () => ({ message: 'Selecione uma opção de gênero' })
-  }),
+  gender: z.string() as z.ZodType<GenderType>,
   
-  marital_status: z.enum(['single', 'married', 'divorced', 'widowed', 'separated', 'common_law'], {
-    errorMap: () => ({ message: 'Selecione um estado civil' })
-  }),
+  marital_status: z.string() as z.ZodType<MaritalStatusType>,
   
   phone: z.string()
     .min(10, 'Telefone deve ter pelo menos 10 dígitos')
@@ -50,7 +51,7 @@ const unifiedRegistrationSchema = z.object({
   job_title: z.string().min(1, 'Cargo é obrigatório').max(100, 'Cargo muito longo'),
   employee_id: z.string().min(1, 'ID do funcionário é obrigatório').max(50, 'ID muito longo'),
   start_date: z.string().min(1, 'Data de início é obrigatória'),
-  preferred_language: z.enum(['pt-BR', 'en', 'es']).default('pt-BR'),
+  preferred_language: z.string().default('pt-BR') as z.ZodType<LanguageType>,
 
   // Optional address fields
   address: z.string().max(255, 'Endereço muito longo').optional(),
@@ -86,7 +87,38 @@ const unifiedRegistrationSchema = z.object({
   path: ['confirmPassword'],
 });
 
-type UnifiedRegistrationData = z.infer<typeof unifiedRegistrationSchema>;
+// Define the form data type explicitly to match the schema
+interface UnifiedRegistrationData {
+  name: string;
+  email: string;
+  cpf: string;
+  birth_date: string;
+  gender: GenderType;
+  marital_status: MaritalStatusType;
+  phone: string;
+  department: string;
+  job_title: string;
+  employee_id: string;
+  start_date: string;
+  preferred_language: LanguageType;
+  address?: string;
+  number?: string;
+  complement?: string | null;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  emergency_contact_relationship?: string;
+  password: string;
+  confirmPassword: string;
+  security_question: string;
+  security_answer: string;
+  two_factor_enabled: boolean;
+  terms_accepted: boolean;
+  lgpd_consent: boolean;
+}
 
 interface RegistrationStep {
   title: string;
@@ -140,10 +172,10 @@ export function UnifiedRegistrationForm() {
     getValues,
     trigger
   } = useForm<UnifiedRegistrationData>({
-    resolver: zodResolver(unifiedRegistrationSchema),
+    resolver: zodResolver(unifiedRegistrationSchema) as any,
     mode: 'onChange',
     defaultValues: {
-      preferred_language: 'pt-BR',
+      preferred_language: 'pt-BR' as LanguageType,
       two_factor_enabled: false,
       terms_accepted: false,
       lgpd_consent: false,
@@ -177,7 +209,7 @@ export function UnifiedRegistrationForm() {
   };
 
   const nextStep = async () => {
-    const currentFields = registrationSteps[currentStep].fields;
+    const currentFields = registrationSteps[currentStep]?.fields || [];
     const isValid = await trigger(currentFields as any);
     
     if (isValid) {
@@ -225,17 +257,17 @@ export function UnifiedRegistrationForm() {
         employee_id: data.employee_id,
         start_date: data.start_date,
         preferred_language: data.preferred_language,
-        // Optional fields
-        address: data.address,
-        number: data.number,
-        complement: data.complement,
-        neighborhood: data.neighborhood,
-        city: data.city,
-        state: data.state,
-        zip_code: data.zip_code?.replace(/\D/g, ''),
-        emergency_contact_name: data.emergency_contact_name,
-        emergency_contact_phone: data.emergency_contact_phone?.replace(/\D/g, ''),
-        emergency_contact_relationship: data.emergency_contact_relationship,
+        // Optional fields with proper null handling
+        ...(data.address && { address: data.address }),
+        ...(data.number && { number: data.number }),
+        ...(data.complement !== null && data.complement !== undefined && { complement: data.complement }),
+        ...(data.neighborhood && { neighborhood: data.neighborhood }),
+        ...(data.city && { city: data.city }),
+        ...(data.state && { state: data.state }),
+        ...(data.zip_code && { zip_code: data.zip_code.replace(/\D/g, '') }),
+        ...(data.emergency_contact_name && { emergency_contact_name: data.emergency_contact_name }),
+        ...(data.emergency_contact_phone && { emergency_contact_phone: data.emergency_contact_phone.replace(/\D/g, '') }),
+        ...(data.emergency_contact_relationship && { emergency_contact_relationship: data.emergency_contact_relationship }),
       }, registrationToken);
 
       // Step 3: Security setup
@@ -290,9 +322,9 @@ export function UnifiedRegistrationForm() {
         {/* Step Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent mb-2">
-            {registrationSteps[currentStep].title}
+            {registrationSteps[currentStep]?.title}
           </h1>
-          <p className="text-gray-600">{registrationSteps[currentStep].description}</p>
+          <p className="text-gray-600">{registrationSteps[currentStep]?.description}</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -410,7 +442,7 @@ export function UnifiedRegistrationForm() {
                   <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
                     Gênero *
                   </label>
-                  <Select onValueChange={(value) => setValue('gender', value as any)}>
+                  <Select onValueChange={(value) => setValue('gender', value as GenderType)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o gênero" />
                     </SelectTrigger>
@@ -430,7 +462,7 @@ export function UnifiedRegistrationForm() {
                   <label htmlFor="marital_status" className="block text-sm font-medium text-gray-700 mb-2">
                     Estado Civil *
                   </label>
-                  <Select onValueChange={(value) => setValue('marital_status', value as any)}>
+                  <Select onValueChange={(value) => setValue('marital_status', value as MaritalStatusType)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o estado civil" />
                     </SelectTrigger>

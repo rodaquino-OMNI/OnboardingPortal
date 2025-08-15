@@ -40,10 +40,10 @@ return new class extends Migration
             $table->boolean('lgpd_compliant')->default(true)->after('hipaa_compliant');
             
             // Indexes for performance
-            $table->index(['emergency_detected', 'emergency_timestamp']);
-            $table->index(['severity_level', 'escalation_required']);
-            $table->index(['confidence_score']);
-            $table->index(['completion_rate']);
+            $table->index(['emergency_detected', 'emergency_timestamp'], 'hq_emergency_detected_timestamp_idx');
+            $table->index(['severity_level', 'escalation_required'], 'hq_severity_escalation_idx');
+            $table->index(['confidence_score'], 'hq_confidence_score_idx');
+            $table->index(['completion_rate'], 'hq_completion_rate_idx');
         });
     }
 
@@ -73,10 +73,10 @@ return new class extends Migration
                 'lgpd_compliant'
             ]);
             
-            $table->dropIndex(['health_questionnaires_emergency_detected_emergency_timestamp_index']);
-            $table->dropIndex(['health_questionnaires_severity_level_escalation_required_index']);
-            $table->dropIndex(['health_questionnaires_confidence_score_index']);
-            $table->dropIndex(['health_questionnaires_completion_rate_index']);
+            $table->dropIndex('hq_emergency_detected_timestamp_idx');
+            $table->dropIndex('hq_severity_escalation_idx');
+            $table->dropIndex('hq_confidence_score_idx');
+            $table->dropIndex('hq_completion_rate_idx');
         });
     }
 };

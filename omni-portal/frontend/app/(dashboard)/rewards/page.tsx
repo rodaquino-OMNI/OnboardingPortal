@@ -76,7 +76,7 @@ export default function RewardsPage() {
   useEffect(() => {
     fetchAll();
     fetchRewards();
-  }, [fetchAll, fetchRewards]);
+  }, [fetchAll, fetchRewards]); // Include dependencies - both should be stable from their respective stores
 
   useEffect(() => {
     if (progress) {

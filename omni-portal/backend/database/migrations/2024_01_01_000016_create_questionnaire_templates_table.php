@@ -25,7 +25,7 @@ return new class extends Migration
             $table->integer('version')->default(1);
             $table->integer('estimated_minutes')->default(10);
             $table->json('required_for')->nullable(); // User types or conditions
-            $table->json('languages')->default('["pt-BR"]'); // Available languages
+            $table->json('languages')->nullable(); // Available languages (default set in model)
             $table->timestamps();
             
             // Indexes

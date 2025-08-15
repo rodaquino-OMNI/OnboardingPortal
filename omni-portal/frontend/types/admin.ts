@@ -28,6 +28,7 @@ export interface AdminUser {
   is_admin: boolean;
   registration_step: string;
   department?: string;
+  role?: string;
   created_at: string;
   updated_at: string;
   last_login_at?: string;

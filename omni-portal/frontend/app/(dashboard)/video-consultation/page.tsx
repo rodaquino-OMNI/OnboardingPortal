@@ -33,7 +33,7 @@ interface Interview {
 export default function VideoConsultationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const interviewId = searchParams.get('interview');
+  const interviewId = searchParams?.get('interview');
   
   const { user, isAuthenticated } = useAuth();
   

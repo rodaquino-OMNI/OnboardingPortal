@@ -2,7 +2,7 @@ import axios from 'axios';
 import type { LoginData, RegisterData, ForgotPasswordData, ResetPasswordData } from '@/lib/schemas/auth';
 import type { AuthResponse, AuthUser } from '@/types/auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const BASE_URL = API_BASE_URL.replace('/api', '');
 
 const api = axios.create({
@@ -32,14 +32,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Helper function to get cookie value
+// Helper function to get cookie value (SSR-safe)
 function getCookie(name: string): string | null {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    const cookieValue = parts.pop()?.split(';').shift() || null;
-    // Decode the cookie value as Laravel encodes it
-    return cookieValue ? decodeURIComponent(cookieValue) : null;
+  // SSR guard: Return null if document is not available
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  
+  try {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+      const cookieValue = parts.pop()?.split(';').shift() || null;
+      // Decode the cookie value as Laravel encodes it
+      return cookieValue ? decodeURIComponent(cookieValue) : null;
+    }
+  } catch (error) {
+    console.warn(`Error reading cookie ${name}:`, error);
   }
   return null;
 }
@@ -49,31 +58,33 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      console.log('%c[API INTERCEPTOR] 401 Error Detected', 'color: red; font-weight: bold', {
+      console.log('[API INTERCEPTOR] 401 Error:', {
         url: error.config?.url,
-        method: error.config?.method,
-        endpoint: error.request?.responseURL,
-        message: error.response?.data?.message,
-        timestamp: new Date().toISOString(),
-        stack: new Error().stack
+        method: error.config?.method
       });
       
-      // Don't redirect immediately - check if user is actually authenticated
-      const hasAuthCookie = document.cookie.includes('authenticated=true') || 
-                           document.cookie.includes('auth_token=');
+      // Don't redirect for public endpoints or gamification endpoints
+      const isPublicEndpoint = error.config?.url?.includes('/public/') || 
+                               error.config?.url?.includes('/gamification/');
+      const isAuthEndpoint = error.config?.url?.includes('/auth/');
       
-      console.log('[API INTERCEPTOR] Cookie check:', { 
-        hasAuthCookie, 
-        cookies: document.cookie.substring(0, 200) 
-      });
+      // Don't redirect immediately - check if user is actually authenticated (SSR-safe)
+      let hasAuthCookie = false;
+      if (typeof document !== 'undefined') {
+        hasAuthCookie = document.cookie.includes('authenticated=true') || 
+                       document.cookie.includes('auth_token=');
+      }
       
-      // Only redirect if we truly don't have auth cookies
-      // Some endpoints might return 401 for other reasons (permissions, etc)
-      if (!hasAuthCookie && !error.config?.url?.includes('/auth/')) {
-        console.log('%c[API INTERCEPTOR] Redirecting to login - no auth cookies found', 'color: red; font-weight: bold');
+      // Only redirect if:
+      // 1. Not a public endpoint
+      // 2. Not an auth endpoint
+      // 3. User doesn't have auth cookies
+      // 4. Not already on login page
+      // 5. We're on the client side
+      if (!isPublicEndpoint && !isAuthEndpoint && !hasAuthCookie && 
+          typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        console.log('[API INTERCEPTOR] Redirecting to login');
         window.location.href = '/login';
-      } else {
-        console.log('[API INTERCEPTOR] Not redirecting - user has auth cookies or auth endpoint');
       }
     }
     return Promise.reject(error);
@@ -126,9 +137,9 @@ export const authApi = {
       throw new Error(`Registration incomplete. Please complete step: ${response.data.registration_step}`);
     }
     
-    // Return the response in the expected format (no token exposure)
+    // Return the response in the expected format (with token if provided)
     return {
-      token: 'secured-httponly-cookie', // Placeholder - actual token is in httpOnly cookie
+      token: response.data.token || 'secured-httponly-cookie', // Use actual token if provided
       user: {
         id: response.data.user.id,
         fullName: response.data.user.name,

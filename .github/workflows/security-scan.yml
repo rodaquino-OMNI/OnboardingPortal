@@ -1,0 +1,138 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily security scan at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  docker-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          cd omni-portal/${{ matrix.service }}
+          docker build -t austa-${{ matrix.service }}:scan .
+
+      - name: Run Trivy on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'austa-${{ matrix.service }}:scan'
+          format: 'sarif'
+          output: 'docker-${{ matrix.service }}-trivy.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Docker scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'docker-${{ matrix.service }}-trivy.sarif'
+
+  dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'AUSTA Onboarding Portal'
+          path: '.'
+          format: 'HTML,SARIF'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --log /tmp/dependency-check.log
+
+      - name: Upload OWASP results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: reports/dependency-check-report.sarif
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  npm-audit:
+    name: NPM Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Run npm audit for frontend
+        working-directory: ./omni-portal/frontend
+        run: |
+          npm ci
+          npm audit --audit-level=moderate
+
+  composer-audit:
+    name: Composer Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql
+
+      - name: Run composer audit for backend
+        working-directory: ./omni-portal/backend
+        run: |
+          composer install --no-scripts
+          composer audit

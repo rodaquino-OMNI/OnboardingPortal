@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { 
   AlertTriangle,
   Search,
-  Filter,
   Download,
   Clock,
   AlertOctagon,
@@ -70,9 +69,9 @@ export default function AlertsListPage() {
 
   useEffect(() => {
     loadAlerts();
-  }, [filters]);
+  }, [loadAlerts]); // Include loadAlerts dependency
 
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -85,7 +84,7 @@ export default function AlertsListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   const handleSearch = () => {
     setFilters(prev => ({ ...prev, search: searchInput, page: 1 }));
@@ -369,7 +368,7 @@ export default function AlertsListPage() {
                 {[...Array(meta.last_page)].map((_, i) => (
                   <Button
                     key={i + 1}
-                    variant={meta.current_page === i + 1 ? 'default' : 'outline'}
+                    variant={meta.current_page === i + 1 ? 'primary' : 'outline'}
                     size="sm"
                     onClick={() => setFilters(prev => ({ ...prev, page: i + 1 }))}
                   >

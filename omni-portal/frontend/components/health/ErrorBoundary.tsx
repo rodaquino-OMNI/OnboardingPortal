@@ -236,7 +236,7 @@ export class HealthQuestionnaireErrorBoundary extends ErrorBoundary {
                   onClick={this.resetErrorBoundary}
                   className="w-full"
                   size="lg"
-                  variant="default"
+                  variant="primary"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Continuar Questionário

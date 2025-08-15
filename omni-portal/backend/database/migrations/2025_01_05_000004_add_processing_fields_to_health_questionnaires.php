@@ -15,7 +15,7 @@ class AddProcessingFieldsToHealthQuestionnaires extends Migration
     {
         Schema::table('health_questionnaires', function (Blueprint $table) {
             // Add processing status JSON field to track coordination
-            $table->json('processing_status')->nullable()->after('risk_scores');
+            $table->json('processing_status')->nullable()->after('fraud_risk_score');
             
             // Add risk scores snapshot to preserve original values for gamification
             $table->json('risk_scores_snapshot')->nullable()->after('processing_status');

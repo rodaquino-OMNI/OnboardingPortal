@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     if (setCookieHeader) {
       const tokenMatch = setCookieHeader.match(/auth_token=([^;]+)/);
-      if (tokenMatch) {
+      if (tokenMatch && tokenMatch[1]) {
         authToken = decodeURIComponent(tokenMatch[1]);
       }
     }

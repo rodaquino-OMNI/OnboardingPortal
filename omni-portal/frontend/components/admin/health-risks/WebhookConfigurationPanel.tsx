@@ -279,7 +279,7 @@ export default function WebhookConfigurationPanel() {
 
           {/* Test Result */}
           {testResult && (
-            <Alert className="mt-4" variant={testResult.success ? 'default' : 'destructive'}>
+            <Alert className="mt-4" variant={testResult.success ? 'default' : 'error'}>
               {testResult.success ? (
                 <CheckCircle className="h-4 w-4" />
               ) : (

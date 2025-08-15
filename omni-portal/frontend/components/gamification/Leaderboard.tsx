@@ -46,7 +46,7 @@ export function Leaderboard({
 
   useEffect(() => {
     fetchLeaderboard();
-  }, []); // Only fetch on mount
+  }, [fetchLeaderboard]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -123,7 +123,7 @@ export function Leaderboard({
             
             return (
               <div
-                key={`${entry.userId || entry.beneficiary_id || index}`}
+                key={index}
                 className={`
                   flex items-center space-x-4 p-4 rounded-lg border transition-all
                   ${getRankBackground(rank)}
