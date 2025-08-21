@@ -99,9 +99,14 @@ export function PDFGenerationCenter({
   ) => {
     let currentTaskIndex = 0;
     let progress = 0;
+    let stepCount = 0;
 
     const interval = setInterval(() => {
-      progress += Math.random() * 15 + 5; // Random progress between 5-20%
+      // Use deterministic progress increments to avoid hydration issues
+      stepCount++;
+      const baseIncrement = 100 / (tasks.length * 3); // Divide total by expected steps
+      const variation = (stepCount % 3) * 2; // Simple variation based on step count
+      progress += baseIncrement + variation;
       
       if (progress >= 100) {
         progress = 100;

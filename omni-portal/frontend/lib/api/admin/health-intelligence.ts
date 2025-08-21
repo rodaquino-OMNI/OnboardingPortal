@@ -82,7 +82,7 @@ export const healthIntelligenceApi = {
     date_to?: string;
     risk_level?: string;
     categories?: string[];
-  }) => api.get<PopulationMetrics>('/api/v1/health-intelligence/population-metrics', { params }),
+  }) => api.get('/api/v1/health-intelligence/population-metrics', { params }),
 
   // Risk Profiles
   getRiskProfiles: (params: {
@@ -100,7 +100,7 @@ export const healthIntelligenceApi = {
     categories?: string[];
     confidence_threshold?: number;
     include_interventions?: boolean;
-  }) => api.get<PredictiveAnalytics>('/api/v1/health-intelligence/predictive-analytics', { params }),
+  }) => api.get('/api/v1/health-intelligence/predictive-analytics', { params }),
 
   // Intervention Effectiveness
   getInterventionEffectiveness: (params: {
@@ -116,7 +116,7 @@ export const healthIntelligenceApi = {
     include_cost_analysis?: boolean;
     include_roi_metrics?: boolean;
     format?: 'json' | 'pdf';
-  }) => api.get<ExecutiveSummary>('/api/v1/health-intelligence/executive-summary', { params }),
+  }) => api.get('/api/v1/health-intelligence/executive-summary', { params }),
 
   // Webhook Management
   registerWebhook: (config: WebhookConfig) => 

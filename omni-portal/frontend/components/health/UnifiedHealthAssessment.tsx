@@ -54,34 +54,10 @@ function UnifiedHealthAssessmentInner({
     timestamp: Date;
     domain?: string;
   }>>([]);
+  const [isClient, setIsClient] = useState(false);
   const { captureError } = useErrorHandler();
 
-  useEffect(() => {
-    initializeAssessment();
-  }, [initializeAssessment]);
-
-  const initializeAssessment = useCallback(async () => {
-    try {
-      addBotMessage(
-        "Olá! Vou fazer uma avaliação personalizada da sua saúde. " +
-        "Começaremos com algumas perguntas básicas e, baseado nas suas respostas, " +
-        "aprofundaremos apenas nas áreas que precisam de mais atenção. " +
-        "Vamos começar?"
-      );
-      
-      // Start with the first question from triage
-      const result = await flow.processResponse('_init', true);
-      handleFlowResult(result);
-    } catch (error) {
-      console.error('Error initializing assessment:', error);
-      captureError(error as Error);
-      addBotMessage(
-        "Houve um problema ao inicializar a avaliação. Por favor, recarregue a página e tente novamente.",
-        'error'
-      );
-    }
-  }, [addBotMessage, flow, handleFlowResult, captureError]);
-
+  // Define addBotMessage first since it's used by other callbacks
   const addBotMessage = useCallback((content: string, domain?: string) => {
     setConversationHistory(prev => [...prev, {
       type: 'bot',
@@ -196,6 +172,35 @@ function UnifiedHealthAssessmentInner({
     
     return value.toString();
   }, []);
+
+  // Initialize assessment callback - moved after all dependencies are defined
+  const initializeAssessment = useCallback(async () => {
+    try {
+      addBotMessage(
+        "Olá! Vou fazer uma avaliação personalizada da sua saúde. " +
+        "Começaremos com algumas perguntas básicas e, baseado nas suas respostas, " +
+        "aprofundaremos apenas nas áreas que precisam de mais atenção. " +
+        "Vamos começar?"
+      );
+      
+      // Start with the first question from triage
+      const result = await flow.processResponse('_init', true);
+      handleFlowResult(result);
+    } catch (error) {
+      console.error('Error initializing assessment:', error);
+      captureError(error as Error);
+      addBotMessage(
+        "Houve um problema ao inicializar a avaliação. Por favor, recarregue a página e tente novamente.",
+        'error'
+      );
+    }
+  }, [addBotMessage, flow, handleFlowResult, captureError]);
+
+  // Initialize on mount
+  useEffect(() => {
+    setIsClient(true);
+    initializeAssessment();
+  }, [initializeAssessment]);
 
   const renderQuestion = () => {
     if (!currentQuestion || isProcessing) return null;
@@ -393,14 +398,17 @@ function UnifiedHealthAssessmentInner({
             </p>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-gray-50 p-4 rounded-lg" suppressHydrationWarning>
             <h3 className="font-semibold mb-2">Resumo da Conversa:</h3>
             <div className="max-h-32 overflow-y-auto space-y-1 text-sm">
-              {conversationHistory.slice(-6).map((msg, idx) => (
+              {isClient && conversationHistory.slice(-6).map((msg, idx) => (
                 <div key={idx} className={`${msg.type === 'bot' ? 'text-blue-600' : 'text-gray-700'}`}>
                   <strong>{msg.type === 'bot' ? '🤖' : '👤'}:</strong> {msg.content}
                 </div>
               ))}
+              {!isClient && (
+                <div className="text-gray-500 italic">Carregando histórico...</div>
+              )}
             </div>
           </div>
           

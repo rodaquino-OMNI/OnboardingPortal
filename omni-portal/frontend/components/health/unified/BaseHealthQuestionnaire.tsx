@@ -234,23 +234,12 @@ export function QuestionnaireProvider({
       });
   }, [config.features, state]);
 
-  // Auto-save with persistence
-  useEffect(() => {
-    if (config.persistence?.enabled && config.persistence.autoSave) {
-      const saveInterval = setInterval(() => {
-        saveState(state);
-      }, config.persistence.saveInterval || 30000);
-      return () => clearInterval(saveInterval);
-    }
-    return () => {}; // Return cleanup function even when condition is false
-  }, [state, config.persistence, saveState]);
-
-  // Save state helper
-  const saveState = useCallback((state: QuestionnaireState) => {
+  // Save state helper - moved before usage
+  const saveStateToStorage = useCallback((stateToSave: QuestionnaireState) => {
     if (!config.persistence?.enabled) return;
     
     const key = config.persistence.key || 'questionnaire-state';
-    const data = JSON.stringify(state);
+    const data = JSON.stringify(stateToSave);
     
     switch (config.persistence.storage) {
       case 'local':
@@ -264,6 +253,17 @@ export function QuestionnaireProvider({
         break;
     }
   }, [config.persistence]);
+
+  // Auto-save with persistence
+  useEffect(() => {
+    if (config.persistence?.enabled && config.persistence.autoSave) {
+      const saveInterval = setInterval(() => {
+        saveStateToStorage(state);
+      }, config.persistence.saveInterval || 30000);
+      return () => clearInterval(saveInterval);
+    }
+    return () => {}; // Return cleanup function even when condition is false
+  }, [state, config.persistence, saveStateToStorage]);
 
   // Get current section
   const getCurrentSection = useCallback(() => {
@@ -343,6 +343,7 @@ export function QuestionnaireProvider({
     // because !0 === true, which would incorrectly invalidate legitimate zero responses
     if (question.required) {
       // Type-aware validation - check for actual emptiness, not falsy values
+      // CRITICAL: 0 and false are VALID values, only null/undefined are invalid
       if (value === null || value === undefined) {
         return 'Este campo é obrigatório';
       }
@@ -354,8 +355,11 @@ export function QuestionnaireProvider({
       
       // For array values (multiselect), check for empty arrays
       if (Array.isArray(value) && value.length === 0) {
-        return 'Este campo é obrigatório';
+        return 'Selecione pelo menos uma opção';
       }
+      
+      // IMPORTANT: Do NOT invalidate numeric 0 or boolean false
+      // These are legitimate responses (e.g., "Nunca" = 0, "Não" = false)
     }
 
     if (question.validation) {

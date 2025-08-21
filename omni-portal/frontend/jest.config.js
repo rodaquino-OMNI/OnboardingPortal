@@ -1,9 +1,3 @@
-// JEST CONFIGURATION DISABLED
-// This file has been disabled to prevent Jest from running
-// and consuming system resources. All Jest functionality has been
-// permanently disabled for this project.
-
-/*
 const nextJest = require('next/jest')
 const createJestConfig = nextJest({
   // Provide the path to your Next.js app to load next.config.js and .env files in your test environment
@@ -32,6 +26,8 @@ const customJestConfig = {
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
     '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
     '^@/styles/(.*)$': '<rootDir>/styles/$1',
+    // Mock lucide-react for tests
+    '^lucide-react$': '<rootDir>/__mocks__/lucide-react.js',
   },
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
@@ -57,10 +53,26 @@ const customJestConfig = {
     '<rootDir>/tests/', // Exclude separate tests folder
     '\\.spec\\.(ts|tsx|js|jsx)$', // Exclude .spec files (Playwright convention)
   ],
+  
+  // Transform patterns for ES modules
+  transformIgnorePatterns: [
+    'node_modules/(?!(msw|@mswjs|react-error-boundary|lucide-react)/)',
+  ],
+  
+  // TypeScript configuration - simplified for basic functionality
+  transform: {
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: {
+        jsx: 'react-jsx',
+        skipLibCheck: true,
+        noImplicitAny: false,
+        strict: false,
+        noUnusedLocals: false,
+        noUnusedParameters: false,
+        exactOptionalPropertyTypes: false
+      }
+    }]
+  },
 }
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
 module.exports = createJestConfig(customJestConfig)
-*/
-
-// Export empty object to prevent any Jest functionality
-module.exports = {}

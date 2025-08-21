@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLocalStorage, useTimestamp } from '@/hooks/useClientOnly';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { X, FileText, Clock, ChevronRight } from 'lucide-react';
@@ -27,8 +28,12 @@ export function PendingTasksReminder({ className = '' }: PendingTasksReminderPro
   const router = useRouter();
   const [partialProgress, setPartialProgress] = useState<PartialProgress | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    // Mark as client-side to prevent hydration mismatch
+    setIsClient(true);
+    
     // Check for partial progress in localStorage
     const savedProgress = localStorage.getItem('onboarding_partial_progress');
     if (savedProgress) {
@@ -59,8 +64,8 @@ export function PendingTasksReminder({ className = '' }: PendingTasksReminderPro
     router.push('/document-upload');
   };
 
-  // Don't show if dismissed or no pending tasks
-  if (isDismissed || !partialProgress) {
+  // Don't show if not client-side, dismissed, or no pending tasks
+  if (!isClient || isDismissed || !partialProgress) {
     return null;
   }
 
@@ -92,7 +97,7 @@ export function PendingTasksReminder({ className = '' }: PendingTasksReminderPro
                   </li>
                 )}
               </ul>
-              <div className="flex items-center gap-2 text-xs text-amber-600">
+              <div className="flex items-center gap-2 text-xs text-amber-600" suppressHydrationWarning>
                 <Clock className="w-3 h-3" />
                 {daysSince === 0 ? 'Hoje' : `${daysSince} dia(s) atrás`}
               </div>

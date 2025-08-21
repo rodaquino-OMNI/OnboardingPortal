@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useEffect } from 'react';
-import { HealthQuestion, QuestionValue } from '@/types/health';
+import { HealthQuestion, QuestionValue } from '@/types';
 import { useCancellableRequest } from '@/lib/async-utils';
 
 export interface NavigationConfig {
@@ -68,12 +68,15 @@ export function useUnifiedNavigation(
     }
 
     // CRITICAL FIX 1: Don't auto-advance if value is not set (but allow valid negative responses)
-    if (questionValueRef.current === null || questionValueRef.current === undefined) {
+    // IMPORTANT: 0 is a valid value for select questions (e.g., "Nunca" = 0 in AUDIT-C)
+    const currentValue = questionValueRef.current;
+    if (currentValue === null || currentValue === undefined) {
       return false;
     }
     
     // Allow empty string only for text inputs, not for select/boolean questions
-    if (questionValueRef.current === '' && (question.type === 'select' || question.type === 'boolean' || question.type === 'multiselect')) {
+    // But DON'T reject numeric 0 which is a valid select option
+    if (currentValue === '' && (question.type === 'select' || question.type === 'boolean' || question.type === 'multiselect')) {
       return false;
     }
 
@@ -88,12 +91,12 @@ export function useUnifiedNavigation(
     }
 
     // Don't auto-advance high-risk questions (critical safety questions)
-    if (question.riskWeight && question.riskWeight >= 8) {
+    if ((question as any).riskWeight && (question as any).riskWeight >= 8) {
       return false;
     }
 
     // Don't auto-advance clinical validation tools unless specifically configured
-    if (question.metadata?.validatedTool && !finalConfig.autoAdvanceTypes.includes('clinical')) {
+    if (question.metadata?.validatedTool && !finalConfig.autoAdvanceTypes.includes('clinical' as any)) {
       // Only auto-advance clinical tools for scale questions
       return question.type === 'scale';
     }
@@ -109,6 +112,10 @@ export function useUnifiedNavigation(
     if (!currentQuestion || navigationInProgressRef.current) return;
 
     try {
+      // CRITICAL FIX: Update the ref immediately with the new value
+      // This ensures getNavigationState() will use the correct value
+      questionValueRef.current = value;
+      
       // Clear any pending auto-advance to prevent conflicts
       if (autoAdvanceTimeoutRef.current) {
         clearTimeout(autoAdvanceTimeoutRef.current);
@@ -192,16 +199,34 @@ export function useUnifiedNavigation(
       // Use ref to get current value and avoid stale closures
       const currentValue = questionValueRef.current;
       
-      if (currentQuestion.required && (currentValue === null || currentValue === undefined)) {
-        callbacks.onValidationError('Este campo é obrigatório');
-        return;
-      }
-      
-      // For select/boolean questions, empty string is also invalid
-      if (currentQuestion.required && currentValue === '' && 
-          (currentQuestion.type === 'select' || currentQuestion.type === 'boolean' || currentQuestion.type === 'multiselect')) {
-        callbacks.onValidationError('Este campo é obrigatório');
-        return;
+      // IMPORTANT: For required fields, only null/undefined are invalid
+      // 0, false, and empty arrays for non-multiselect are all VALID values
+      if (currentQuestion.required) {
+        // Check for truly empty values
+        if (currentValue === null || currentValue === undefined) {
+          callbacks.onValidationError('Este campo é obrigatório');
+          return;
+        }
+        
+        // For select/boolean questions, empty string is invalid (but 0 is valid!)
+        if (currentValue === '' && 
+            (currentQuestion.type === 'select' || currentQuestion.type === 'boolean')) {
+          callbacks.onValidationError('Este campo é obrigatório');
+          return;
+        }
+        
+        // For multiselect, check for empty array
+        if (currentQuestion.type === 'multiselect' && 
+            Array.isArray(currentValue) && currentValue.length === 0) {
+          callbacks.onValidationError('Selecione pelo menos uma opção');
+          return;
+        }
+        
+        // For text questions, check for empty string
+        if (currentQuestion.type === 'text' && currentValue === '') {
+          callbacks.onValidationError('Este campo é obrigatório');
+          return;
+        }
       }
 
       // Custom validation logic
@@ -221,17 +246,17 @@ export function useUnifiedNavigation(
           break;
 
         case 'text':
-          if (typeof currentValue === 'string' && currentQuestion.validation?.minLength) {
-            if (currentValue.length < currentQuestion.validation.minLength) {
-              validationError = `Resposta deve ter pelo menos ${currentQuestion.validation.minLength} caracteres`;
+          if (typeof currentValue === 'string' && (currentQuestion.validation as any)?.minLength) {
+            if (currentValue.length < (currentQuestion.validation as any).minLength) {
+              validationError = `Resposta deve ter pelo menos ${(currentQuestion.validation as any).minLength} caracteres`;
             }
           }
           break;
 
         case 'multiselect':
-          if (Array.isArray(currentValue) && currentQuestion.validation?.minItems) {
-            if (currentValue.length < currentQuestion.validation.minItems) {
-              validationError = `Selecione pelo menos ${currentQuestion.validation.minItems} opções`;
+          if (Array.isArray(currentValue) && (currentQuestion.validation as any)?.minItems) {
+            if (currentValue.length < (currentQuestion.validation as any).minItems) {
+              validationError = `Selecione pelo menos ${(currentQuestion.validation as any).minItems} opções`;
             }
           }
           break;
@@ -293,9 +318,19 @@ export function useUnifiedNavigation(
       if (currentQuestion?.type === 'boolean') {
         hasValue = typeof currentValue === 'boolean';
       }
-      // Select questions: 0 is a valid value (e.g., "Nunca" in PHQ-9)
-      else if (currentQuestion?.type === 'select' || currentQuestion?.type === 'scale') {
-        hasValue = true; // If not null/undefined, it's valid (including 0)
+      // CRITICAL FIX: Select questions - ALL non-null/undefined values are valid including 0
+      // This fixes the bug where "Nunca" (value=0) was incorrectly treated as invalid
+      else if (currentQuestion?.type === 'select') {
+        // For select questions, any value that's not null/undefined is valid
+        // This includes numeric 0, string "0", or any other option value
+        // BUT empty string should still be considered invalid
+        hasValue = currentValue !== '';
+      }
+      // Scale questions: numeric values including 0 are valid
+      else if (currentQuestion?.type === 'scale') {
+        // For scale questions, check if it's a number (including 0)
+        hasValue = typeof currentValue === 'number' || 
+                  (typeof currentValue === 'string' && !isNaN(Number(currentValue)));
       }
       // Multiselect questions: check for array
       else if (currentQuestion?.type === 'multiselect') {
@@ -329,7 +364,7 @@ export function useUnifiedNavigation(
       validationRequired: currentQuestion?.required || false,
       hasResponse: hasValue,
       questionType: currentQuestion?.type,
-      isHighRisk: (currentQuestion?.riskWeight || 0) >= 8
+      isHighRisk: ((currentQuestion as any)?.riskWeight || 0) >= 8
     };
   }, [currentQuestion, shouldAutoAdvance, finalConfig.autoAdvanceDelay, finalConfig.autoAdvance]); // Use ref for value
 

@@ -16,37 +16,46 @@ class GamificationService
      * Point values for different actions - SYNCHRONIZED WITH FRONTEND
      */
     const POINTS = [
-        // Profile Actions
+        // Registration and Profile
+        'registration' => 100,
+        'profile_field' => 10,
         'profile_completed' => 50,
         'profile_photo_upload' => 10,
         'profile_update' => 5,
         
-        // Document Actions
+        // Health Questions
+        'health_question' => 20,
+        'health_question_answered' => 2,
+        'health_section_complete' => 15,
+        'health_questionnaire_complete' => 150,
+        'health_perfect_accuracy' => 50,
+        
+        // Documents
+        'document_required' => 50,
+        'document_optional' => 100,
         'document_upload' => 20,
         'document_verified' => 30,
         'all_documents_complete' => 100,
         
-        // Health Questionnaire
-        'health_question_answered' => 2,
-        'health_section_complete' => 15,
-        'health_questionnaire_complete' => 150,
-        'health_perfect_accuracy' => 50, // Bonus for no corrections needed
-        
         // Interview
-        'interview_scheduled' => 75,
+        'interview_scheduled' => 150,
         'interview_completed' => 200,
-        'interview_rescheduled' => -10, // Penalty for rescheduling
+        'interview_rescheduled' => -10,
         
         // Telemedicine
-        'telemedicine_scheduled' => 100,
-        'telemedicine_completed' => 250,
+        'telemedicine_scheduled' => 225,
+        'telemedicine_completed' => 500,
+        'telemedicine_preparation' => 100,
         
-        // Engagement Bonuses
+        // Engagement
         'daily_login' => 5,
+        'streak_bonus' => 10,
         'weekly_streak' => 25,
         'monthly_streak' => 100,
+        'punctuality_bonus' => 50,
         
         // Completion Bonuses
+        'onboarding_completed' => 200,
         'onboarding_complete' => 500,
         'speed_bonus_24h' => 100,
         'speed_bonus_48h' => 50,

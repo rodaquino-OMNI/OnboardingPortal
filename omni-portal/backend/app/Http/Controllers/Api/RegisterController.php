@@ -49,13 +49,21 @@ class RegisterController extends Controller
                 'email_verified_at' => now(),
             ]);
             
-            // Create beneficiary record with minimal required fields - NO PLACEHOLDERS
+            // Create beneficiary record - using nullable fields instead of placeholders
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                // NO PLACEHOLDER VALUES - Fields will be populated in step 2
-                'onboarding_status' => 'profile_incomplete', // More descriptive status
+                // Leave critical fields null until properly filled in step 2
+                'birth_date' => null,
+                'phone' => null,
+                'address' => null,
+                'number' => null,
+                'neighborhood' => null,
+                'city' => null,
+                'state' => null,
+                'zip_code' => null,
+                'onboarding_status' => 'personal_info_complete',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -80,16 +88,21 @@ class RegisterController extends Controller
                 'user' => $user,
                 'token' => $token,
                 'token_type' => 'Bearer',
-            ], 201);
+            ], 201)->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Registration error: ' . $e->getMessage());
+            Log::error('Registration error: ' . $e->getMessage(), [
+                'request_data' => $request->except(['password', 'password_confirmation']),
+                'user_agent' => $request->userAgent(),
+                'ip' => $request->ip()
+            ]);
             
             return response()->json([
                 'message' => 'Registration failed',
                 'error' => 'An error occurred during registration. Please try again.',
-            ], 500);
+                'code' => 'REGISTRATION_ERROR'
+            ], 500)->header('Content-Type', 'application/json');
         }
     }
 
@@ -108,20 +121,29 @@ class RegisterController extends Controller
                 'cpf' => $request->cpf,
                 'password' => Hash::make(uniqid()), // Temporary password
                 'registration_step' => 'contact',
-                'lgpd_consent' => true,
+                'lgpd_consent' => (bool) $request->lgpd_consent,
+                'lgpd_consent_explicit' => (bool) $request->lgpd_consent_explicit,
                 'lgpd_consent_at' => now(),
                 'lgpd_consent_ip' => $request->ip(),
                 'role' => 'beneficiary',
                 'is_active' => false, // Will be activated after completion
             ]);
             
-            // Create beneficiary record with minimal required fields - NO PLACEHOLDERS
+            // Create beneficiary record - using nullable fields instead of placeholders
             $beneficiary = Beneficiary::create([
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                // NO PLACEHOLDER VALUES - Fields will be populated in step 2
-                'onboarding_status' => 'profile_incomplete', // More descriptive status
+                // Leave critical fields null until properly filled in step 2
+                'birth_date' => null,
+                'phone' => null,
+                'address' => null,
+                'number' => null,
+                'neighborhood' => null,
+                'city' => null,
+                'state' => null,
+                'zip_code' => null,
+                'onboarding_status' => 'personal_info_complete',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -143,16 +165,22 @@ class RegisterController extends Controller
                 'user_id' => $user->id,
                 'registration_step' => 'contact',
                 'token' => $token,
-            ], 201);
+                'token_type' => 'Bearer',
+            ], 201)->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Registration step 1 error: ' . $e->getMessage());
+            Log::error('Registration step 1 error: ' . $e->getMessage(), [
+                'request_data' => $request->except(['password', 'password_confirmation']),
+                'user_agent' => $request->userAgent(),
+                'ip' => $request->ip()
+            ]);
             
             return response()->json([
                 'message' => 'Erro ao processar registro',
                 'error' => 'Ocorreu um erro ao criar sua conta. Por favor, tente novamente.',
-            ], 500);
+                'code' => 'REGISTRATION_STEP1_ERROR'
+            ], 500)->header('Content-Type', 'application/json');
         }
     }
     
@@ -227,15 +255,19 @@ class RegisterController extends Controller
             return response()->json([
                 'message' => 'Etapa 2 concluída com sucesso',
                 'registration_step' => 'security',
-            ]);
+            ])->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
-            Log::error('Registration step 2 error: ' . $e->getMessage());
+            Log::error('Registration step 2 error: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'request_data' => $request->except(['password', 'password_confirmation']),
+            ]);
             
             return response()->json([
                 'message' => 'Erro ao atualizar informações',
                 'error' => 'Ocorreu um erro ao salvar suas informações. Por favor, tente novamente.',
-            ], 500);
+                'code' => 'REGISTRATION_STEP2_ERROR'
+            ], 500)->header('Content-Type', 'application/json');
         }
     }
     
@@ -308,19 +340,23 @@ class RegisterController extends Controller
                 'token_type' => 'Bearer',
                 'gamification' => [
                     'points_earned' => 100,
-                    'total_points' => $gamification->points,
-                    'level' => $gamification->level,
+                    'total_points' => $gamification->total_points ?? 0,
+                    'level' => $gamification->current_level ?? 1,
                 ],
-            ]);
+            ])->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Registration step 3 error: ' . $e->getMessage());
+            Log::error('Registration step 3 error: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+                'request_data' => $request->except(['password', 'password_confirmation', 'security_answer']),
+            ]);
             
             return response()->json([
                 'message' => 'Erro ao finalizar registro',
                 'error' => 'Ocorreu um erro ao completar seu registro. Por favor, tente novamente.',
-            ], 500);
+                'code' => 'REGISTRATION_STEP3_ERROR'
+            ], 500)->header('Content-Type', 'application/json');
         }
     }
     
@@ -350,7 +386,7 @@ class RegisterController extends Controller
             'current_step' => $user->registration_step,
             'steps' => $steps,
             'completed' => $user->isRegistrationCompleted(),
-        ]);
+        ])->header('Content-Type', 'application/json');
     }
     
     /**
@@ -390,26 +426,28 @@ class RegisterController extends Controller
             'missing_fields' => $missingFields,
             'completion_percentage' => $this->calculateCompletionPercentage($beneficiary),
             'profile_quality_score' => $this->calculateProfileQualityScore($beneficiary),
-        ]);
+        ])->header('Content-Type', 'application/json');
     }
     
     /**
-     * Check if a value is a placeholder
+     * Check if a value is a placeholder or invalid data
      */
     private function isPlaceholderValue(string $field, $value): bool
     {
-        if (empty($value)) return false;
+        if (empty($value) || is_null($value)) return true;
         
-        $placeholders = [
-            'birth_date' => ['2000-01-01'],
-            'phone' => ['11999999999', '(11) 99999-9999'],
-            'address' => ['To be updated', 'A ser atualizado'],
-            'city' => ['To be updated', 'A ser atualizado'],
-            'neighborhood' => ['To be updated', 'A ser atualizado'],
-            'zip_code' => ['00000-000'],
+        // Legacy placeholder patterns that should be considered invalid
+        $legacyPlaceholders = [
+            'birth_date' => ['2000-01-01', '1900-01-01'],
+            'phone' => ['11999999999', '(11) 99999-9999', '00000000000'],
+            'address' => ['TBD', 'To be updated', 'A ser atualizado', 'Pending'],
+            'city' => ['TBD', 'To be updated', 'A ser atualizado', 'Pending'],
+            'neighborhood' => ['TBD', 'To be updated', 'A ser atualizado', 'Pending'],
+            'zip_code' => ['00000-000', '0000-000'],
+            'number' => ['0', 'TBD'],
         ];
         
-        return isset($placeholders[$field]) && in_array($value, $placeholders[$field]);
+        return isset($legacyPlaceholders[$field]) && in_array($value, $legacyPlaceholders[$field]);
     }
     
     /**
@@ -498,15 +536,19 @@ class RegisterController extends Controller
             
             return response()->json([
                 'message' => 'Registro cancelado com sucesso',
-            ]);
+            ])->header('Content-Type', 'application/json');
             
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Registration cancellation error: ' . $e->getMessage());
+            Log::error('Registration cancellation error: ' . $e->getMessage(), [
+                'user_id' => $user->id,
+            ]);
             
             return response()->json([
                 'message' => 'Erro ao cancelar registro',
-            ], 500);
+                'error' => 'Ocorreu um erro ao cancelar o registro. Por favor, tente novamente.',
+                'code' => 'REGISTRATION_CANCEL_ERROR'
+            ], 500)->header('Content-Type', 'application/json');
         }
     }
 }

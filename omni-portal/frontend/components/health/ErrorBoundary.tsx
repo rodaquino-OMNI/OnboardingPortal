@@ -243,7 +243,11 @@ export class HealthQuestionnaireErrorBoundary extends ErrorBoundary {
                 </Button>
                 
                 <Button
-                  onClick={() => window.location.reload()}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.location.reload();
+                    }
+                  }}
                   className="w-full"
                   size="lg"
                   variant="outline"
@@ -252,7 +256,7 @@ export class HealthQuestionnaireErrorBoundary extends ErrorBoundary {
                 </Button>
               </div>
 
-              <p className="text-xs text-center text-gray-500">
+              <p className="text-xs text-center text-gray-500" suppressHydrationWarning>
                 ID do erro: {Date.now().toString(36)}
               </p>
             </CardContent>

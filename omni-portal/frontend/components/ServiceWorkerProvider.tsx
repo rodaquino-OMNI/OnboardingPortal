@@ -121,14 +121,8 @@ export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) 
         </div>
       )}
 
-      {/* Connection Status Debug (Development Only) */}
-      {process.env.NODE_ENV === 'development' && mounted && (
-        <div className="fixed bottom-4 left-4 z-40 bg-gray-800 text-white px-3 py-2 rounded text-xs">
-          <div>SW: {isSupported ? (isRegistered ? '✓' : '⏳') : '✗'}</div>
-          <div>Connection: {isOnline ? '🟢' : '🔴'}</div>
-          {hasUpdate && <div>Update: 🔄</div>}
-        </div>
-      )}
+      {/* Connection Status Debug (Development Only) - Disabled to prevent hydration issues */}
+      {/* Debug UI removed to fix React hydration error #418 */}
     </>
   );
 }

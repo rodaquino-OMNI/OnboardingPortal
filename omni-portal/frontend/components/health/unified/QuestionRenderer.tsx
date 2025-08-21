@@ -134,7 +134,8 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
   );
 
   // TECHNICAL EXCELLENCE FIX 4: Reactive button state system with proper synchronization
-  const navigationState = useMemo(() => navigation.getNavigationState(), [navigation]);
+  // CRITICAL FIX: Don't memoize navigation state - it needs to update when localValue changes
+  const navigationState = navigation.getNavigationState();
 
   // Reset local value when question changes with enhanced error clearing
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Trophy, Star, Award, Target, Zap, TrendingUp, Medal } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -53,25 +53,7 @@ function GamificationFeatureInner({ config }: { config?: GamificationConfig }) {
   const progress = calculateProgress();
   const showAnimations = config?.animations !== false;
 
-  // Award points for responses
-  useEffect(() => {
-    const responseCount = Object.keys(state.responses).length;
-    const basePoints = responseCount * 10;
-    const streakBonus = gamificationState.streak * 5;
-    const totalPoints = basePoints + streakBonus;
-
-    setGamificationState(prev => ({
-      ...prev,
-      points: totalPoints,
-      level: Math.floor(totalPoints / 100) + 1,
-      streak: responseCount // Simplified streak calculation
-    }));
-
-    // Check for achievements
-    checkAchievements(responseCount, totalPoints);
-  }, [state.responses, checkAchievements, gamificationState.streak]);
-
-  // Check and unlock achievements
+  // Check and unlock achievements - moved before useEffect
   const checkAchievements = useCallback((responseCount: number, points: number) => {
     try {
       const achievements = [...gamificationState.achievements];
@@ -117,6 +99,24 @@ function GamificationFeatureInner({ config }: { config?: GamificationConfig }) {
       captureError(error as Error);
     }
   }, [gamificationState.achievements, gamificationState.level, progress, showAnimations, captureError]);
+
+  // Award points for responses
+  useEffect(() => {
+    const responseCount = Object.keys(state.responses).length;
+    const basePoints = responseCount * 10;
+    const streakBonus = gamificationState.streak * 5;
+    const totalPoints = basePoints + streakBonus;
+
+    setGamificationState(prev => ({
+      ...prev,
+      points: totalPoints,
+      level: Math.floor(totalPoints / 100) + 1,
+      streak: responseCount // Simplified streak calculation
+    }));
+
+    // Check for achievements
+    checkAchievements(responseCount, totalPoints);
+  }, [state.responses, checkAchievements, gamificationState.streak]);
 
   // Calculate XP for next level
   const currentLevelXP = (gamificationState.level - 1) * 100;

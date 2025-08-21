@@ -1,0 +1,37 @@
+# Grafana Datasource Configuration
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  - name: MySQL-Master
+    type: mysql
+    url: mysql-master:3306
+    database: omni_portal
+    user: omni_reader
+    secureJsonData:
+      password: omnireader123
+    editable: true
+
+  - name: MySQL-Slave-1
+    type: mysql
+    url: mysql-slave-1:3306
+    database: omni_portal
+    user: omni_reader
+    secureJsonData:
+      password: omnireader123
+    editable: true
+
+  - name: MySQL-Slave-2
+    type: mysql
+    url: mysql-slave-2:3306
+    database: omni_portal
+    user: omni_reader
+    secureJsonData:
+      password: omnireader123
+    editable: true

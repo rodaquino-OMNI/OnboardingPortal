@@ -48,29 +48,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
+
     const initializeAuth = async () => {
       try {
         console.log('[AuthProvider] Initializing authentication...');
         
-        // Check for existing authentication
-        await checkAuth();
+        // Check for existing authentication with timeout
+        await Promise.race([
+          checkAuth(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Auth initialization timeout')), 10000)
+          )
+        ]);
         
-        console.log('[AuthProvider] Authentication initialized successfully');
-        setIsInitialized(true);
-        setInitializationError(null);
+        if (isMounted) {
+          console.log('[AuthProvider] Authentication initialized successfully');
+          setIsInitialized(true);
+          setInitializationError(null);
+        }
         
       } catch (error) {
         console.error('[AuthProvider] Failed to initialize authentication:', error);
-        setInitializationError(error instanceof Error ? error.message : 'Authentication initialization failed');
-        setIsInitialized(true); // Still set as initialized so app can continue
+        
+        if (isMounted) {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.log(`[AuthProvider] Retrying authentication (${retryCount}/${maxRetries})...`);
+            setTimeout(initializeAuth, 1000 * retryCount); // Exponential backoff
+          } else {
+            setInitializationError(error instanceof Error ? error.message : 'Authentication initialization failed');
+            setIsInitialized(true); // Still set as initialized so app can continue
+          }
+        }
       }
     };
 
-    // Add a small delay to ensure the store is ready
-    const timeoutId = setTimeout(initializeAuth, 100);
+    // Start initialization immediately when client is ready
+    initializeAuth();
     
-    return () => clearTimeout(timeoutId);
-  }, [isClient, checkAuth]);
+    return () => {
+      isMounted = false;
+    };
+  }, [isClient, checkAuth]); // Include checkAuth but with proper cleanup
 
   // Provide context value
   const contextValue: AuthContextType = {
@@ -78,17 +100,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializationError,
   };
 
-  // Show loading state during initialization (only on client)
-  if (isClient && !isInitialized) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing authentication...</p>
-        </div>
-      </div>
-    );
-  }
+  // Don't show loading state during SSR/hydration to avoid mismatch
+  // The loading state causes hydration errors because server renders children
+  // but client renders loading spinner initially
 
   return (
     <AuthContext.Provider value={contextValue}>

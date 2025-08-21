@@ -1,0 +1,333 @@
+version: '3.8'
+
+services:
+  # MySQL Master Instance
+  mysql-master:
+    image: mysql:8.0
+    container_name: mysql-master
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-masterrootpass123}
+      MYSQL_DATABASE: ${DB_DATABASE:-omni_portal}
+      MYSQL_USER: ${DB_USERNAME:-omni_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-omnipass123}
+      MYSQL_REPLICATION_USER: replicator
+      MYSQL_REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-replicatorpass123}
+    command: >
+      --server-id=1
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --log-slave-updates=ON
+      --binlog-do-db=${DB_DATABASE:-omni_portal}
+      --sync-binlog=1
+      --innodb-flush-log-at-trx-commit=1
+      --skip-slave-start
+      --read-only=OFF
+      --super-read-only=OFF
+      --max-connections=500
+      --innodb-buffer-pool-size=1G
+      --slow-query-log=1
+      --long-query-time=2
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_master_data:/var/lib/mysql
+      - ./scripts/mysql-ha/init-master.sql:/docker-entrypoint-initdb.d/init-master.sql
+      - ./config/mysql-ha/master.cnf:/etc/mysql/conf.d/master.cnf
+      - mysql_master_logs:/var/log/mysql
+    networks:
+      - mysql-ha-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-masterrootpass123}"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+      interval: 10s
+
+  # MySQL Slave Instance 1
+  mysql-slave-1:
+    image: mysql:8.0
+    container_name: mysql-slave-1
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-slaverootpass123}
+      MYSQL_DATABASE: ${DB_DATABASE:-omni_portal}
+      MYSQL_USER: ${DB_USERNAME:-omni_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-omnipass123}
+      MYSQL_MASTER_HOST: mysql-master
+      MYSQL_MASTER_PORT: 3306
+      MYSQL_REPLICATION_USER: replicator
+      MYSQL_REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-replicatorpass123}
+    command: >
+      --server-id=2
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --log-slave-updates=ON
+      --relay-log=mysql-relay-bin
+      --read-only=ON
+      --super-read-only=ON
+      --skip-slave-start
+      --max-connections=500
+      --innodb-buffer-pool-size=512M
+      --slow-query-log=1
+      --long-query-time=2
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_slave1_data:/var/lib/mysql
+      - ./scripts/mysql-ha/init-slave.sql:/docker-entrypoint-initdb.d/init-slave.sql
+      - ./config/mysql-ha/slave.cnf:/etc/mysql/conf.d/slave.cnf
+      - mysql_slave1_logs:/var/log/mysql
+    networks:
+      - mysql-ha-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-slaverootpass123}"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+      interval: 10s
+
+  # MySQL Slave Instance 2
+  mysql-slave-2:
+    image: mysql:8.0
+    container_name: mysql-slave-2
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-slaverootpass123}
+      MYSQL_DATABASE: ${DB_DATABASE:-omni_portal}
+      MYSQL_USER: ${DB_USERNAME:-omni_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-omnipass123}
+      MYSQL_MASTER_HOST: mysql-master
+      MYSQL_MASTER_PORT: 3306
+      MYSQL_REPLICATION_USER: replicator
+      MYSQL_REPLICATION_PASSWORD: ${MYSQL_REPLICATION_PASSWORD:-replicatorpass123}
+    command: >
+      --server-id=3
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+      --log-slave-updates=ON
+      --relay-log=mysql-relay-bin
+      --read-only=ON
+      --super-read-only=ON
+      --skip-slave-start
+      --max-connections=500
+      --innodb-buffer-pool-size=512M
+      --slow-query-log=1
+      --long-query-time=2
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_slave2_data:/var/lib/mysql
+      - ./scripts/mysql-ha/init-slave.sql:/docker-entrypoint-initdb.d/init-slave.sql
+      - ./config/mysql-ha/slave.cnf:/etc/mysql/conf.d/slave.cnf
+      - mysql_slave2_logs:/var/log/mysql
+    networks:
+      - mysql-ha-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-slaverootpass123}"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+      interval: 10s
+
+  # ProxySQL for Load Balancing and Connection Routing
+  proxysql:
+    image: proxysql/proxysql:2.5.5
+    container_name: proxysql
+    restart: unless-stopped
+    ports:
+      - "6032:6032"  # ProxySQL Admin Interface
+      - "6033:6033"  # ProxySQL MySQL Interface
+    volumes:
+      - ./config/mysql-ha/proxysql.cnf:/etc/proxysql.cnf
+      - proxysql_data:/var/lib/proxysql
+      - ./scripts/mysql-ha/proxysql-init.sql:/docker-entrypoint-initdb.d/proxysql-init.sql
+    networks:
+      - mysql-ha-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+      mysql-slave-1:
+        condition: service_healthy
+      mysql-slave-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-P", "6032", "-u", "admin", "-padmin", "-e", "SELECT 1"]
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      interval: 15s
+
+  # Orchestrator for Automatic Failover
+  orchestrator:
+    image: openarkcode/orchestrator:latest
+    container_name: orchestrator
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # Orchestrator Web Interface
+    environment:
+      ORC_TOPOLOGY_USER: ${MYSQL_ROOT_USER:-root}
+      ORC_TOPOLOGY_PASSWORD: ${MYSQL_ROOT_PASSWORD:-masterrootpass123}
+      ORC_DB_HOST: orchestrator-db
+      ORC_DB_PORT: 3306
+      ORC_DB_NAME: orchestrator
+      ORC_DB_USER: orc_server_user
+      ORC_DB_PASSWORD: orc_server_password
+    volumes:
+      - ./config/mysql-ha/orchestrator.conf.json:/usr/local/orchestrator/orchestrator.conf.json
+      - orchestrator_data:/usr/local/orchestrator
+    networks:
+      - mysql-ha-network
+    depends_on:
+      orchestrator-db:
+        condition: service_healthy
+      mysql-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/status"]
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      interval: 30s
+
+  # Orchestrator Database
+  orchestrator-db:
+    image: mysql:8.0
+    container_name: orchestrator-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: orchestrator_root_password
+      MYSQL_DATABASE: orchestrator
+      MYSQL_USER: orc_server_user
+      MYSQL_PASSWORD: orc_server_password
+    command: >
+      --server-id=100
+      --log-bin=mysql-bin
+      --binlog-format=ROW
+      --gtid-mode=ON
+      --enforce-gtid-consistency=ON
+    volumes:
+      - orchestrator_db_data:/var/lib/mysql
+    networks:
+      - mysql-ha-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-porchestrator_root_password"]
+      timeout: 20s
+      retries: 10
+      start_period: 30s
+      interval: 10s
+
+  # Redis for session management and caching
+  redis-ha:
+    image: redis:7-alpine
+    container_name: redis-ha
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_ha_data:/data
+    networks:
+      - mysql-ha-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      interval: 10s
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-mysql-ha
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/mysql-ha/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - mysql-ha-network
+
+  # MySQL Exporter for Prometheus
+  mysql-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: mysql-exporter
+    restart: unless-stopped
+    ports:
+      - "9104:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD:-masterrootpass123}@(mysql-master:3306)/"
+    networks:
+      - mysql-ha-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-mysql-ha
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/mysql-ha/grafana-dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/mysql-ha/grafana-datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - mysql-ha-network
+
+volumes:
+  mysql_master_data:
+    driver: local
+  mysql_master_logs:
+    driver: local
+  mysql_slave1_data:
+    driver: local
+  mysql_slave1_logs:
+    driver: local
+  mysql_slave2_data:
+    driver: local
+  mysql_slave2_logs:
+    driver: local
+  orchestrator_data:
+    driver: local
+  orchestrator_db_data:
+    driver: local
+  proxysql_data:
+    driver: local
+  redis_ha_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  mysql-ha-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

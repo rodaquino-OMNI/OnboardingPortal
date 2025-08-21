@@ -7,6 +7,8 @@ export class CookieManager {
   private readonly COOKIE_NAME = 'authenticated';
   private readonly COOKIE_DOMAIN = 'localhost';
   private readonly COOKIE_MAX_AGE = 86400; // 24 hours
+  private readonly ONBOARDING_COOKIE = 'onboarding_session';
+  private readonly ONBOARDING_MAX_AGE = 7200; // 2 hours
 
   /**
    * Set authentication cookie
@@ -47,6 +49,39 @@ export class CookieManager {
     const cookies = document.cookie;
     return cookies.includes(`${this.COOKIE_NAME}=true`) || 
            cookies.includes('auth_token=');
+  }
+
+  /**
+   * Set onboarding session cookie
+   */
+  async setOnboardingCookie(stage: string): Promise<void> {
+    if (typeof document === 'undefined') return;
+
+    const cookieString = `${this.ONBOARDING_COOKIE}=${stage}; path=/; max-age=${this.ONBOARDING_MAX_AGE}; SameSite=Lax`;
+    document.cookie = cookieString;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CookieManager] Onboarding cookie set:', cookieString);
+    }
+  }
+
+  /**
+   * Clear onboarding session cookie
+   */
+  async clearOnboardingCookie(): Promise<void> {
+    if (typeof document === 'undefined') return;
+
+    document.cookie = `${this.ONBOARDING_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+  }
+
+  /**
+   * Check if onboarding cookie exists
+   */
+  async hasOnboardingCookie(): Promise<boolean> {
+    if (typeof document === 'undefined') return false;
+
+    const cookies = document.cookie;
+    return cookies.includes(`${this.ONBOARDING_COOKIE}=`);
   }
 
   /**

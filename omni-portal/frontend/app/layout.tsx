@@ -18,7 +18,6 @@ export const metadata: Metadata = {
   title: "Omni Portal - Employee Onboarding",
   description: "Your onboarding journey starts here - Complete your employee onboarding process with ease",
   manifest: "/manifest.json",
-  themeColor: "#667eea",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -34,6 +33,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  themeColor: "#667eea",
 };
 
 export default function RootLayout({

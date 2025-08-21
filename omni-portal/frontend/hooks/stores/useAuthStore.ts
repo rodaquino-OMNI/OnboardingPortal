@@ -139,9 +139,11 @@ export const useAuthStore = create<AuthState>()(
                 source: 'useAuthStore.login'
               });
               
-              // Set client-side cookie for middleware (client-side only)
+              // Set client-side cookies for middleware (client-side only)
               if (typeof window !== 'undefined' && typeof document !== 'undefined') {
                 document.cookie = `authenticated=true; path=/; max-age=86400; SameSite=Lax; domain=localhost`;
+                // Set onboarding session for immediate access to onboarding routes
+                document.cookie = `onboarding_session=authenticated; path=/; max-age=7200; SameSite=Lax`;
                 
                 // Store in localStorage with error handling
                 try {
@@ -257,6 +259,8 @@ export const useAuthStore = create<AuthState>()(
               }
               if (typeof document !== 'undefined') {
                 document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=localhost';
+                document.cookie = 'onboarding_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                document.cookie = 'basic_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
               }
             }
             
@@ -284,9 +288,10 @@ export const useAuthStore = create<AuthState>()(
           const state = get();
           const now = Date.now();
           const lastAuthCheck = (state as any)._lastAuthCheck || 0;
-          const AUTH_CHECK_THROTTLE = 2000;
+          const AUTH_CHECK_THROTTLE = 1000; // Reduced throttle for better responsiveness
           
-          if (now - lastAuthCheck < AUTH_CHECK_THROTTLE && state.isAuthenticated) {
+          // Don't throttle if not authenticated
+          if (now - lastAuthCheck < AUTH_CHECK_THROTTLE && state.isAuthenticated && state.user) {
             return;
           }
           
@@ -305,7 +310,9 @@ export const useAuthStore = create<AuthState>()(
           
           const cookies = document.cookie;
           const hasAuthCookie = cookies.includes('authenticated=true') || 
-                                cookies.includes('auth_token=');
+                                cookies.includes('auth_token=') ||
+                                cookies.includes('austa_health_portal_session=') ||
+                                cookies.includes('XSRF-TOKEN=');
           
           if (!hasAuthCookie) {
             set({
@@ -353,23 +360,27 @@ export const useAuthStore = create<AuthState>()(
               });
             }
           } catch (error) {
-            const isUnauthorized = error instanceof Error && error.message.includes('401');
+            // For any error (including 500s that are actually 401s), clear auth state
+            console.log('[AuthStore] checkAuth failed:', error);
             
-            if (isUnauthorized) {
-              set({
-                user: null,
-                token: null,
-                isAuthenticated: false,
-                isLoading: false,
-              });
+            set({
+              user: null,
+              token: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+            
+            // Clear cookies consistently (client-side only)
+            if (typeof document !== 'undefined') {
+              const cookiesToClear = [
+                'authenticated', 'auth_token', 'onboarding_session', 'basic_auth',
+                'XSRF-TOKEN', 'austa_health_portal_session', 'omni_onboarding_portal_session'
+              ];
               
-              // Clear cookies (client-side only)
-              if (typeof document !== 'undefined') {
-                document.cookie = 'authenticated=; path=/; max-age=0; SameSite=Lax; domain=localhost';
-                document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Lax; domain=localhost';
-              }
-            } else {
-              set({ isLoading: false });
+              cookiesToClear.forEach(name => {
+                document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; domain=localhost`;
+                document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;`; // No domain fallback
+              });
             }
           }
         },

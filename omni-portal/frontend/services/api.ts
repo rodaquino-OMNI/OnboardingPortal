@@ -1,15 +1,15 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ApiResponse, GamificationStats, GamificationBadge, LeaderboardEntry } from '@/types';
 import { LGPDPrivacySettings, LGPDConsentHistoryEntry, LGPDDataProcessingActivity, LGPDConsentWithdrawal, LGPDAccountDeletionRequest } from '@/types/lgpd';
+import { getApiUrl } from '@/lib/api-config';
 
 class ApiService {
   private client: AxiosInstance;
   private csrfInitialized = false;
 
   constructor() {
-    const baseURL = process.env.NEXT_PUBLIC_API_VERSION 
-      ? `${process.env.NEXT_PUBLIC_API_URL}/${process.env.NEXT_PUBLIC_API_VERSION}`
-      : process.env.NEXT_PUBLIC_API_URL;
+    // Use the proper URL based on server/client context
+    const baseURL = getApiUrl();
     
     if (!baseURL) {
       throw new Error('API base URL is not configured');

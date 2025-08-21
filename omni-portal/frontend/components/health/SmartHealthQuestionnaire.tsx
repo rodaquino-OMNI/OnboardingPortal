@@ -237,7 +237,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
 
   // Use unified navigation system
   const navigation = useUnifiedNavigation(
-    currentQuestion,
+    currentQuestion as any || null,
     currentQuestion?.id ? responses[currentQuestion.id] : undefined,
     NAVIGATION_PROFILES.health, // Use the new health profile
     {

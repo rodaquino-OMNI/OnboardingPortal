@@ -8,6 +8,7 @@ import { useViewport } from '@/lib/hooks/useViewport';
 import { useTouchGestures } from '@/lib/hooks/useTouchGestures';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useClientOnly } from '@/hooks/useClientOnly';
 
 const navigationItems = [
   { href: '/home', label: 'Painel', icon: Home },
@@ -19,18 +20,31 @@ const navigationItems = [
 
 export function MobileNavigation() {
   const [isOpen, setIsOpen] = useState(false);
-  const pathname = usePathname();
+  const [clientPathname, setClientPathname] = useState('');
+  const isClient = useClientOnly();
   const { isMobile } = useViewport();
+  
+  // Always call usePathname but handle it safely for SSR
+  const pathname = usePathname();
   
   const gestureRef = useTouchGestures<HTMLDivElement>({
     onSwipeLeft: () => setIsOpen(false),
     onSwipeRight: () => setIsOpen(true),
   });
 
+  // Update client pathname safely
+  useEffect(() => {
+    if (isClient && pathname) {
+      setClientPathname(pathname);
+    }
+  }, [isClient, pathname]);
+
   // Close menu on route change
   useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
+    if (isClient) {
+      setIsOpen(false);
+    }
+  }, [clientPathname, isClient]);
 
   // Prevent body scroll when menu is open
   useEffect(() => {
@@ -89,7 +103,7 @@ export function MobileNavigation() {
           <ul className="space-y-2">
             {navigationItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = clientPathname === item.href;
               
               return (
                 <li key={item.href}>
@@ -118,8 +132,19 @@ export function MobileNavigation() {
 
 // Bottom tab navigation for mobile
 export function MobileTabBar() {
-  const pathname = usePathname();
+  const [clientPathname, setClientPathname] = useState('');
+  const isClient = useClientOnly();
   const { isMobile } = useViewport();
+  
+  // Always call usePathname but handle it safely for SSR
+  const pathname = usePathname();
+  
+  // Update client pathname safely
+  useEffect(() => {
+    if (isClient && pathname) {
+      setClientPathname(pathname);
+    }
+  }, [isClient, pathname]);
 
   if (!isMobile) return null;
 
@@ -131,7 +156,7 @@ export function MobileTabBar() {
       <ul className="flex justify-around">
         {navigationItems.slice(0, 4).map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = clientPathname === item.href;
           
           return (
             <li key={item.href} className="flex-1">

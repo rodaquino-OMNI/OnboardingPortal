@@ -91,8 +91,6 @@ return [
          * Package Service Providers...
          */
         Laravel\Sanctum\SanctumServiceProvider::class,
-        Laravel\Horizon\HorizonServiceProvider::class,
-        Spatie\Permission\PermissionServiceProvider::class,
 
         /*
          * Application Service Providers...
@@ -105,6 +103,7 @@ return [
         App\Providers\OCRServiceProvider::class,
         App\Providers\SecurityServiceProvider::class,
         App\Providers\RewardServiceProvider::class,
+        // App\Providers\TracingServiceProvider::class, // Temporarily disabled
     ])->toArray(),
 
     /*

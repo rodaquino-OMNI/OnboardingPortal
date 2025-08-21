@@ -18,8 +18,9 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
+  // Fix hydration by starting with same state on server and client
   const [isClient, setIsClient] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<'pending' | 'active' | 'failed'>('pending');
+  const [migrationStatus, setMigrationStatus] = useState<'pending' | 'active' | 'failed'>('active'); // Start as active to avoid state change
   const [initError, setInitError] = useState<string | null>(null);
 
   // SSR hydration fix: Track when we're on the client side
@@ -114,13 +115,7 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <AuthProvider>
       {children}
-      {/* Add monitoring UI in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <>
-          {/* <BoundaryViolationMonitor /> */}
-          {/* <MigrationStatusIndicator status={migrationStatus} /> */}
-        </>
-      )}
+      {/* Monitoring UI removed to prevent hydration errors */}
     </AuthProvider>
   );
 }

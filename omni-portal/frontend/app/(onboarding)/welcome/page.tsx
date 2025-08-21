@@ -2,10 +2,19 @@
 
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Rocket, User, FileText, Calendar, CheckCircle, ArrowRight, Clock, Sparkles } from 'lucide-react';
 
 export default function WelcomePage() {
   const router = useRouter();
+  
+  // Set onboarding session cookie when component mounts
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      // Ensure onboarding session cookie is set for middleware
+      document.cookie = `onboarding_session=welcome_started; path=/; max-age=3600; SameSite=Lax`;
+    }
+  }, []);
 
   const steps = [
     { 
@@ -113,7 +122,13 @@ export default function WelcomePage() {
 
       {/* CTA Button with Gradient */}
       <Button
-        onClick={() => router.push('/company-info')}
+        onClick={() => {
+          // Ensure onboarding session is set before navigation
+          if (typeof document !== 'undefined') {
+            document.cookie = `onboarding_session=in_progress; path=/; max-age=7200; SameSite=Lax`;
+          }
+          router.push('/company-info');
+        }}
         size="lg"
         className="px-10 py-6 text-lg font-semibold bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-['Inter'] group"
       >

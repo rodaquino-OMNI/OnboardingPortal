@@ -48,6 +48,123 @@ return [
             ]) : [],
         ],
 
+        // MySQL HA Configuration with Read/Write Splitting
+        'mysql-ha' => [
+            'driver' => 'mysql',
+            'read' => [
+                'host' => [
+                    env('DB_READ_HOST_1', '127.0.0.1:3307'), // Slave 1
+                    env('DB_READ_HOST_2', '127.0.0.1:3308'), // Slave 2
+                ],
+                'port' => env('DB_READ_PORT', '3306'),
+                'database' => env('DB_DATABASE', 'omni_portal'),
+                'username' => env('DB_READ_USERNAME', 'omni_reader'),
+                'password' => env('DB_READ_PASSWORD', 'omnireader123'),
+            ],
+            'write' => [
+                'host' => env('DB_WRITE_HOST', '127.0.0.1'), // Master
+                'port' => env('DB_WRITE_PORT', '3306'),
+                'database' => env('DB_DATABASE', 'omni_portal'),
+                'username' => env('DB_WRITE_USERNAME', 'omni_user'),
+                'password' => env('DB_WRITE_PASSWORD', 'omnipass123'),
+            ],
+            'sticky' => true,
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => [
+                PDO::ATTR_TIMEOUT => 5,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE'",
+            ],
+        ],
+
+        // ProxySQL Connection (recommended for production)
+        'proxysql' => [
+            'driver' => 'mysql',
+            'host' => env('PROXYSQL_HOST', '127.0.0.1'),
+            'port' => env('PROXYSQL_PORT', '6033'),
+            'database' => env('DB_DATABASE', 'omni_portal'),
+            'username' => env('DB_USERNAME', 'omni_user'),
+            'password' => env('DB_PASSWORD', 'omnipass123'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => [
+                PDO::ATTR_TIMEOUT => 10,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
+                PDO::ATTR_PERSISTENT => false,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE'",
+            ],
+        ],
+
+        // Direct Master Connection (for admin/maintenance)
+        'mysql-master' => [
+            'driver' => 'mysql',
+            'host' => env('DB_MASTER_HOST', '127.0.0.1'),
+            'port' => env('DB_MASTER_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'omni_portal'),
+            'username' => env('DB_MASTER_USERNAME', 'omni_user'),
+            'password' => env('DB_MASTER_PASSWORD', 'omnipass123'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => [
+                PDO::ATTR_TIMEOUT => 5,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ],
+        ],
+
+        // Direct Slave Connections (for specific read operations)
+        'mysql-slave-1' => [
+            'driver' => 'mysql',
+            'host' => env('DB_SLAVE1_HOST', '127.0.0.1'),
+            'port' => env('DB_SLAVE1_PORT', '3307'),
+            'database' => env('DB_DATABASE', 'omni_portal'),
+            'username' => env('DB_SLAVE_USERNAME', 'omni_reader'),
+            'password' => env('DB_SLAVE_PASSWORD', 'omnireader123'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => [
+                PDO::ATTR_TIMEOUT => 5,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ],
+        ],
+
+        'mysql-slave-2' => [
+            'driver' => 'mysql',
+            'host' => env('DB_SLAVE2_HOST', '127.0.0.1'),
+            'port' => env('DB_SLAVE2_PORT', '3308'),
+            'database' => env('DB_DATABASE', 'omni_portal'),
+            'username' => env('DB_SLAVE_USERNAME', 'omni_reader'),
+            'password' => env('DB_SLAVE_PASSWORD', 'omnireader123'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => [
+                PDO::ATTR_TIMEOUT => 5,
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            ],
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),
@@ -81,7 +198,7 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'predis'),
+        'client' => env('REDIS_CLIENT', 'phpredis'),
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
@@ -98,6 +215,30 @@ return [
                 'timeout' => env('REDIS_POOL_TIMEOUT', 30),
                 'max_connections' => env('REDIS_MAX_CONNECTIONS', 50),
                 'min_connections' => env('REDIS_MIN_CONNECTIONS', 5),
+            ],
+            // Sentinel configuration for High Availability
+            'sentinel' => [
+                'enabled' => env('REDIS_SENTINEL_ENABLED', false),
+                'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
+                'service' => [
+                    [
+                        'host' => env('REDIS_SENTINEL_HOST_1', '127.0.0.1'),
+                        'port' => env('REDIS_SENTINEL_PORT_1', 26379),
+                    ],
+                    [
+                        'host' => env('REDIS_SENTINEL_HOST_2', '127.0.0.1'),
+                        'port' => env('REDIS_SENTINEL_PORT_2', 26380),
+                    ],
+                    [
+                        'host' => env('REDIS_SENTINEL_HOST_3', '127.0.0.1'),
+                        'port' => env('REDIS_SENTINEL_PORT_3', 26381),
+                    ],
+                ],
+                'options' => [
+                    'sentinel_timeout' => env('REDIS_SENTINEL_TIMEOUT', 3.0),
+                    'retry_limit' => env('REDIS_SENTINEL_RETRY_LIMIT', 3),
+                    'update_sentinels' => env('REDIS_SENTINEL_UPDATE', true),
+                ],
             ],
         ],
 

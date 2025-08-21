@@ -127,4 +127,40 @@ class OCRUsageTracker
         $key = $this->cachePrefix . '_' . $service . '_monthly_' . $currentMonth;
         return Cache::get($key, 0);
     }
+
+    /**
+     * Check if document can be processed within budget limits
+     */
+    public function canProcessDocument(): bool
+    {
+        if (!$this->config['enabled']) {
+            return true;
+        }
+
+        $dailyUsage = $this->getDailyUsage('all');
+        $dailyBudget = $this->config['daily_budget'];
+
+        // Check if we're under the daily budget
+        if ($dailyUsage >= $dailyBudget) {
+            Log::warning('Daily OCR budget limit reached', [
+                'daily_usage' => $dailyUsage,
+                'daily_budget' => $dailyBudget
+            ]);
+            return false;
+        }
+
+        $monthlyUsage = $this->getMonthlyUsage('all');
+        $monthlyBudget = $this->config['monthly_budget'];
+
+        // Check if we're under the monthly budget
+        if ($monthlyUsage >= $monthlyBudget) {
+            Log::warning('Monthly OCR budget limit reached', [
+                'monthly_usage' => $monthlyUsage,
+                'monthly_budget' => $monthlyBudget
+            ]);
+            return false;
+        }
+
+        return true;
+    }
 }

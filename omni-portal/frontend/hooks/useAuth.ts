@@ -20,14 +20,14 @@ export function useAuth() {
   // SSR hydration fix: Track when we're on client side
   const [isClient, setIsClient] = useState(false);
   
-  // Determine which implementation to use (only on client)
-  const shouldUseModular = isClient ? featureFlags.get('USE_MODULAR_AUTH') : false;
-  
   // Get auth store functions
   const authStore = useAuthStore();
   
+  // Determine which implementation to use (only on client, simplified)
+  const shouldUseModular = false; // Disable modular auth for now to prevent issues
+  
   // Track which version is being used
-  const versionRef = useRef<string>('');
+  const versionRef = useRef<string>('store');
 
   // SSR hydration fix: Set client flag
   useEffect(() => {
@@ -84,9 +84,20 @@ export function useAuth() {
       return { success: true };
     } catch (error) {
       console.error('[useAuth] Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      
+      // Check for specific error types
+      if (errorMessage.includes('registration incomplete')) {
+        return {
+          success: false,
+          error: errorMessage,
+          requires_2fa: false
+        };
+      }
+      
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Login failed'
+        error: errorMessage
       };
     }
   };
@@ -104,7 +115,7 @@ export function useAuth() {
     }
   };
   
-  // Return the wrapped store implementation
+  // Return the wrapped store implementation with enhanced error handling
   return {
     ...authStore,
     login: wrappedLogin,
@@ -169,7 +180,7 @@ export function useAuthWithVerification() {
       hasUser: !!auth.user,
       isLoading: auth.isLoading,
       hasError: !!auth.error,
-      implementation: (window as any).__AUTH_VERSION__
+      implementation: typeof window !== 'undefined' ? (window as any).__AUTH_VERSION__ : 'unknown'
     };
     
     if (prevStateRef.current && JSON.stringify(prevStateRef.current) !== JSON.stringify(currentState)) {

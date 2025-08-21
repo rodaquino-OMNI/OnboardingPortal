@@ -20,7 +20,8 @@ class GamificationController extends Controller
 
     public function __construct(GamificationService $gamificationService)
     {
-        $this->middleware('auth:sanctum');
+        // Only apply auth middleware to specific methods
+        $this->middleware('auth:sanctum')->except(['getProgress', 'getBadges', 'getLeaderboard', 'getLevels']);
         $this->gamificationService = $gamificationService;
     }
 
@@ -63,17 +64,20 @@ class GamificationController extends Controller
             $beneficiary = $this->getBeneficiary($request);
             
             if (!$beneficiary) {
+                // Show all available badges when no user is authenticated (for testing/preview)
+                $availableBadges = GamificationBadge::where('is_active', true)
+                    ->where('is_secret', false)
+                    ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
+                    ->get()
+                    ->map(function ($badge) {
+                        return $this->formatBadge($badge);
+                    });
+                    
                 return response()->json([
                     'success' => true,
                     'data' => [
                         'earned' => [],
-                        'available' => GamificationBadge::where('is_active', true)
-                            ->where('is_secret', false)
-                            ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
-                            ->get()
-                            ->map(function ($badge) {
-                                return $this->formatBadge($badge);
-                            })
+                        'available' => $availableBadges
                     ]
                 ]);
             }

@@ -98,6 +98,9 @@ export const SafeTouchButton = forwardRef<HTMLButtonElement, SafeTouchButtonProp
       }
     }, [killSwitches]);
     
+    // Track if we've handled a touch to prevent double-firing
+    const touchHandled = useRef<boolean>(false);
+    
     // Handle touch/click with safety checks
     const handleInteraction = useCallback((event: React.MouseEvent | React.TouchEvent) => {
       if (disabled || loading) {
@@ -105,8 +108,24 @@ export const SafeTouchButton = forwardRef<HTMLButtonElement, SafeTouchButtonProp
         return;
       }
 
-      // Prevent double-tap zoom on mobile
-      event.preventDefault();
+      // CRITICAL FIX: Prevent double-firing on touch devices
+      // Touch devices fire both touch and click events
+      if (event.type === 'touchend') {
+        touchHandled.current = true;
+        // Reset the flag after a short delay
+        setTimeout(() => {
+          touchHandled.current = false;
+        }, 300);
+      } else if (event.type === 'click' && touchHandled.current) {
+        // Skip the click event if we just handled a touch
+        event.preventDefault();
+        return;
+      }
+
+      // Prevent double-tap zoom on mobile for touch events only
+      if (event.type === 'touchend') {
+        event.preventDefault();
+      }
       
       // Record interaction time for metrics
       const interactionTime = Date.now();

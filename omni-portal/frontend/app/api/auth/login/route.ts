@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Create response with data
     const nextResponse = NextResponse.json(data);
 
-    // Set cookie on frontend domain
+    // Set secure HTTP-only cookie for auth token
     if (authToken) {
       nextResponse.cookies.set('auth_token', authToken, {
         httpOnly: true,
@@ -42,24 +42,45 @@ export async function POST(request: NextRequest) {
         sameSite: 'lax',
         path: '/',
         maxAge: 60 * 60 * 24 * 7, // 7 days
+        domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : 'localhost'
       });
     }
 
-    // Also set a frontend-accessible session flag
+    // Set frontend-accessible session flag with proper security
     nextResponse.cookies.set('authenticated', 'true', {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 7 days
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : 'localhost'
+    });
+    
+    // Set onboarding session for immediate access
+    nextResponse.cookies.set('onboarding_session', 'authenticated', {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 2, // 2 hours
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : 'localhost'
     });
 
     return nextResponse;
   } catch (error) {
     console.error('Login proxy error:', error);
-    return NextResponse.json(
+    
+    // Clear any partial cookies on error
+    const errorResponse = NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
     );
+    
+    // Clear potentially set cookies
+    errorResponse.cookies.delete('auth_token');
+    errorResponse.cookies.delete('authenticated');
+    errorResponse.cookies.delete('onboarding_session');
+    
+    return errorResponse;
   }
 }

@@ -23,7 +23,9 @@ export class AuthSync {
     if (typeof document === 'undefined') return false;
     
     return document.cookie.includes('authenticated=true') || 
-           document.cookie.includes('auth_token=');
+           document.cookie.includes('auth_token=') ||
+           document.cookie.includes('austa_health_portal_session=') ||
+           document.cookie.includes('XSRF-TOKEN=');
   }
 
   /**
@@ -81,17 +83,58 @@ export class AuthSync {
   }
 
   /**
-   * Force synchronization by reloading if state mismatch detected
+   * Force synchronization by checking session storage instead of reloading
    */
+  private lastSyncTime = 0;
+  private readonly SYNC_THROTTLE = 3000; // 3 seconds minimum between syncs
+  private reloadCount = 0;
+  private readonly MAX_RELOADS = 2; // Maximum reloads per session
+
   forceSyncIfNeeded(clientIsAuthenticated: boolean): void {
     const cookieIsAuthenticated = this.hasAuthCookies();
     
-    // If there's a mismatch, force reload to sync
+    // If there's a mismatch, try to sync without reload first
     if (clientIsAuthenticated !== cookieIsAuthenticated) {
-      console.warn('Auth state mismatch detected, forcing sync...');
-      if (cookieIsAuthenticated && !clientIsAuthenticated) {
-        // Cookies exist but client says not authenticated - reload
+      console.warn('Auth state mismatch detected, attempting sync...', {
+        client: clientIsAuthenticated,
+        cookies: cookieIsAuthenticated
+      });
+      
+      const now = Date.now();
+      const timeSinceLastSync = now - this.lastSyncTime;
+      
+      if (timeSinceLastSync < this.SYNC_THROTTLE) {
+        console.warn(`Sync throttled. ${this.SYNC_THROTTLE - timeSinceLastSync}ms until next sync allowed`);
+        return;
+      }
+      
+      this.lastSyncTime = now;
+      
+      // Check reload count from sessionStorage
+      const storedReloadCount = parseInt(sessionStorage.getItem('auth_reload_count') || '0', 10);
+      this.reloadCount = storedReloadCount;
+      
+      if (cookieIsAuthenticated && !clientIsAuthenticated && this.reloadCount < this.MAX_RELOADS) {
+        // Only reload if we haven't exceeded the limit
+        console.warn('Forcing reload to sync auth state...');
+        this.reloadCount++;
+        sessionStorage.setItem('auth_reload_count', String(this.reloadCount));
+        sessionStorage.setItem('auth_last_reload', String(now));
+        
+        // Clear reload count after successful auth
+        setTimeout(() => {
+          sessionStorage.removeItem('auth_reload_count');
+        }, 30000); // Clear after 30 seconds
+        
         window.location.reload();
+      } else if (this.reloadCount >= this.MAX_RELOADS) {
+        console.error('Maximum reloads exceeded. Manual intervention required.');
+        // Emit event for manual handling
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth-sync-failed', {
+            detail: { reason: 'max_reloads_exceeded', reloadCount: this.reloadCount }
+          }));
+        }
       }
     }
   }

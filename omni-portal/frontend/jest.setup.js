@@ -1,8 +1,3 @@
-// JEST SETUP DISABLED
-// This file has been disabled to prevent Jest from running
-// All Jest setup functionality has been permanently disabled for this project.
-
-/*
 import '@testing-library/jest-dom'
 import 'jest-axe/extend-expect'
 // Polyfill fetch and text encoding for test environment (required for MSW and API calls)
@@ -13,6 +8,28 @@ require('whatwg-fetch')
 
 global.TextEncoder = TextEncoder  
 global.TextDecoder = TextDecoder
+
+// Polyfill for Node.js stream APIs in jsdom
+global.TransformStream = global.TransformStream || class {
+  constructor() {
+    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
+    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+  }
+}
+
+global.CompressionStream = global.CompressionStream || class {
+  constructor() {
+    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
+    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+  }
+}
+
+global.DecompressionStream = global.DecompressionStream || class {
+  constructor() {
+    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
+    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+  }
+}
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
@@ -132,12 +149,19 @@ global.BroadcastChannel = class BroadcastChannel {
 }
 
 // Mock window.location
-delete window.location
-window.location = { 
+const mockLocation = {
   pathname: '/',
   href: 'http://localhost:3000',
   origin: 'http://localhost:3000',
   reload: jest.fn(),
+  assign: jest.fn(),
+  replace: jest.fn(),
+}
+
+// Only try to delete and redefine if it doesn't already exist as a mock
+if (!window.location.reload || typeof window.location.reload !== 'function') {
+  delete window.location
+  window.location = mockLocation
 }
 
 // Mock act for async operations
@@ -215,6 +239,3 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
-*/
-
-// File disabled - no Jest setup will be loaded

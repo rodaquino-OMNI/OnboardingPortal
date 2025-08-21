@@ -37,11 +37,15 @@ class TesseractOCRService
                 unlink($tempPath);
             }
             
+            $confidenceScores = $structuredData['confidence_scores'];
+            $averageConfidence = !empty($confidenceScores) ? array_sum($confidenceScores) / count($confidenceScores) : 0;
+
             return [
                 'raw_text' => $rawText,
                 'blocks' => $structuredData['blocks'],
-                'confidence_scores' => $structuredData['confidence_scores'],
+                'confidence_scores' => $confidenceScores,
                 'forms' => $this->extractFormFields($structuredData['blocks'], $rawText),
+                'average_confidence' => $averageConfidence,
             ];
             
         } catch (\Exception $e) {

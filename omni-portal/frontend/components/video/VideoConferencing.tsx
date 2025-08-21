@@ -85,67 +85,6 @@ export function VideoConferencing({
   // API hook for state management
   const { data, error: apiError, isLoading } = useApi();
 
-  // Initialize video session with cancellation support
-  const initializeSession = useCallback(async () => {
-    if (!mountedRef.current) return;
-    
-    const request = makeRequest(
-      async (signal: AbortSignal) => {
-        if (mountedRef.current) {
-          setIsConnecting(true);
-          setError(null);
-        }
-
-        // Create or join video session
-        const response = await api.post('/api/video/sessions', {
-          interview_id: interviewId,
-          participants: [
-            {
-              id: participantInfo.id,
-              name: participantInfo.name,
-              role: participantInfo.role
-            }
-          ],
-          record_session: true,
-          enable_chat: true,
-          enable_screen_share: true
-        });
-
-        if (signal.aborted) {
-          throw new Error('Session initialization cancelled');
-        }
-
-        if (!response.success) {
-          throw new Error(response.message || 'Failed to create session');
-        }
-
-        return (response as any).session;
-      },
-      { timeout: 15000 }
-    );
-    
-    try {
-      const sessionData = await request.promise;
-      
-      if (mountedRef.current && !request.isCancelled()) {
-        setSession(sessionData);
-        await setupWebRTC(sessionData);
-      }
-    } catch (err) {
-      if (mountedRef.current && !request.isCancelled()) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize session';
-        if (!errorMessage.includes('cancelled')) {
-          setError(errorMessage);
-          onError?.(errorMessage);
-        }
-      }
-    } finally {
-      if (mountedRef.current && !request.isCancelled()) {
-        setIsConnecting(false);
-      }
-    }
-  }, [interviewId, participantInfo, onError, makeRequest, setupWebRTC]); // All dependencies included
-
   // Setup WebRTC connection with HIPAA compliance
   const setupWebRTC = useCallback(async (sessionData: VideoSession) => {
     try {
@@ -216,7 +155,68 @@ export function VideoConferencing({
       onError?.('HIPAA video initialization failed');
       return;
     }
-  }, [participantInfo.id, participantInfo.role]);
+  }, [participantInfo.id, participantInfo.role, onError]);
+
+  // Initialize video session with cancellation support
+  const initializeSession = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    const request = makeRequest(
+      async (signal: AbortSignal) => {
+        if (mountedRef.current) {
+          setIsConnecting(true);
+          setError(null);
+        }
+
+        // Create or join video session
+        const response = await api.post('/api/video/sessions', {
+          interview_id: interviewId,
+          participants: [
+            {
+              id: participantInfo.id,
+              name: participantInfo.name,
+              role: participantInfo.role
+            }
+          ],
+          record_session: true,
+          enable_chat: true,
+          enable_screen_share: true
+        });
+
+        if (signal.aborted) {
+          throw new Error('Session initialization cancelled');
+        }
+
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to create session');
+        }
+
+        return (response as any).session;
+      },
+      { timeout: 15000 }
+    );
+    
+    try {
+      const sessionData = await request.promise;
+      
+      if (mountedRef.current && !request.isCancelled()) {
+        setSession(sessionData);
+        await setupWebRTC(sessionData);
+      }
+    } catch (err) {
+      if (mountedRef.current && !request.isCancelled()) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize session';
+        if (!errorMessage.includes('cancelled')) {
+          setError(errorMessage);
+          onError?.(errorMessage);
+        }
+      }
+    } finally {
+      if (mountedRef.current && !request.isCancelled()) {
+        setIsConnecting(false);
+      }
+    }
+  }, [interviewId, participantInfo, onError, makeRequest, setupWebRTC]);
 
   // Analyze connection statistics for quality monitoring
   const analyzeConnectionStats = (stats: any): 'excellent' | 'good' | 'poor' => {

@@ -7,14 +7,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
+// use Spatie\Permission\Traits\HasRoles; // Temporarily disabled
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+// use Spatie\Permission\Traits\HasRoles; // Temporarily disabled
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable; // Removed HasRoles temporarily
 
     /**
      * The attributes that are mass assignable.
@@ -34,6 +35,7 @@ class User extends Authenticatable
         'status',
         'registration_step',
         'lgpd_consent',
+        'lgpd_consent_explicit',
         'lgpd_consent_at',
         'lgpd_consent_ip',
         'role',
@@ -73,6 +75,7 @@ class User extends Authenticatable
         'password' => 'hashed',
         'start_date' => 'date',
         'lgpd_consent' => 'boolean',
+        'lgpd_consent_explicit' => 'boolean',
         'lgpd_consent_at' => 'datetime',
         'last_login_at' => 'datetime',
         'locked_until' => 'datetime',

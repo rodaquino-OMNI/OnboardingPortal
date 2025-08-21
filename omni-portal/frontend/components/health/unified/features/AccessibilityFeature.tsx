@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Volume2, Eye, Keyboard, Languages, Accessibility } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,24 +23,44 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
   const [fontSize, setFontSize] = useState(config?.fontSize || 'medium');
   const [highContrast, setHighContrast] = useState(config?.highContrast || false);
 
-  // Initialize accessibility features
-  useEffect(() => {
-    if (config?.keyboardNavigation !== false) {
-      setupKeyboardNavigation();
-    }
+  // Read current question aloud
+  const readCurrentQuestion = () => {
+    if (!config?.textToSpeech) return;
 
-    // Add ARIA live region for screen readers
-    if (config?.screenReaderSupport !== false) {
-      setupScreenReaderAnnouncements();
-    }
+    const question = getCurrentQuestion();
+    if (!question || !window.speechSynthesis) return;
 
-    return () => {
-      // Cleanup
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [config, setupKeyboardNavigation]);
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(question.text);
+    utterance.lang = config.language || 'pt-BR';
+    utterance.rate = 0.9;
+    
+    utterance.onstart = () => setIsReading(true);
+    utterance.onend = () => setIsReading(false);
+    
+    window.speechSynthesis.speak(utterance);
+    announce(`Lendo pergunta: ${question.text}`);
+  };
+
+  // Announce help information
+  const announceHelp = () => {
+    const helpText = `
+      Atalhos de teclado disponíveis:
+      Alt + R: Ler pergunta atual em voz alta.
+      Alt + H: Ouvir esta ajuda.
+      Alt + C: Alternar modo de alto contraste.
+      Tab: Navegar entre elementos.
+      Enter ou Espaço: Selecionar opção.
+    `;
+    announce(helpText);
+  };
+
+  // Toggle high contrast
+  const toggleHighContrast = () => {
+    setHighContrast(!highContrast);
+    document.body.classList.toggle('high-contrast');
+    announce(`Modo de alto contraste ${!highContrast ? 'ativado' : 'desativado'}`);
+  };
 
   // Setup keyboard navigation
   const setupKeyboardNavigation = useCallback(() => {
@@ -90,24 +110,24 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
     }
   };
 
-  // Read current question aloud
-  const readCurrentQuestion = () => {
-    if (!config?.textToSpeech) return;
+  // Initialize accessibility features
+  useEffect(() => {
+    if (config?.keyboardNavigation !== false) {
+      setupKeyboardNavigation();
+    }
 
-    const question = getCurrentQuestion();
-    if (!question || !window.speechSynthesis) return;
+    // Add ARIA live region for screen readers
+    if (config?.screenReaderSupport !== false) {
+      setupScreenReaderAnnouncements();
+    }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(question.text);
-    utterance.lang = config.language || 'pt-BR';
-    utterance.rate = 0.9;
-    
-    utterance.onstart = () => setIsReading(true);
-    utterance.onend = () => setIsReading(false);
-    
-    window.speechSynthesis.speak(utterance);
-    announce(`Lendo pergunta: ${question.text}`);
-  };
+    return () => {
+      // Cleanup
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [config, setupKeyboardNavigation]);
 
   // Stop reading
   const stopReading = () => {
@@ -116,26 +136,6 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
       setIsReading(false);
       announce('Leitura interrompida');
     }
-  };
-
-  // Toggle high contrast
-  const toggleHighContrast = () => {
-    setHighContrast(!highContrast);
-    document.body.classList.toggle('high-contrast');
-    announce(`Modo de alto contraste ${!highContrast ? 'ativado' : 'desativado'}`);
-  };
-
-  // Announce help information
-  const announceHelp = () => {
-    const helpText = `
-      Atalhos de teclado disponíveis:
-      Alt + R: Ler pergunta atual em voz alta.
-      Alt + H: Ouvir esta ajuda.
-      Alt + C: Alternar modo de alto contraste.
-      Tab: Navegar entre elementos.
-      Enter ou Espaço: Selecionar opção.
-    `;
-    announce(helpText);
   };
 
   // Apply font size class

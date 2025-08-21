@@ -27,21 +27,21 @@ export function middleware(request: NextRequest) {
   }
 
   // Enhanced auth check for protected routes
-  const authCookie = request.cookies.get('auth_token');
+  const authToken = request.cookies.get('auth_token');
   const sessionCookie = request.cookies.get('omni_onboarding_portal_session');
   const laravelSession = request.cookies.get('austa_health_portal_session');
   const sanctumToken = request.cookies.get('XSRF-TOKEN');
   const authenticatedCookie = request.cookies.get('authenticated');
   
-  // Check authentication - any of these cookies indicate authentication
-  const isAuthenticated = !!(authCookie || sessionCookie || laravelSession || sanctumToken || authenticatedCookie);
+  // Check authentication - multiple indicators for robust detection
+  const isAuthenticated = !!(authToken?.value || sessionCookie?.value || laravelSession?.value || sanctumToken?.value || authenticatedCookie?.value === 'true');
   
   // Safe debug logging without global object manipulation
   const now = Date.now();
   if ((pathname === '/home' || pathname === '/login') && (now - lastDebugTime > DEBUG_INTERVAL)) {
     lastDebugTime = now;
     console.log(`[MIDDLEWARE] Auth check for ${pathname}:`, {
-      hasAuthToken: !!authCookie,
+      hasAuthToken: !!authToken,
       hasSessionCookie: !!sessionCookie,
       hasLaravelSession: !!laravelSession,
       hasSanctumToken: !!sanctumToken,
@@ -64,10 +64,14 @@ export function middleware(request: NextRequest) {
     '/tesseract'
   ];
 
-  // Protected onboarding routes (require authentication but allow partial completion)
+  // Protected routes (require full authentication)
   const protectedRoutes = [
     '/home',
-    '/profile',
+    '/profile'
+  ];
+
+  // Onboarding routes (accessible during registration flow)
+  const onboardingRoutes = [
     '/welcome',
     '/company-info', 
     '/health-questionnaire',
@@ -80,13 +84,24 @@ export function middleware(request: NextRequest) {
   // Check if the current path is public
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname === '/';
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isOnboardingRoute = onboardingRoutes.some(route => pathname.startsWith(route));
 
   // For protected routes, require authentication
   if (isProtectedRoute && !isAuthenticated) {
-    // Prevent redirect loop - check if we're already being redirected
+    // Enhanced redirect loop prevention
     const referer = request.headers.get('referer');
-    if (referer && referer.includes('/login')) {
-      console.log('[MIDDLEWARE] Preventing redirect loop - already from login');
+    const userAgent = request.headers.get('user-agent');
+    
+    // Check for redirect loops
+    if (referer && (referer.includes('/login') || referer.includes('auth'))) {
+      console.log('[MIDDLEWARE] Preventing redirect loop - already from auth page');
+      return NextResponse.next();
+    }
+    
+    // Check for repeated requests from same source
+    const redirectCount = request.headers.get('x-redirect-count');
+    if (redirectCount && parseInt(redirectCount) > 3) {
+      console.log('[MIDDLEWARE] Preventing redirect loop - too many redirects');
       return NextResponse.next();
     }
     
@@ -97,12 +112,60 @@ export function middleware(request: NextRequest) {
     
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
+    
+    // Add redirect count header to track loops
+    const response = NextResponse.redirect(loginUrl);
+    response.headers.set('x-redirect-count', String((parseInt(redirectCount || '0') + 1)));
+    return response;
   }
 
-  // For all other routes not explicitly public, allow access (catch-all for admin, etc.)
-  if (!isPublicRoute && !isProtectedRoute) {
-    // These routes will handle their own authentication at the component level
+  // For onboarding routes, check authentication state and session
+  if (isOnboardingRoute) {
+    // Check if there's any indication of user being in onboarding flow
+    const onboardingSession = request.cookies.get('onboarding_session');
+    const hasBasicAuth = request.cookies.get('basic_auth');
+    const hasOnboardingToken = request.cookies.get('onboarding_token');
+    
+    // Allow access if user is authenticated OR has onboarding session
+    const hasOnboardingAccess = isAuthenticated || onboardingSession || hasBasicAuth || hasOnboardingToken;
+    
+    if (!hasOnboardingAccess) {
+      // Check for demo access or direct requests to welcome page
+      const referer = request.headers.get('referer');
+      const userAgent = request.headers.get('user-agent');
+      
+      // Allow direct access to welcome page for new users
+      if (pathname === '/welcome' && (!referer || userAgent?.includes('curl'))) {
+        console.log('[MIDDLEWARE] Allowing direct access to welcome page');
+        
+        // Set temporary onboarding session for new users
+        const response = NextResponse.next();
+        response.cookies.set('onboarding_session', 'welcome_access', {
+          path: '/',
+          maxAge: 60 * 60, // 1 hour
+          httpOnly: false,
+          secure: false,
+          sameSite: 'lax'
+        });
+        return response;
+      }
+      
+      // For other onboarding routes without proper session, redirect to login
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // For all other routes not explicitly public, check basic auth
+  if (!isPublicRoute && !isProtectedRoute && !isOnboardingRoute) {
+    // Routes like /admin, /dashboard need some form of authentication
+    if (!isAuthenticated && pathname.startsWith('/admin')) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    // Other routes will handle their own authentication at the component level
     return NextResponse.next();
   }
 

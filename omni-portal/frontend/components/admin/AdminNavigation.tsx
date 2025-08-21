@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useClientOnly } from '@/hooks/useClientOnly';
 import {
   HomeIcon,
   UsersIcon,
@@ -31,8 +32,19 @@ const navigation = [
 
 export function AdminNavigation() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [clientPathname, setClientPathname] = useState('');
   const { user, logout } = useAuth();
+  const isClient = useClientOnly();
+  
+  // Always call usePathname but handle it safely for SSR
   const pathname = usePathname();
+  
+  // Update client pathname safely
+  useEffect(() => {
+    if (isClient && pathname) {
+      setClientPathname(pathname);
+    }
+  }, [isClient, pathname]);
 
   const userPermissions = user?.permissions?.map((p: { name: string }) => p.name) || [];
   const userRoles = user?.roles?.map((r: { name: string }) => r.name) || [];
@@ -62,7 +74,7 @@ export function AdminNavigation() {
           
           <nav className="flex-1 space-y-1 px-2 py-4">
             {filteredNavigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = clientPathname === item.href;
               return (
                 <Link
                   key={item.name}
@@ -118,7 +130,7 @@ export function AdminNavigation() {
           
           <nav className="flex-1 space-y-1 px-2 py-4">
             {filteredNavigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = clientPathname === item.href;
               return (
                 <Link
                   key={item.name}

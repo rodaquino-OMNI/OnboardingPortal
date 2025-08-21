@@ -695,7 +695,39 @@ class HealthQuestionnaireController extends Controller
         try {
             DB::beginTransaction();
 
-            $beneficiary = Auth::user()->beneficiary;
+            $user = Auth::user();
+            $beneficiary = $user->beneficiary;
+            
+            // FIX: Handle cases where beneficiary doesn't exist
+            if (!$beneficiary) {
+                // Create beneficiary record if it doesn't exist
+                $beneficiary = \App\Models\Beneficiary::create([
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'cpf' => $user->cpf,
+                    'date_of_birth' => $user->birth_date,
+                    'gender' => $user->gender ?? 'not_specified',
+                    'phone' => $user->phone,
+                    'address' => $user->address ?? '',
+                    'city' => $user->city ?? '',
+                    'state' => $user->state ?? '',
+                    'zip_code' => $user->zip_code ?? '',
+                    'marital_status' => 'single',
+                    'dependents' => 0,
+                    'monthly_income' => 0,
+                    'has_health_insurance' => false,
+                    'employment_status' => 'employed',
+                    'occupation' => '',
+                    'emergency_contact_name' => '',
+                    'emergency_contact_phone' => '',
+                    'emergency_contact_relationship' => '',
+                    'medical_history' => [],
+                    'current_medications' => [],
+                    'allergies' => [],
+                    'family_medical_history' => []
+                ]);
+            }
 
             // Create health questionnaire record
             $questionnaire = HealthQuestionnaire::create([

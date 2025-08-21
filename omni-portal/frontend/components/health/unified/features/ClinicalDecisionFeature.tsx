@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, Shield, Activity, FileText, CheckCircle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,25 +34,7 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
   const enableRealTime = config?.realTimeRiskAssessment !== false;
   const enableEmergency = config?.emergencyDetection !== false;
 
-  // Real-time risk assessment
-  useEffect(() => {
-    if (!enableRealTime) return;
-
-    const responseCount = Object.keys(state.responses).length;
-    if (responseCount > 5) {
-      try {
-        const score = calculateRiskScore(state.responses);
-        setRiskScore(score);
-
-        // Check for clinical alerts
-        checkClinicalAlerts(score);
-      } catch (error) {
-        console.error('[Clinical Decision] Risk calculation error:', error);
-      }
-    }
-  }, [state.responses, enableRealTime, checkClinicalAlerts]);
-
-  // Check for clinical alerts based on risk score
+  // Check for clinical alerts based on risk score - moved before useEffect
   const checkClinicalAlerts = useCallback((score: RiskScore) => {
     const alerts: ClinicalAlert[] = [];
 
@@ -97,6 +79,24 @@ export function ClinicalDecisionFeatureComponent({ config }: { config?: Clinical
     // Update recommended protocols
     updateProtocols(score);
   }, [enableEmergency]);
+
+  // Real-time risk assessment
+  useEffect(() => {
+    if (!enableRealTime) return;
+
+    const responseCount = Object.keys(state.responses).length;
+    if (responseCount > 5) {
+      try {
+        const score = calculateRiskScore(state.responses);
+        setRiskScore(score);
+
+        // Check for clinical alerts
+        checkClinicalAlerts(score);
+      } catch (error) {
+        console.error('[Clinical Decision] Risk calculation error:', error);
+      }
+    }
+  }, [state.responses, enableRealTime, checkClinicalAlerts]);
 
   // Update clinical protocols based on risk assessment
   const updateProtocols = (score: RiskScore) => {

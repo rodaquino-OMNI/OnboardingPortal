@@ -42,77 +42,60 @@ export default function DashboardLayout({
       }
       checkInProgressRef.current = true;
       
-      const hasAuthCookie = authSync.hasAuthCookies();
-      
-      authDiag.log('COOKIE_CHECK', 'DashboardLayout', {
-        hasAuthCookie,
-        isAuthenticated,
-        isLoading,
-        cookies: document.cookie.substring(0, 100)
-      });
-      
-      if (!hasAuthCookie) {
-        // No cookie, redirect to login only after checking
-        authDiag.log('REDIRECT', 'DashboardLayout', {
-          reason: 'No auth cookie found',
-          target: '/login'
-        });
-        router.push('/login');
-        checkInProgressRef.current = false;
-        return;
-      }
-      
-      // Has cookie, update state
-      authDiag.log('STATE_CHANGE', 'DashboardLayout', 'Auth cookie found, updating state');
-      
       try {
-        await checkAuth();
-        authDiag.log('AUTH_CHECK', 'DashboardLayout', {
-          success: true,
+        const hasAuthCookie = authSync.hasAuthCookies();
+        
+        authDiag.log('COOKIE_CHECK', 'DashboardLayout', {
+          hasAuthCookie,
           isAuthenticated,
-          isLoading
+          isLoading,
+          cookies: document.cookie.substring(0, 100)
         });
+        
+        if (!hasAuthCookie && !isAuthenticated) {
+          // No auth - redirect only once
+          authDiag.log('NO_AUTH', 'DashboardLayout', 'No authentication found, redirecting');
+          router.push('/login');
+          return;
+        }
+        
+        if (hasAuthCookie && !isAuthenticated) {
+          // Has cookie but not authenticated - check auth
+          authDiag.log('STATE_SYNC', 'DashboardLayout', 'Auth cookie found, syncing state');
+          await checkAuth();
+        }
+        
       } catch (error) {
         authDiag.log('ERROR', 'DashboardLayout', {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          willRedirect: true
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
         router.push('/login');
       } finally {
         checkInProgressRef.current = false;
       }
-      
-      // Force sync if needed
-      authSync.forceSyncIfNeeded(isAuthenticated);
     };
     
     checkAuthStatus();
     
-    // Start monitoring for auth changes
-    authSync.startMonitoring((hasAuth) => {
-      authDiag.log('AUTH_MONITOR', 'DashboardLayout', {
-        hasAuth,
-        isAuthenticated,
-        willRedirect: !hasAuth && isAuthenticated
-      });
+  }, [clientReady]); // FIXED: Remove circular dependencies
+
+  // Monitor auth state changes only
+  useEffect(() => {
+    if (!clientReady || !mountedRef.current) return;
+    
+    // Only monitor for auth loss, not initial checks
+    const interval = setInterval(() => {
+      const hasAuth = authSync.hasAuthCookies();
       
-      if (!hasAuth && isAuthenticated) {
-        // Lost authentication, redirect
-        authDiag.log('REDIRECT', 'DashboardLayout', {
-          reason: 'Lost authentication',
-          target: '/login'
-        });
+      // Only redirect if we had auth and lost it
+      if (!hasAuth && isAuthenticated && !checkInProgressRef.current) {
+        authDiag.log('AUTH_LOST', 'DashboardLayout', 'Authentication lost, redirecting');
         router.push('/login');
       }
-    });
+    }, 2000); // Check every 2 seconds
     
-    return () => {
-      authSync.stopMonitoring();
-    };
-  }, [clientReady, isAuthenticated, isLoading, checkAuth, router]); // Include all dependencies
-
-  // REMOVED the second useEffect that was causing premature redirects
-  // The auth check is now handled entirely in the first useEffect
+    return () => clearInterval(interval);
+  }, [clientReady, isAuthenticated, router]); // Safe dependencies
 
   // During SSR or initial client load, show loading
   if (!clientReady || isLoading) {
@@ -136,8 +119,9 @@ export default function DashboardLayout({
     );
   }
 
-  // Definitely not authenticated
+  // Definitely not authenticated - redirect to login
   if (!isAuthenticated && !hasAuthCookie) {
+    router.push('/login');
     return null;
   }
 

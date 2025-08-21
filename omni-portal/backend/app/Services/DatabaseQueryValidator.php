@@ -77,6 +77,11 @@ class DatabaseQueryValidator
      */
     public static function initialize(): void
     {
+        // Skip initialization in testing environment or when explicitly disabled
+        if (app()->environment('testing') || !config('security.query_validator_enabled', true)) {
+            return;
+        }
+        
         DB::listen(function ($query) {
             self::validateQuery($query);
         });

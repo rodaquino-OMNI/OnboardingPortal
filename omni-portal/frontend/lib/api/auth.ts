@@ -2,6 +2,9 @@ import axios from 'axios';
 import type { LoginData, RegisterData, ForgotPasswordData, ResetPasswordData } from '@/lib/schemas/auth';
 import type { AuthResponse, AuthUser } from '@/types/auth';
 
+// Use the proper LoginResponse type from types/auth.ts
+import type { LoginResponse } from '@/types/auth';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const BASE_URL = API_BASE_URL.replace('/api', '');
 
@@ -108,7 +111,7 @@ export const authApi = {
     // Get CSRF cookie first for stateful authentication
     await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, { 
       withCredentials: true,
-      signal,
+      ...(signal && { signal }),
       timeout: 5000,
     });
     
@@ -123,7 +126,7 @@ export const authApi = {
       email: data.login, // Send login (CPF or email) in the email field
       password: data.password,
     }, {
-      signal,
+      ...(signal && { signal }),
       timeout: 10000,
     });
     
@@ -132,24 +135,25 @@ export const authApi = {
       throw new Error('Login request was cancelled');
     }
     
-    // Check if registration is incomplete
-    if (response.data.registration_step && response.data.registration_step !== 'completed') {
-      throw new Error(`Registration incomplete. Please complete step: ${response.data.registration_step}`);
+    // Check if registration is incomplete (check both root level and user level)
+    const registrationStep = response.data.registration_step || response.data.user?.registration_step;
+    if (registrationStep && registrationStep !== 'completed') {
+      throw new Error(`Registration incomplete. Please complete step: ${registrationStep}`);
     }
     
     // Return the response in the expected format (with token if provided)
     return {
       token: response.data.token || 'secured-httponly-cookie', // Use actual token if provided
       user: {
-        id: response.data.user.id,
-        fullName: response.data.user.name,
-        email: response.data.user.email,
-        cpf: response.data.user.cpf,
-        points: response.data.user.gamification_progress?.points || 0,
-        level: response.data.user.gamification_progress?.level || 1,
-        lgpd_consent: response.data.user.lgpd_consent || false,
-        lgpd_consent_at: response.data.user.lgpd_consent_at || undefined,
-        last_login_at: response.data.user.last_login_at || undefined,
+        id: response.data.user?.id || '',
+        fullName: response.data.user?.name || '',
+        email: response.data.user?.email || '',
+        cpf: response.data.user?.cpf || '',
+        points: response.data.user?.gamification_progress?.points || 0,
+        level: response.data.user?.gamification_progress?.level || 1,
+        lgpd_consent: response.data.user?.lgpd_consent || false,
+        lgpd_consent_at: response.data.user?.lgpd_consent_at || undefined,
+        last_login_at: response.data.user?.last_login_at || undefined,
       }
     };
   },
@@ -205,6 +209,16 @@ export const authApi = {
         'Authorization': `Bearer ${token}`,
       }
     });
+    
+    // Set onboarding session cookie after successful registration
+    if (typeof document !== 'undefined') {
+      // Set onboarding session cookie for middleware access
+      document.cookie = `onboarding_session=registered; path=/; max-age=7200; SameSite=Lax`;
+      // Set basic auth token for immediate access
+      document.cookie = `basic_auth=true; path=/; max-age=7200; SameSite=Lax`;
+      // Set authenticated cookie for protected routes
+      document.cookie = `authenticated=true; path=/; max-age=86400; SameSite=Lax`;
+    }
     
     // Return the response in the expected format
     return {

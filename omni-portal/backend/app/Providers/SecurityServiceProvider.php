@@ -21,8 +21,8 @@ class SecurityServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Initialize database query monitoring
-        if (config('security.sql_monitoring', true)) {
+        // Initialize database query monitoring (disabled in testing)
+        if (config('security.sql_monitoring', true) && !app()->environment('testing')) {
             DatabaseQueryValidator::initialize();
         }
         

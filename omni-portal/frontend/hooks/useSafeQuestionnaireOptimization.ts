@@ -213,12 +213,14 @@ export function useSafeQuestionnaireOptimization(config: OptimizationConfig = {}
     try {
       const result = computeFn();
       
-      // Check memory before caching
-      const memoryUsage = performance.memory?.usedJSHeapSize || 0;
-      featureMonitor.recordMetric('memoryUsage', memoryUsage);
+      // Check memory before caching (Chrome-specific API, fallback to always cache)
+      const memoryUsage = (performance as any).memory?.usedJSHeapSize || 0;
+      if (memoryUsage > 0) {
+        featureMonitor.recordMetric('memoryUsage', memoryUsage);
+      }
       
-      // Only cache if memory is ok
-      if (memoryUsage < 50 * 1024 * 1024) { // 50MB limit
+      // Only cache if memory is ok or API not available
+      if (memoryUsage === 0 || memoryUsage < 50 * 1024 * 1024) { // 50MB limit
         cacheResponse(key, result);
       }
       
@@ -311,8 +313,8 @@ export function useSafeQuestionnaireOptimization(config: OptimizationConfig = {}
         responseTimes.current = responseTimes.current.slice(-50);
       }
       
-      // Check memory and trigger cleanup if needed
-      const memoryUsage = performance.memory?.usedJSHeapSize || 0;
+      // Check memory and trigger cleanup if needed (Chrome-specific API)
+      const memoryUsage = (performance as any).memory?.usedJSHeapSize || 0;
       if (memoryUsage > 40 * 1024 * 1024 && cacheRef.current) { // 40MB threshold
         const metrics = cacheRef.current.getMetrics();
         if (metrics.itemCount > 30) {

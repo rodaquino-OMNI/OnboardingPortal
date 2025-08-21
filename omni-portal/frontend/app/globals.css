@@ -35,6 +35,50 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  /* Fix for icon rendering issues */
+  svg {
+    display: inline-block;
+    vertical-align: middle;
+  }
+  
+  /* Ensure Lucide icons inherit colors properly (but not social icons) */
+  .lucide,
+  svg.lucide {
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  
+  /* Preserve fill colors for social media icons */
+  button svg[fill="currentColor"],
+  .social-icon svg {
+    fill: currentColor !important;
+  }
+  
+  /* Fix social media icon SVGs */
+  button svg {
+    pointer-events: none;
+  }
+  
+  /* Ensure text colors work for icons */
+  .text-gray-400 svg {
+    stroke: rgb(156 163 175);
+  }
+  
+  .text-gray-500 svg {
+    stroke: rgb(107 114 128);
+  }
+  
+  .text-gray-600 svg {
+    stroke: rgb(75 85 99);
+  }
+  
+  .text-white svg {
+    stroke: rgb(255 255 255);
+  }
 }
 
 @layer components {

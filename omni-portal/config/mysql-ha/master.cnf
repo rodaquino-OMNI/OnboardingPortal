@@ -1,0 +1,80 @@
+# MySQL Master Configuration
+# Optimized for High Availability and Performance
+
+[mysqld]
+# Server identification
+server-id = 1
+
+# Binary logging for replication
+log-bin = mysql-bin
+binlog-format = ROW
+sync-binlog = 1
+binlog-do-db = omni_portal
+
+# GTID Configuration
+gtid-mode = ON
+enforce-gtid-consistency = ON
+log-slave-updates = ON
+
+# Replication settings
+auto-increment-increment = 2
+auto-increment-offset = 1
+slave-skip-errors = 1062,1032
+
+# Performance settings
+innodb-buffer-pool-size = 1G
+innodb-log-file-size = 256M
+innodb-log-buffer-size = 16M
+innodb-flush-log-at-trx-commit = 1
+innodb-file-per-table = 1
+innodb-open-files = 300
+
+# Connection settings
+max-connections = 500
+max-connect-errors = 1000
+thread-cache-size = 50
+table-open-cache = 4000
+table-definition-cache = 1400
+
+# Query cache (disabled for better performance with replication)
+query-cache-type = 0
+query-cache-size = 0
+
+# Slow query log
+slow-query-log = 1
+slow-query-log-file = /var/log/mysql/mysql-slow.log
+long-query-time = 2
+
+# Error log
+log-error = /var/log/mysql/error.log
+
+# General log (disabled for performance)
+general-log = 0
+
+# Timeout settings
+wait-timeout = 28800
+interactive-timeout = 28800
+
+# Character set
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# SQL mode
+sql-mode = STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO
+
+# MyISAM settings
+key-buffer-size = 32M
+myisam-recover-options = BACKUP,FORCE
+
+# Network settings
+max-allowed-packet = 64M
+bind-address = 0.0.0.0
+
+# Security
+skip-name-resolve = 1
+
+[mysql]
+default-character-set = utf8mb4
+
+[client]
+default-character-set = utf8mb4

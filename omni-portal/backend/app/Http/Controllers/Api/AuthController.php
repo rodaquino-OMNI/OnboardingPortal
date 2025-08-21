@@ -93,7 +93,7 @@ class AuthController extends Controller
         $token = $user->createToken($deviceName)->plainTextToken;
         
         // Load relationships
-        $user->load(['roles', 'beneficiary', 'gamificationProgress']);
+        $user->load(['beneficiary', 'gamificationProgress']); // Removed 'roles' temporarily
         
         // Set token as httpOnly cookie for enhanced security
         $response = response()->json([
@@ -110,8 +110,8 @@ class AuthController extends Controller
             $token,
             config('sanctum.expiration', 525600), // 1 year default
             '/',
-            'localhost', // Set domain to localhost to share between ports
-            config('session.secure', false), // Use config for secure flag
+            null, // No domain restriction for localhost
+            false, // Not secure for localhost development
             true, // httpOnly
             false, // raw (don't encode)
             'Lax' // SameSite=Lax for better compatibility
@@ -203,7 +203,7 @@ class AuthController extends Controller
     public function user(Request $request): JsonResponse
     {
         $user = $request->user();
-        $user->load(['roles', 'beneficiary', 'gamificationProgress']);
+        $user->load(['beneficiary', 'gamificationProgress']);
         
         return response()->json([
             'user' => $user,

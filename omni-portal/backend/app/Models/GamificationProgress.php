@@ -14,10 +14,18 @@ class GamificationProgress extends Model
 
     protected $fillable = [
         'beneficiary_id',
-        'points',
-        'level',
+        'total_points',
+        'current_level',
+        'points_to_next_level',
+        'streak_days',
+        'last_activity_date',
+        'tasks_completed',
+        'perfect_forms',
+        'documents_uploaded',
+        'health_assessments_completed',
+        'profile_completed',
+        'onboarding_completed',
         'badges_earned',
-        'last_activity_at',
         'achievements',
         'daily_challenges',
         'weekly_goals',
@@ -27,7 +35,10 @@ class GamificationProgress extends Model
     ];
 
     protected $casts = [
-        'last_activity_at' => 'datetime',
+        'last_activity_date' => 'date',
+        'profile_completed' => 'boolean',
+        'onboarding_completed' => 'boolean',
+        'badges_earned' => 'array',
         'achievements' => 'array',
         'daily_challenges' => 'array',
         'weekly_goals' => 'array',
@@ -49,8 +60,8 @@ class GamificationProgress extends Model
      */
     public function addPoints(int $points, string $action = 'general'): void
     {
-        $this->increment('points', $points);
-        $this->last_activity_at = now();
+        $this->increment('total_points', $points);
+        $this->last_activity_date = now()->toDateString();
         
         // Track the action
         $achievements = $this->achievements ?? [];
@@ -113,9 +124,9 @@ class GamificationProgress extends Model
      */
     public function checkLevelUp(): ?GamificationLevel
     {
-        $nextLevel = GamificationLevel::where('level_number', $this->level + 1)->first();
+        $nextLevel = GamificationLevel::where('level_number', $this->current_level + 1)->first();
         
-        if ($nextLevel && $this->points >= $nextLevel->points_required) {
+        if ($nextLevel && $this->total_points >= $nextLevel->points_required) {
             return $nextLevel;
         }
 
@@ -127,7 +138,7 @@ class GamificationProgress extends Model
      */
     public function levelUp(GamificationLevel $newLevel): void
     {
-        $this->level = $newLevel->level_number;
+        $this->current_level = $newLevel->level_number;
         $this->last_level_up_at = now();
         $this->save();
     }

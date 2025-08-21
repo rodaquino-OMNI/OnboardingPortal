@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTimestamp } from '@/hooks/useClientOnly';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -53,7 +54,9 @@ export function HealthAssessmentComplete({
   const [showPDFCenter, setShowPDFCenter] = useState(false);
   const [showCelebration, setShowCelebration] = useState(true);
   
-  const sessionDuration = Math.round((Date.now() - sessionStartTime.getTime()) / (1000 * 60));
+  // FIX: Use stable timestamp instead of constantly updating one
+  const [completionTime] = useState(() => Date.now());
+  const sessionDuration = Math.round((completionTime - sessionStartTime.getTime()) / (1000 * 60));
   
   // CRITICAL FIX: Ensure healthResults has required structure with defensive programming
   const safeHealthResults = useMemo(() => {
@@ -91,12 +94,12 @@ export function HealthAssessmentComplete({
         : {},
       metadata: (healthResults as any)?.metadata || {},
       fraudDetectionScore: healthResults?.fraudDetectionScore || 0,
-      timestamp: healthResults?.timestamp || new Date().toISOString()
+      timestamp: healthResults?.timestamp || new Date(completionTime).toISOString()
     };
     
     console.log('[HealthAssessmentComplete] Safe healthResults created:', safe);
     return safe;
-  }, [healthResults]);
+  }, [healthResults, completionTime]);
   
   const gamificationStore = useGamification();
   const { getRecentBadges, getRareBadges } = useBadgeEnhancement();
@@ -105,11 +108,11 @@ export function HealthAssessmentComplete({
     healthResults: safeHealthResults,
     userName,
     userAge,
-    completionDate: new Date(),
+    completionDate: new Date(completionTime),
     sessionDuration
   });
 
-  // Update completion progress (backend handles all point awarding)
+  // FIX: Prevent infinite render loop by ensuring stable effect dependencies
   useEffect(() => {
     const updateCompletionProgress = async () => {
       try {
@@ -132,7 +135,7 @@ export function HealthAssessmentComplete({
     };
 
     updateCompletionProgress();
-  }, [safeHealthResults, sessionDuration]);
+  }, [safeHealthResults.completedDomains.length, safeHealthResults.riskLevel, sessionDuration]);
 
   // Hide celebration after delay
   useEffect(() => {
@@ -163,16 +166,16 @@ export function HealthAssessmentComplete({
       {
         icon: Brain as any,
         label: 'Recomendações',
-        value: healthResults.recommendations.length,
+        value: safeHealthResults.recommendations.length,
         description: 'Orientações personalizadas',
         color: 'text-purple-600'
       },
       {
         icon: Shield as any,
         label: 'Nível de Risco',
-        value: getRiskLevelDisplay(healthResults.riskLevel),
+        value: getRiskLevelDisplay(safeHealthResults.riskLevel),
         description: 'Avaliação geral de saúde',
-        color: getRiskLevelColor(healthResults.riskLevel)
+        color: getRiskLevelColor(safeHealthResults.riskLevel)
       },
       {
         icon: Trophy as any,
@@ -189,7 +192,14 @@ export function HealthAssessmentComplete({
         color: 'text-orange-600'
       }
     ];
-  }, [healthResults, sessionDuration, userProfile, safeHealthResults.completedDomains.length]);
+  }, [
+    safeHealthResults.completedDomains.length,
+    safeHealthResults.recommendations.length,
+    safeHealthResults.riskLevel,
+    sessionDuration,
+    userProfile?.badges.length,
+    userProfile?.totalPoints
+  ]);
 
   const recentBadges = getRecentBadges(3);
   const rareBadges = getRareBadges();
@@ -291,7 +301,7 @@ export function HealthAssessmentComplete({
                   className="text-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <stat.icon className={`w-8 h-8 mx-auto mb-2 ${stat.color}`} />
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
+                  <div className="text-2xl font-bold text-gray-900 mb-1" suppressHydrationWarning>
                     {stat.value}
                   </div>
                   <div className="font-medium text-gray-700 mb-1">

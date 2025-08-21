@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useClientOnly, useIsMobile } from '@/hooks/useClientOnly';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -63,21 +64,17 @@ export function EnhancedDocumentUpload({
   const [isMobile, setIsMobile] = useState(false);
   const { makeRequest, cancelAll } = useCancellableRequest();
   const mountedRef = useRef(true);
-  const [isClient, setIsClient] = useState(false);
   const [processingError, setProcessingError] = useState<{
     message: string;
     suggestions: string[];
   } | null>(null);
 
-  const isMobileDevice = useMemo(() => {
-    if (typeof navigator === 'undefined') return false;
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }, []);
+  const isClient = useClientOnly();
+  const isMobileDevice = useIsMobile();
 
   const cleanupRef = useRef<() => void>();
   
   useEffect(() => {
-    setIsClient(true);
     setIsMobile(isMobileDevice);
     
     cleanupRef.current = () => {
@@ -90,47 +87,6 @@ export function EnhancedDocumentUpload({
       cleanupRef.current?.();
     };
   }, [isMobileDevice, cancelAll]);
-
-  const handleFileSelect = useCallback(async (selectedFile: File) => {
-    if (!selectedFile.type.match(/^image\/(jpeg|jpg|png)$/) && 
-        !selectedFile.type.match(/^application\/pdf$/)) {
-      setValidationResult({
-        isValid: false,
-        errors: ['Por favor, selecione uma imagem (JPG, PNG) ou PDF'],
-        warnings: [],
-        confidence: 0
-      });
-      return;
-    }
-    
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      setValidationResult({
-        isValid: false,
-        errors: ['O arquivo deve ter no máximo 10MB'],
-        warnings: [],
-        confidence: 0
-      });
-      return;
-    }
-
-    if (selectedFile.type.startsWith('image/')) {
-      const validation = await validateImageQuality(selectedFile);
-      
-      if (!validation.isValid) {
-        console.warn('Image quality issues:', validation.issues);
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target?.result as string);
-      reader.readAsDataURL(selectedFile);
-    }
-
-    setFile(selectedFile);
-    
-    if (isMobile && selectedFile.type.startsWith('image/')) {
-      setTimeout(() => handleFileUpload(selectedFile), 500);
-    }
-  }, [isMobile, handleFileUpload]);
 
   const processFile = useCallback(async (
     file: File,
@@ -307,6 +263,49 @@ export function EnhancedDocumentUpload({
       setIsProcessing(false);
     }
   }, [processFile, onUploadComplete]);
+
+  const handleFileSelect = useCallback(async (selectedFile: File) => {
+    if (!selectedFile.type.match(/^image\/(jpeg|jpg|png)$/) && 
+        !selectedFile.type.match(/^application\/pdf$/)) {
+      setValidationResult({
+        isValid: false,
+        errors: ['Por favor, selecione uma imagem (JPG, PNG) ou PDF'],
+        warnings: [],
+        confidence: 0
+      });
+      return;
+    }
+    
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setValidationResult({
+        isValid: false,
+        errors: ['O arquivo deve ter no máximo 10MB'],
+        warnings: [],
+        confidence: 0
+      });
+      return;
+    }
+
+    if (selectedFile.type.startsWith('image/')) {
+      const validation = await validateImageQuality(selectedFile);
+      
+      if (!validation.isValid) {
+        console.warn('Image quality issues:', validation.issues);
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(selectedFile);
+    }
+
+    setFile(selectedFile);
+    
+    if (isMobile && selectedFile.type.startsWith('image/')) {
+      setTimeout(() => handleFileUpload(selectedFile), 500);
+    }
+  }, [isMobile, handleFileUpload]);
+
+
 
   const handleRetry = useCallback(() => {
     if (file) {
