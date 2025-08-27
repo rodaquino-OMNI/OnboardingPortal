@@ -22,8 +22,17 @@ class SecurityServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Initialize database query monitoring (disabled in testing)
-        if (config('security.sql_monitoring', true) && !app()->environment('testing')) {
-            DatabaseQueryValidator::initialize();
+        if (config('security.sql_monitoring', true) && 
+            !app()->environment('testing') && 
+            config('security.query_validator_enabled', true)) {
+            try {
+                DatabaseQueryValidator::initialize();
+            } catch (\Exception $e) {
+                // Silently fail in case database is not available
+                if (app()->environment(['local', 'development'])) {
+                    \Log::debug('DatabaseQueryValidator initialization failed: ' . $e->getMessage());
+                }
+            }
         }
         
         // Add custom validation rules

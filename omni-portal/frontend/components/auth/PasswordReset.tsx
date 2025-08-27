@@ -224,7 +224,7 @@ export default function PasswordReset({ token, onSuccess }: PasswordResetProps) 
     <div className="max-w-md mx-auto p-6">
       <h2 className="text-2xl font-bold mb-6">Reset Password</h2>
       <p className="text-gray-600 mb-6">
-        Enter your email address and we'll send you a link to reset your password.
+        Enter your email address and we&apos;ll send you a link to reset your password.
       </p>
       
       <form onSubmit={handleEmailSubmit}>

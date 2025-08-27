@@ -88,10 +88,7 @@ const config: Config = {
           900: '#1F2227',
         },
       },
-      fontFamily: {
-        sans: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-      },
+      // Removed duplicate fontFamily - merged into extend section
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },

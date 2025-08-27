@@ -98,9 +98,18 @@ export default function TestAuthPage() {
 
   const handleTestLogin = async () => {
     try {
+      // Use environment variables or prompt user for credentials
+      const testEmail = process.env.NEXT_PUBLIC_TEST_EMAIL || prompt('Enter test email:');
+      const testPassword = process.env.NEXT_PUBLIC_TEST_PASSWORD || prompt('Enter test password:');
+      
+      if (!testEmail || !testPassword) {
+        console.error('Test credentials not provided');
+        return;
+      }
+      
       await auth.login({
-        email: 'test@example.com',
-        password: 'password123'
+        login: testEmail,
+        password: testPassword
       });
     } catch (error) {
       console.error('Login test failed:', error);
@@ -263,7 +272,7 @@ export default function TestAuthPage() {
       <div className="mt-6 p-4 bg-yellow-50 rounded">
         <h3 className="font-semibold mb-2">🎯 What to Check:</h3>
         <ol className="list-decimal list-inside space-y-1 text-sm">
-          <li>Version should show "modular" if new architecture is active</li>
+          <li>Version should show &quot;modular&quot; if new architecture is active</li>
           <li>Console logs should show [AUTH ROUTER] messages</li>
           <li>Test login/logout should work without errors</li>
           <li>Check browser console for detailed logs</li>

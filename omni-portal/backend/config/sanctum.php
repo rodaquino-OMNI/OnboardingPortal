@@ -44,7 +44,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => 120, // 2 hours for enhanced security
 
     /*
     |--------------------------------------------------------------------------

@@ -12,7 +12,25 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { SafeQuestionnaireCache } from '@/lib/services/safe-questionnaire-cache';
 import { featureMonitor, FeatureFlags } from '@/lib/services/feature-monitor';
-import { debounce, throttle } from 'lodash-es';
+// Native debounce and throttle implementations to avoid lodash dependency
+const debounce = <T extends (...args: any[]) => any>(func: T, delay: number): T => {
+  let timeoutId: NodeJS.Timeout;
+  return ((...args: any[]) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  }) as T;
+};
+
+const throttle = <T extends (...args: any[]) => any>(func: T, delay: number): T => {
+  let lastExecTime = 0;
+  return ((...args: any[]) => {
+    const now = Date.now();
+    if (now - lastExecTime > delay) {
+      lastExecTime = now;
+      return func(...args);
+    }
+  }) as T;
+};
 
 export interface OptimizationConfig {
   enableCache?: boolean;

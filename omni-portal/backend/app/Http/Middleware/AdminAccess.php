@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Admin\AdminSession;
 use App\Models\Admin\AdminActionLog;
+use App\Helpers\RequestHelper;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -168,11 +169,15 @@ class AdminAccess
 
     /**
      * Manage admin session tracking
+     * Uses request-based tracking instead of server sessions for stateless operation
      */
     private function manageAdminSession($user, Request $request): void
     {
+        // Generate consistent request-based session ID for API operations
+        $requestSessionId = RequestHelper::generateRequestId($request);
+        
         $session = AdminSession::where('user_id', $user->id)
-            ->where('session_id', session()->getId())
+            ->where('session_id', $requestSessionId)
             ->first();
 
         if ($session) {
@@ -183,10 +188,10 @@ class AdminAccess
                 'user_agent' => $request->userAgent(),
             ]);
         } else {
-            // Create new session
+            // Create new session based on request
             AdminSession::create([
                 'user_id' => $user->id,
-                'session_id' => session()->getId(),
+                'session_id' => $requestSessionId,
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
                 'device_info' => $this->getDeviceInfo($request),
@@ -298,8 +303,11 @@ class AdminAccess
      */
     private function getCurrentAdminSessionId($user): ?int
     {
+        // Use current request to generate consistent session ID
+        $requestSessionId = RequestHelper::generateRequestId(request());
+        
         return AdminSession::where('user_id', $user->id)
-            ->where('session_id', session()->getId())
+            ->where('session_id', $requestSessionId)
             ->where('is_active', true)
             ->value('id');
     }

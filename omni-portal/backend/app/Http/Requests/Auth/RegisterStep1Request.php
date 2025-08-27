@@ -4,6 +4,7 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Services\BrazilianDocumentService;
 
 class RegisterStep1Request extends FormRequest
 {
@@ -27,10 +28,12 @@ class RegisterStep1Request extends FormRequest
             'cpf' => [
                 'required',
                 'string',
-                'regex:/^\d{3}\.\d{3}\.\d{3}-\d{2}$|^\d{11}$/',
                 function ($attribute, $value, $fail) {
-                    if (!$this->validateCPF($value)) {
-                        $fail('O CPF informado é inválido.');
+                    $documentService = app(BrazilianDocumentService::class);
+                    $validation = $documentService->validateCPF($value);
+                    
+                    if (!$validation['is_valid']) {
+                        $fail(implode(' ', $validation['errors']));
                     }
                 },
                 Rule::unique('users', 'cpf'),
@@ -87,72 +90,14 @@ class RegisterStep1Request extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        // Clean CPF - remove dots and dashes
+        // Clean CPF - remove dots and dashes using the document service
         if ($this->has('cpf')) {
+            $documentService = app(BrazilianDocumentService::class);
             $this->merge([
-                'cpf' => preg_replace('/[^0-9]/', '', $this->cpf)
+                'cpf' => $documentService->cleanCPF($this->cpf)
             ]);
         }
     }
 
-    /**
-     * Validate CPF number
-     */
-    private function validateCPF(string $cpf): bool
-    {
-        // Remove non-numeric characters
-        $cpf = preg_replace('/[^0-9]/', '', $cpf);
-
-        // Must have 11 digits
-        if (strlen($cpf) != 11) {
-            return false;
-        }
-
-        // Allow specific test/demo CPFs in non-production environments
-        if (!app()->environment('production')) {
-            $testCPFs = [
-                '12345678901', // Demo CPF
-                '11111111111', // Test CPF 1
-                '22222222222', // Test CPF 2
-                '33333333333', // Test CPF 3
-                '44444444444', // Test CPF 4
-                '55555555555', // Test CPF 5
-                '66666666666', // Test CPF 6
-                '77777777777', // Test CPF 7
-                '88888888888', // Test CPF 8
-                '99999999999', // Test CPF 9
-            ];
-            
-            if (in_array($cpf, $testCPFs)) {
-                return true; // Return early for test CPFs
-            }
-        }
-
-        // Check for known invalid CPFs (all same digits) - but only in production
-        if (app()->environment('production') && preg_match('/(\d)\1{10}/', $cpf)) {
-            return false;
-        }
-
-        // Validate first digit
-        $sum = 0;
-        for ($i = 0; $i < 9; $i++) {
-            $sum += intval($cpf[$i]) * (10 - $i);
-        }
-        $remainder = $sum % 11;
-        $digit1 = $remainder < 2 ? 0 : 11 - $remainder;
-
-        if (intval($cpf[9]) != $digit1) {
-            return false;
-        }
-
-        // Validate second digit
-        $sum = 0;
-        for ($i = 0; $i < 10; $i++) {
-            $sum += intval($cpf[$i]) * (11 - $i);
-        }
-        $remainder = $sum % 11;
-        $digit2 = $remainder < 2 ? 0 : 11 - $remainder;
-
-        return intval($cpf[10]) == $digit2;
-    }
+    // CPF validation is now handled by the BrazilianDocumentService
 }

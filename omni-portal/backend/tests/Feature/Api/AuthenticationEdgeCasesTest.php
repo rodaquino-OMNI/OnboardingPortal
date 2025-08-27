@@ -103,12 +103,15 @@ class AuthenticationEdgeCasesTest extends TestCase
     {
         // Arrange
         $unicodeEmail = 'tëst@éxämplë.com';
-        User::factory()->create([
+        $user = User::factory()->create([
             'email' => $unicodeEmail,
             'password' => Hash::make('password123'),
             'registration_step' => 'completed',
             'is_active' => true,
         ]);
+
+        // Create beneficiary for the user
+        Beneficiary::factory()->create(['user_id' => $user->id]);
 
         // Act
         $response = $this->postJson('/api/auth/login', [
@@ -135,9 +138,9 @@ class AuthenticationEdgeCasesTest extends TestCase
 
         $beneficiary = Beneficiary::factory()->create(['user_id' => $user->id]);
 
-        // Act - Login with formatted CPF
+        // Act - Login with formatted CPF (sent as email field)
         $response = $this->postJson('/api/auth/login', [
-            'cpf' => '123.456.789-01', // With dots and dash
+            'email' => '123.456.789-01', // CPF with formatting sent as email field
             'password' => 'password123',
         ]);
 
@@ -384,10 +387,16 @@ class AuthenticationEdgeCasesTest extends TestCase
      */
     public function test_cors_headers_present(): void
     {
-        // Act
-        $response = $this->options('/api/auth/login');
+        // Act - Test preflight OPTIONS request
+        $response = $this->withHeaders([
+            'Origin' => 'https://localhost:3000',
+            'Access-Control-Request-Method' => 'POST',
+            'Access-Control-Request-Headers' => 'Content-Type, Authorization',
+        ])->options('/api/auth/login');
 
         // Assert - Check for CORS headers
-        $response->assertHeader('Access-Control-Allow-Methods');
+        $response->assertHeader('Access-Control-Allow-Methods')
+                 ->assertHeader('Access-Control-Allow-Origin')
+                 ->assertHeader('Access-Control-Allow-Headers');
     }
 }

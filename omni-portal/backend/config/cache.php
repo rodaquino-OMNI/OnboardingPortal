@@ -78,6 +78,24 @@ return [
             'driver' => 'redis',
             'connection' => 'cache',
             'lock_connection' => 'default',
+            // Performance optimizations
+            'compress' => env('REDIS_CACHE_COMPRESS', true),
+            'serializer' => env('REDIS_CACHE_SERIALIZER', 'igbinary'),
+            'prefix' => env('CACHE_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_cache'),
+        ],
+
+        // File-based store for API caching (Redis not available)
+        'api' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/api'),
+            'prefix' => 'api_cache',
+        ],
+
+        // File-based store for authentication caching (Redis not available)
+        'auth' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/auth'),
+            'prefix' => 'auth_cache',
         ],
 
         'dynamodb' => [

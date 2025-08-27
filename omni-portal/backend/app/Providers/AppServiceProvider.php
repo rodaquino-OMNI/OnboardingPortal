@@ -63,6 +63,11 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(TextractMonitoringService::class)
             );
         });
+
+        // Register the unified AuthService
+        $this->app->singleton(\App\Services\AuthService::class, function ($app) {
+            return new \App\Services\AuthService();
+        });
     }
 
     /**

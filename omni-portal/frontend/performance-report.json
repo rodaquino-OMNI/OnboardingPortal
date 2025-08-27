@@ -1,0 +1,579 @@
+{
+  "timestamp": "2025-08-25T15:21:58.971Z",
+  "summary": {
+    "totalBundleSize": "9.66 MB",
+    "criticalIssues": 1,
+    "highPriorityIssues": 1,
+    "totalRecommendations": 3
+  },
+  "bundleAnalysis": {
+    "totalSizeKB": 9895,
+    "totalSizeMB": 9.66,
+    "fileCount": 92,
+    "largestBundles": [
+      {
+        "file": "main-app.js",
+        "sizeKB": 6335,
+        "sizeBytes": 6486704
+      },
+      {
+        "file": "vendor-70acaf45-45710df790ce935e.js",
+        "sizeKB": 363,
+        "sizeBytes": 371290
+      },
+      {
+        "file": "vendor-7962b188-02a66911d5c13423.js",
+        "sizeKB": 208,
+        "sizeBytes": 213331
+      },
+      {
+        "file": "lib-435ec7b6-835b80b72c843ef3.js",
+        "sizeKB": 177,
+        "sizeBytes": 181467
+      },
+      {
+        "file": "framework-8bb010c3-094b34629db24997.js",
+        "sizeKB": 168,
+        "sizeBytes": 172138
+      },
+      {
+        "file": "app-pages-internals.js",
+        "sizeKB": 163,
+        "sizeBytes": 166478
+      },
+      {
+        "file": "framework-d031d8a3-656585f093cd3bfb.js",
+        "sizeKB": 133,
+        "sizeBytes": 136415
+      },
+      {
+        "file": "polyfills-c67a75d1b6f99dc8.js",
+        "sizeKB": 89,
+        "sizeBytes": 91460
+      },
+      {
+        "file": "polyfills.js",
+        "sizeKB": 89,
+        "sizeBytes": 91460
+      },
+      {
+        "file": "vendor-81455c93-9f9252c19dd05b19.js",
+        "sizeKB": 87,
+        "sizeBytes": 89159
+      }
+    ],
+    "allBundles": [
+      {
+        "file": "main-app.js",
+        "sizeKB": 6335,
+        "sizeBytes": 6486704
+      },
+      {
+        "file": "vendor-70acaf45-45710df790ce935e.js",
+        "sizeKB": 363,
+        "sizeBytes": 371290
+      },
+      {
+        "file": "vendor-7962b188-02a66911d5c13423.js",
+        "sizeKB": 208,
+        "sizeBytes": 213331
+      },
+      {
+        "file": "lib-435ec7b6-835b80b72c843ef3.js",
+        "sizeKB": 177,
+        "sizeBytes": 181467
+      },
+      {
+        "file": "framework-8bb010c3-094b34629db24997.js",
+        "sizeKB": 168,
+        "sizeBytes": 172138
+      },
+      {
+        "file": "app-pages-internals.js",
+        "sizeKB": 163,
+        "sizeBytes": 166478
+      },
+      {
+        "file": "framework-d031d8a3-656585f093cd3bfb.js",
+        "sizeKB": 133,
+        "sizeBytes": 136415
+      },
+      {
+        "file": "polyfills-c67a75d1b6f99dc8.js",
+        "sizeKB": 89,
+        "sizeBytes": 91460
+      },
+      {
+        "file": "polyfills.js",
+        "sizeKB": 89,
+        "sizeBytes": 91460
+      },
+      {
+        "file": "vendor-81455c93-9f9252c19dd05b19.js",
+        "sizeKB": 87,
+        "sizeBytes": 89159
+      },
+      {
+        "file": "vendor-0195e57e-de72ec9c74293e7a.js",
+        "sizeKB": 86,
+        "sizeBytes": 88415
+      },
+      {
+        "file": "ui-ab229b537238b42e.js",
+        "sizeKB": 71,
+        "sizeBytes": 72793
+      },
+      {
+        "file": "common-f3956634-05d79f36566fa05d.js",
+        "sizeKB": 65,
+        "sizeBytes": 66723
+      },
+      {
+        "file": "framework-9a66d3c2-57edbbffc5289d13.js",
+        "sizeKB": 65,
+        "sizeBytes": 66346
+      },
+      {
+        "file": "framework-362d063c-2e2f4693a20988bb.js",
+        "sizeKB": 63,
+        "sizeBytes": 64709
+      },
+      {
+        "file": "vendor-eb2fbf4c-480e2c2c04ec835f.js",
+        "sizeKB": 60,
+        "sizeBytes": 61152
+      },
+      {
+        "file": "lib-aeee2aa1-eb3bf5e71311b597.js",
+        "sizeKB": 56,
+        "sizeBytes": 57444
+      },
+      {
+        "file": "vendor-3bb040d7-d6b06241a4d81171.js",
+        "sizeKB": 56,
+        "sizeBytes": 57410
+      },
+      {
+        "file": "webpack.js",
+        "sizeKB": 55,
+        "sizeBytes": 56374
+      },
+      {
+        "file": "framework-351e52ed-b5a43d2722e20101.js",
+        "sizeKB": 51,
+        "sizeBytes": 52486
+      },
+      {
+        "file": "vendor-aacc2dbb-91a23346aca69bd4.js",
+        "sizeKB": 47,
+        "sizeBytes": 48004
+      },
+      {
+        "file": "vendor-f39db0fd-5932da0f0aec6502.js",
+        "sizeKB": 45,
+        "sizeBytes": 45813
+      },
+      {
+        "file": "vendor-5724faa2-631011fcf3d800bb.js",
+        "sizeKB": 43,
+        "sizeBytes": 43783
+      },
+      {
+        "file": "vendor-5724faa2-d89d3bc5924506cd.js",
+        "sizeKB": 43,
+        "sizeBytes": 43783
+      },
+      {
+        "file": "framework-4aa88247-4aebad3dc3f2c22a.js",
+        "sizeKB": 41,
+        "sizeBytes": 41678
+      },
+      {
+        "file": "vendor-c21684c3-00220f0eeb68a357.js",
+        "sizeKB": 41,
+        "sizeBytes": 41786
+      },
+      {
+        "file": "vendor-2784705b-18d4bc9cabc08055.js",
+        "sizeKB": 40,
+        "sizeBytes": 40487
+      },
+      {
+        "file": "vendor-69b64d54-d5ace0564c96d8a0.js",
+        "sizeKB": 40,
+        "sizeBytes": 41370
+      },
+      {
+        "file": "vendor-9c4c28a4-8f354ebefa9d5f12.js",
+        "sizeKB": 40,
+        "sizeBytes": 40481
+      },
+      {
+        "file": "lib-63a1ed69-23a048209cc429ea.js",
+        "sizeKB": 39,
+        "sizeBytes": 39444
+      },
+      {
+        "file": "common-15216c44-c802311a52f1f16d.js",
+        "sizeKB": 38,
+        "sizeBytes": 39005
+      },
+      {
+        "file": "vendor-84f829b2-2ef4339bd95877fd.js",
+        "sizeKB": 38,
+        "sizeBytes": 39268
+      },
+      {
+        "file": "vendor-f49ea1fd-e1888e5e0f453fe2.js",
+        "sizeKB": 38,
+        "sizeBytes": 38647
+      },
+      {
+        "file": "lib-3ec6e4b0-47a4148ceb0754a1.js",
+        "sizeKB": 36,
+        "sizeBytes": 37362
+      },
+      {
+        "file": "vendor-6b948b9f-102153e191cadd82.js",
+        "sizeKB": 36,
+        "sizeBytes": 37058
+      },
+      {
+        "file": "vendor-fbd10709-bd0a39b883dbddd0.js",
+        "sizeKB": 35,
+        "sizeBytes": 35956
+      },
+      {
+        "file": "vendor-b09e3316-af20fa5b02c62e65.js",
+        "sizeKB": 34,
+        "sizeBytes": 34471
+      },
+      {
+        "file": "vendor-41cadba9-016dc34e9c5707d8.js",
+        "sizeKB": 32,
+        "sizeBytes": 32618
+      },
+      {
+        "file": "framework-cfb98476-3c90bd997c162b9c.js",
+        "sizeKB": 31,
+        "sizeBytes": 31368
+      },
+      {
+        "file": "vendor-1eae8c51-6d85562185d13f4b.js",
+        "sizeKB": 31,
+        "sizeBytes": 31414
+      },
+      {
+        "file": "framework-2ac4632b-24baf39c0b525278.js",
+        "sizeKB": 30,
+        "sizeBytes": 30987
+      },
+      {
+        "file": "vendor-fda021f2-5fbfdb08089c73d6.js",
+        "sizeKB": 30,
+        "sizeBytes": 30724
+      },
+      {
+        "file": "vendor-b9fa02b6-7052bb25ee43f3fd.js",
+        "sizeKB": 29,
+        "sizeBytes": 29197
+      },
+      {
+        "file": "lib-dfc0d3ba-0cd7cb5df2e17cd3.js",
+        "sizeKB": 28,
+        "sizeBytes": 28797
+      },
+      {
+        "file": "vendor-4347cbb3-781aca1c438a70ba.js",
+        "sizeKB": 28,
+        "sizeBytes": 28314
+      },
+      {
+        "file": "vendor-63c57150-1c72571230be0de8.js",
+        "sizeKB": 28,
+        "sizeBytes": 29058
+      },
+      {
+        "file": "vendor-c083354a-30e12b41240e7632.js",
+        "sizeKB": 28,
+        "sizeBytes": 28222
+      },
+      {
+        "file": "vendor-37a93c5f-8f1c3f8749d0c887.js",
+        "sizeKB": 27,
+        "sizeBytes": 27915
+      },
+      {
+        "file": "vendor-e4fa5935-443f775f2429b743.js",
+        "sizeKB": 27,
+        "sizeBytes": 27848
+      },
+      {
+        "file": "vendor-0ac96178-ae5d8cf6da449097.js",
+        "sizeKB": 25,
+        "sizeBytes": 25113
+      },
+      {
+        "file": "vendor-1d54e4e8-b3a63e3c38194135.js",
+        "sizeKB": 25,
+        "sizeBytes": 25969
+      },
+      {
+        "file": "vendor-e06be8b8-21a46c6fecb4d497.js",
+        "sizeKB": 25,
+        "sizeBytes": 25273
+      },
+      {
+        "file": "vendor-2f6dde1d-b22489a74eb95c12.js",
+        "sizeKB": 23,
+        "sizeBytes": 23240
+      },
+      {
+        "file": "vendor-3b4856bd-2ffa17cfb8b36d96.js",
+        "sizeKB": 20,
+        "sizeBytes": 20126
+      },
+      {
+        "file": "vendor-c5c59760-a6b32ef679b9d85a.js",
+        "sizeKB": 20,
+        "sizeBytes": 20162
+      },
+      {
+        "file": "vendor-be0c59e0-71861b56c8657a16.js",
+        "sizeKB": 18,
+        "sizeBytes": 18733
+      },
+      {
+        "file": "vendor-da755c0a-88da0b8004165287.js",
+        "sizeKB": 18,
+        "sizeBytes": 18296
+      },
+      {
+        "file": "vendor-175534ea-71b9aa1aeb35899c.js",
+        "sizeKB": 15,
+        "sizeBytes": 15314
+      },
+      {
+        "file": "vendor-175534ea-ee34fb71e205988c.js",
+        "sizeKB": 15,
+        "sizeBytes": 15314
+      },
+      {
+        "file": "vendor-63bd0008-731daa57f6b9517c.js",
+        "sizeKB": 15,
+        "sizeBytes": 15362
+      },
+      {
+        "file": "common-aad7bbf7-408e8479d6824372.js",
+        "sizeKB": 14,
+        "sizeBytes": 14257
+      },
+      {
+        "file": "vendor-fc6ed871-e05a528bcf36c5b2.js",
+        "sizeKB": 13,
+        "sizeBytes": 13176
+      },
+      {
+        "file": "lib-04fef8b0-f7f4cfbda6db17a6.js",
+        "sizeKB": 12,
+        "sizeBytes": 12208
+      },
+      {
+        "file": "vendor-2b72597b-cd7e6a1d9d7d81e1.js",
+        "sizeKB": 12,
+        "sizeBytes": 12637
+      },
+      {
+        "file": "framework-4a7382ad-fe79ee29fa6c2149.js",
+        "sizeKB": 11,
+        "sizeBytes": 11263
+      },
+      {
+        "file": "vendor-687d5bd9-7a920547265fbf29.js",
+        "sizeKB": 11,
+        "sizeBytes": 11737
+      },
+      {
+        "file": "common-ba2e5670-9db0eed68188ef3b.js",
+        "sizeKB": 10,
+        "sizeBytes": 10081
+      },
+      {
+        "file": "vendor-82c6797c-048dff90d27b75b2.js",
+        "sizeKB": 10,
+        "sizeBytes": 10156
+      },
+      {
+        "file": "framework-0fbe0e3f-cd7f5ba45ddde170.js",
+        "sizeKB": 9,
+        "sizeBytes": 8940
+      },
+      {
+        "file": "framework-f67df17f-bd25e806011a90a1.js",
+        "sizeKB": 9,
+        "sizeBytes": 8941
+      },
+      {
+        "file": "vendor-1c0d80f3-9ecdf077b935cd4f.js",
+        "sizeKB": 9,
+        "sizeBytes": 9397
+      },
+      {
+        "file": "vendor-e91c3b5f-e1f4cb8e1ddc43e6.js",
+        "sizeKB": 9,
+        "sizeBytes": 9713
+      },
+      {
+        "file": "framework-2898f16f-31e51e092fde8d85.js",
+        "sizeKB": 8,
+        "sizeBytes": 7986
+      },
+      {
+        "file": "lib-83d5537c-61a303de2ca2f972.js",
+        "sizeKB": 8,
+        "sizeBytes": 8540
+      },
+      {
+        "file": "vendor-eb9ee7ed-7fa04f15ddd9665c.js",
+        "sizeKB": 8,
+        "sizeBytes": 8047
+      },
+      {
+        "file": "framework-2248f4c3-0f1959fbe10698ab.js",
+        "sizeKB": 7,
+        "sizeBytes": 7461
+      },
+      {
+        "file": "vendor-254fba04-5548ac1aca0ec122.js",
+        "sizeKB": 7,
+        "sizeBytes": 7168
+      },
+      {
+        "file": "vendor-5641ff87-aeffd3255d8d8f9d.js",
+        "sizeKB": 7,
+        "sizeBytes": 7042
+      },
+      {
+        "file": "5475.1849e171dd4553ba.js",
+        "sizeKB": 6,
+        "sizeBytes": 6353
+      },
+      {
+        "file": "vendor-7274a514-13d0a35a884f97e3.js",
+        "sizeKB": 6,
+        "sizeBytes": 6623
+      },
+      {
+        "file": "vendor-f945abb9-cec944d071927b11.js",
+        "sizeKB": 5,
+        "sizeBytes": 5510
+      },
+      {
+        "file": "webpack-146c130d9ff91897.js",
+        "sizeKB": 5,
+        "sizeBytes": 5309
+      },
+      {
+        "file": "vendor-d0935741-cb395eacc343c128.js",
+        "sizeKB": 4,
+        "sizeBytes": 3805
+      },
+      {
+        "file": "lib-7ec938a2-427d6ad61e1314e7.js",
+        "sizeKB": 3,
+        "sizeBytes": 3578
+      },
+      {
+        "file": "vendor-06bf2173-236af26309de54a5.js",
+        "sizeKB": 2,
+        "sizeBytes": 2528
+      },
+      {
+        "file": "vendor-0c90e773-a7c4b540887b830c.js",
+        "sizeKB": 2,
+        "sizeBytes": 1907
+      },
+      {
+        "file": "vendor-884f4b34-6e2ca578573d1b8a.js",
+        "sizeKB": 2,
+        "sizeBytes": 1537
+      },
+      {
+        "file": "vendor-dc48f682-0b1a64a001619bad.js",
+        "sizeKB": 2,
+        "sizeBytes": 2376
+      },
+      {
+        "file": "main-app-3a812003d8f7c5be.js",
+        "sizeKB": 1,
+        "sizeBytes": 836
+      },
+      {
+        "file": "vendor-66bfbefb-ee949ca2ce42c49e.js",
+        "sizeKB": 1,
+        "sizeBytes": 1024
+      },
+      {
+        "file": "main-49a40a237990ccac.js",
+        "sizeKB": 0,
+        "sizeBytes": 460
+      },
+      {
+        "file": "vendor-7f3ce637-81a0f9957d310ac3.js",
+        "sizeKB": 0,
+        "sizeBytes": 380
+      }
+    ]
+  },
+  "performanceIssues": [
+    {
+      "type": "CRITICAL",
+      "category": "Bundle Size",
+      "issue": "Total bundle size is 9.66 MB (exceeds 5MB threshold)",
+      "impact": "Slow initial page load, poor mobile performance",
+      "solution": "Implement code splitting, remove unused dependencies, optimize images"
+    },
+    {
+      "type": "HIGH",
+      "category": "Large Chunks",
+      "issue": "main-app.js is 6335KB (exceeds 500KB threshold)",
+      "impact": "Slow loading for specific routes/components",
+      "solution": "Split large components, implement dynamic imports, lazy loading"
+    },
+    {
+      "type": "MEDIUM",
+      "category": "Bundle Fragmentation",
+      "issue": "24 chunks are smaller than 10KB",
+      "impact": "HTTP overhead, multiple round trips",
+      "solution": "Optimize webpack splitChunks configuration, merge small chunks"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "Bundle Optimization",
+      "recommendation": "Implement advanced code splitting",
+      "implementation": "\n// Add to next.config.js\nexperimental: {\n  optimizePackageImports: ['@radix-ui', 'lucide-react', '@opentelemetry'],\n},\nwebpack: (config) => {\n  config.optimization.splitChunks.maxSize = 200000;\n  return config;\n}"
+    },
+    {
+      "priority": "HIGH",
+      "category": "Dependencies",
+      "recommendation": "Optimize heavy dependencies",
+      "implementation": "\n// Replace heavy libraries:\n// 1. Replace moment.js with date-fns (already done ✅)\n// 2. Use dynamic imports for Chart.js\n// 3. Lazy load OpenTelemetry\n// 4. Tree-shake Lodash imports"
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Monitoring",
+      "recommendation": "Implement Core Web Vitals monitoring",
+      "implementation": "\n// Add to _app.tsx\nexport function reportWebVitals(metric) {\n  console.log('Web Vital:', metric);\n  // Send to analytics\n}"
+    }
+  ],
+  "realMetrics": {
+    "buildInfo": {
+      "hasNextBuild": true,
+      "hasStaticAssets": true,
+      "buildTimestamp": null,
+      "buildId": "unknown"
+    }
+  }
+}

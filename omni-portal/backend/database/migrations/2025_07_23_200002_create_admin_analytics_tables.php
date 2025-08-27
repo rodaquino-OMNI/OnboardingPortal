@@ -25,7 +25,7 @@ return new class extends Migration
             $table->json('dimensions')->nullable(); // Breakdown by dimensions
             $table->timestamps();
             
-            $table->unique(['metric_type', 'metric_name', 'aggregation_period', 'period_start']);
+            $table->unique(['metric_type', 'metric_name', 'aggregation_period', 'period_start'], 'idx_metrics_unique');
             $table->index(['metric_type', 'period_start']);
             $table->index('period_start');
         });

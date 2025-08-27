@@ -56,7 +56,7 @@ export function useQuestionnaireSubmission(options: UseQuestionnaireSubmissionOp
     } finally {
       setIsSubmitting(false);
     }
-  }, [fetchProgress, fetchBadges, fetchStats, options]);
+  }, [options]);
 
   const reset = useCallback(() => {
     setIsSubmitting(false);

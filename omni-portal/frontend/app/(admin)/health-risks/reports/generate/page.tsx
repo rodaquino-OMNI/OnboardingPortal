@@ -125,7 +125,7 @@ export default function GenerateReportPage() {
 
       const response = await healthRisksApi.reports.generate(reportData);
       
-      setReportId(response.data.report_id);
+      setReportId((response.data as any).report_id);
       setSuccess(true);
       
       // Redirect to reports list after 3 seconds

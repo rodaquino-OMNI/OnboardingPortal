@@ -12,12 +12,14 @@ scrape_configs:
       - targets: ['austa_mysql_exporter:9104']
 
   - job_name: 'backend'
+    metrics_path: '/api/metrics'
     static_configs:
-      - targets: ['austa_backend:9000']
+      - targets: ['austa_nginx:80']
         labels:
           service: 'laravel'
 
   - job_name: 'nginx'
+    metrics_path: '/nginx-metrics'
     static_configs:
       - targets: ['austa_nginx:80']
         labels:

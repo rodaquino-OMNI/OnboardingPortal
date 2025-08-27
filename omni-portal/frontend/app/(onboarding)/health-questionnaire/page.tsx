@@ -5,15 +5,17 @@ import { useRouter } from 'next/navigation';
 import { OptimizedUnifiedHealthQuestionnaire as UnifiedHealthQuestionnaire } from '@/components/health/OptimizedUnifiedHealthQuestionnaire';
 import { HealthNavigationHeader, SessionRestorationBanner } from '@/components/health/HealthNavigationHeader';
 import { HealthAssessmentComplete } from '@/components/health/HealthAssessmentComplete';
+import { HealthQuestionnaireErrorBoundary } from '@/components/health/HealthQuestionnaireErrorBoundary';
 import { useHealthSessionPersistence } from '@/hooks/useHealthSessionPersistence';
 import '@/styles/health-questionnaire-mobile.css';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
 import { HealthAssessmentResults } from '@/lib/unified-health-flow';
+import { logger } from '@/lib/logger';
 import { Activity } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
-export default function HealthQuestionnairePage() {
+function HealthQuestionnaireContent() {
   const router = useRouter();
   const { user } = useAuth();
   useGamification(); // Using the hook to trigger loading even if not destructuring
@@ -41,7 +43,7 @@ export default function HealthQuestionnairePage() {
     autoSaveInterval: 10000, // Auto-save every 10 seconds
     onAutoSave: (success) => {
       if (!success) {
-        console.warn('Auto-save failed');
+        logger.warn('[HealthQuestionnairePage] Auto-save failed', undefined, 'HealthQuestionnaire');
       }
     },
     onRestoreSession: (restoredSession) => {
@@ -60,7 +62,7 @@ export default function HealthQuestionnairePage() {
     };
     
     checkExistingSession();
-  }, [user?.id, hasExistingSession, session]); // All dependencies included
+  }, [user?.id, session]); // Remove hasExistingSession from dependencies to prevent infinite loop
 
   // Update estimated time based on progress
   useEffect(() => {
@@ -73,12 +75,10 @@ export default function HealthQuestionnairePage() {
         setEstimatedTimeRemaining(Math.max(1, remainingTime));
       }
     }
-  }, [questionnaireProgress, getSessionStats]); // getSessionStats is stable from the hook
+  }, [questionnaireProgress]); // Remove getSessionStats from dependencies to prevent infinite loop
 
   const handleComplete = async (results: unknown) => {
-    console.log('[HealthQuestionnairePage] handleComplete - Received results:', results);
-    console.log('[HealthQuestionnairePage] Results type:', typeof results);
-    console.log('[HealthQuestionnairePage] Results keys:', results ? Object.keys(results) : 'null');
+    logger.debug('[HealthQuestionnairePage] handleComplete - Received results:', { results, type: typeof results, keys: results ? Object.keys(results) : 'null' }, 'HealthQuestionnaire');
     
     try {
       setIsSubmitting(true);
@@ -88,7 +88,7 @@ export default function HealthQuestionnairePage() {
       
       // Additional validation to ensure critical fields exist
       if (!healthAssessmentResults || typeof healthAssessmentResults !== 'object') {
-        console.error('[HealthQuestionnairePage] Invalid results structure');
+        logger.error('[HealthQuestionnairePage] Invalid results structure', undefined, { results: healthAssessmentResults }, 'HealthQuestionnaire');
         // Create a minimal valid structure
         const fallbackResults: HealthAssessmentResults = {
           completedDomains: [],
@@ -103,7 +103,7 @@ export default function HealthQuestionnairePage() {
         };
         setHealthResults(fallbackResults);
       } else {
-        console.log('[HealthQuestionnairePage] Valid healthAssessmentResults:', healthAssessmentResults);
+        logger.info('[HealthQuestionnairePage] Valid healthAssessmentResults', { healthAssessmentResults }, 'HealthQuestionnaire');
         setHealthResults(healthAssessmentResults);
       }
       
@@ -112,11 +112,10 @@ export default function HealthQuestionnairePage() {
       // Clear the saved session as questionnaire is complete
       await clearSession();
       
-      console.log('[HealthQuestionnairePage] Completion successful, showing results screen');
+      logger.info('[HealthQuestionnairePage] Completion successful, showing results screen', undefined, 'HealthQuestionnaire');
       
     } catch (error) {
-      console.error('[HealthQuestionnairePage] Error handling completion:', error);
-      console.error('[HealthQuestionnairePage] Error stack:', error instanceof Error ? error.stack : 'No stack');
+      logger.error('[HealthQuestionnairePage] Error handling completion', error, { stack: error instanceof Error ? error.stack : 'No stack' }, 'HealthQuestionnaire');
       
       // Create a fallback results structure on error
       const fallbackResults: HealthAssessmentResults = {
@@ -141,10 +140,12 @@ export default function HealthQuestionnairePage() {
   };
 
   const handleNavigateHome = () => {
+    logger.debug('[HealthQuestionnairePage] Navigating to home', undefined, 'HealthQuestionnaire');
     router.push('/home');
   };
 
   const handleNavigateNext = () => {
+    logger.debug('[HealthQuestionnairePage] Navigating to document upload', undefined, 'HealthQuestionnaire');
     router.push('/document-upload');
   };
 
@@ -165,7 +166,7 @@ export default function HealthQuestionnairePage() {
     try {
       return await saveSession();
     } catch (error) {
-      console.error('Failed to save session:', error);
+      logger.error('Failed to save session', error, undefined, 'HealthQuestionnaire');
       return false;
     }
   };
@@ -219,7 +220,7 @@ export default function HealthQuestionnairePage() {
 
   // Check if it's first time for user onboarding flow
   const isFirstTime = user?.registration_step !== 'completed';
-  console.log('First time user:', isFirstTime); // Use the variable to avoid warning
+  logger.debug('First time user check', { isFirstTime }, 'HealthQuestionnaire'); // Use the variable to avoid warning
 
   // Show loading state for session
   if (isLoadingSession) {
@@ -278,5 +279,13 @@ export default function HealthQuestionnairePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function HealthQuestionnairePage() {
+  return (
+    <HealthQuestionnaireErrorBoundary>
+      <HealthQuestionnaireContent />
+    </HealthQuestionnaireErrorBoundary>
   );
 }

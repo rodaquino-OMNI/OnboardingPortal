@@ -1,5 +1,17 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
+// Extend Axios config types for our metadata
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    metadata?: {
+      startTime?: number;
+      [key: string]: unknown;
+    };
+  }
+}
+import { logger } from '@/lib/logger';
+import { authTokenManager } from '@/lib/auth-token-fix';
+
 // API configuration
 // Use relative URLs to work with Next.js rewrites/proxy
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -24,7 +36,8 @@ let csrfToken: string | null = null;
  */
 async function fetchCsrfToken(): Promise<void> {
   try {
-    await axios.get('/sanctum/csrf-cookie', {
+    const baseURL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:8000';
+    await axios.get(`${baseURL}/sanctum/csrf-cookie`, {
       withCredentials: true,
     });
     
@@ -33,10 +46,13 @@ async function fetchCsrfToken(): Promise<void> {
     const xsrfCookie = cookies.find(c => c.trim().startsWith('XSRF-TOKEN='));
     
     if (xsrfCookie) {
-      csrfToken = decodeURIComponent(xsrfCookie.split('=')[1]);
+      const tokenValue = xsrfCookie.split('=')[1];
+      if (tokenValue) {
+        csrfToken = decodeURIComponent(tokenValue);
+      }
     }
   } catch (error) {
-    console.error('Failed to fetch CSRF token:', error);
+    logger.error('Failed to fetch CSRF token', error, null, 'CsrfManager');
   }
 }
 
@@ -54,14 +70,24 @@ apiClient.interceptors.request.use(
       }
     }
 
-    // Add auth token if available
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Use centralized token manager for consistent auth handling
+    const authHeader = authTokenManager.getAuthHeader();
+    if (authHeader) {
+      config.headers.Authorization = authHeader;
+      console.debug('[API Client] Auth token attached');
+    } else {
+      console.warn('[API Client] No valid auth token found');
+      // Debug token status in development
+      if (process.env.NODE_ENV === 'development') {
+        authTokenManager.debugTokenStatus();
+      }
     }
 
     // Add request timestamp for performance monitoring
-    config.metadata = { startTime: Date.now() };
+    if (config.metadata === undefined) {
+      config.metadata = {};
+    }
+    config.metadata.startTime = Date.now();
 
     return config;
   },
@@ -74,18 +100,18 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // Log response time for performance monitoring
-    const config: any = response.config;
-    if (config.metadata) {
+    const config = response.config as InternalAxiosRequestConfig & { metadata?: { startTime: number } };
+    if (config.metadata?.startTime) {
       const duration = Date.now() - config.metadata.startTime;
       if (duration > 1000) {
-        console.warn(`Slow API call to ${config.url}: ${duration}ms`);
+        logger.warn(`Slow API call detected`, { url: config.url, duration }, 'PerformanceMonitor');
       }
     }
 
     return response;
   },
   async (error: AxiosError) => {
-    const originalRequest: any = error.config;
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Handle CSRF token mismatch
     if (error.response?.status === 419) {
@@ -121,7 +147,7 @@ apiClient.interceptors.response.use(
 
     // Handle network errors
     if (!error.response) {
-      console.error('Network error:', error.message);
+      logger.error('Network error detected', error, { message: error.message }, 'ApiClient');
       throw new Error('Network error. Please check your connection.');
     }
 
@@ -129,14 +155,26 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Performance optimization: Request deduplication
+// MEMORY LEAK FIX: Request deduplication with cache limits
+const MAX_PENDING_REQUESTS = 50;
 const pendingRequests = new Map<string, Promise<AxiosResponse>>();
+
+// Cleanup old pending requests to prevent memory leaks
+const cleanupPendingRequests = () => {
+  if (pendingRequests.size > MAX_PENDING_REQUESTS) {
+    const keysToDelete = Array.from(pendingRequests.keys()).slice(0, pendingRequests.size - MAX_PENDING_REQUESTS);
+    keysToDelete.forEach(key => pendingRequests.delete(key));
+  }
+};
 
 /**
  * Make deduplicated GET request
  */
-export async function getCached(url: string, config?: any): Promise<AxiosResponse> {
+export async function getCached(url: string, config?: { params?: Record<string, unknown>; [key: string]: unknown }): Promise<AxiosResponse> {
   const key = `${url}-${JSON.stringify(config?.params || {})}`;
+  
+  // MEMORY LEAK FIX: Clean up cache periodically
+  cleanupPendingRequests();
   
   if (pendingRequests.has(key)) {
     return pendingRequests.get(key)!;
@@ -155,6 +193,15 @@ export async function getCached(url: string, config?: any): Promise<AxiosRespons
   }
 }
 
+// MEMORY LEAK FIX: Cache management utilities
+export const cacheManager = {
+  clearCache: () => {
+    pendingRequests.clear();
+  },
+  getCacheSize: () => pendingRequests.size,
+  getCacheKeys: () => Array.from(pendingRequests.keys())
+};
+
 // Initialize CSRF token on module load
 if (typeof window !== 'undefined') {
   fetchCsrfToken();
@@ -164,11 +211,11 @@ if (typeof window !== 'undefined') {
 export default apiClient;
 
 export const api = {
-  get: (url: string, config?: any) => apiClient.get(url, config),
-  post: (url: string, data?: any, config?: any) => apiClient.post(url, data, config),
-  put: (url: string, data?: any, config?: any) => apiClient.put(url, data, config),
-  patch: (url: string, data?: any, config?: any) => apiClient.patch(url, data, config),
-  delete: (url: string, config?: any) => apiClient.delete(url, config),
+  get: <T = unknown>(url: string, config?: Record<string, unknown>) => apiClient.get<T>(url, config),
+  post: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => apiClient.post<T>(url, data, config),
+  put: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => apiClient.put<T>(url, data, config),
+  patch: <T = unknown>(url: string, data?: unknown, config?: Record<string, unknown>) => apiClient.patch<T>(url, data, config),
+  delete: <T = unknown>(url: string, config?: Record<string, unknown>) => apiClient.delete<T>(url, config),
   getCached,
 };
 
@@ -179,7 +226,7 @@ export const performanceMonitor = {
   endTimer: (startTime: number, operation: string) => {
     const duration = Date.now() - startTime;
     if (duration > 500) {
-      console.warn(`Slow operation "${operation}": ${duration}ms`);
+      logger.warn('Slow operation detected', { operation, duration }, 'PerformanceMonitor');
     }
     return duration;
   },
@@ -201,7 +248,7 @@ export const performanceMonitor = {
       return result;
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`API call "${operation}" failed after ${duration}ms:`, error);
+      logger.error('API call failed', error, { operation, duration }, 'PerformanceMonitor');
       throw error;
     }
   },

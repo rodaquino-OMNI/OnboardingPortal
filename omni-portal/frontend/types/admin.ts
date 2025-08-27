@@ -1,5 +1,74 @@
 // Admin Dashboard Types
 
+// =====================================
+// SUPPORTING TYPES FOR TYPE SAFETY
+// =====================================
+
+export interface ValidationRules {
+  required?: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  customRules?: Record<string, unknown>;
+}
+
+export interface MetricDimensions {
+  category?: string;
+  subcategory?: string;
+  timeRange?: string;
+  filters?: Record<string, unknown>;
+}
+
+export interface DeviceBreakdown {
+  desktop: number;
+  mobile: number;
+  tablet: number;
+  unknown?: number;
+}
+
+export interface LocationBreakdown {
+  [region: string]: {
+    count: number;
+    percentage: number;
+    cities?: Record<string, number>;
+  };
+}
+
+export interface HealthQuestionnaireResponses {
+  [questionId: string]: {
+    value: string | number | boolean | string[];
+    timestamp: string;
+    responseTime?: number;
+  };
+}
+
+export interface AIAnalysisResult {
+  riskScore: number;
+  recommendations: string[];
+  confidence: number;
+  analysisTimestamp: string;
+  factors?: string[];
+}
+
+export interface GamificationAchievement {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  points: number;
+  unlockedAt?: string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+export interface PaginationSummary {
+  totalItems: number;
+  itemsPerPage: number;
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 export interface AdminDashboardData {
   summary: {
     total_users: number;
@@ -61,7 +130,7 @@ export interface AdminPermission {
   resource: string;
   action: string;
   scope?: string;
-  conditions?: any;
+  conditions?: Record<string, unknown> | null;
   is_sensitive: boolean;
   created_at: string;
   updated_at: string;
@@ -87,7 +156,7 @@ export interface AdminActionLog {
   action_type: string;
   resource_type: string;
   resource_id?: number;
-  action_data?: any;
+  action_data?: Record<string, unknown> | null;
   ip_address: string;
   user_agent: string;
   request_method: string;
@@ -109,7 +178,7 @@ export interface AdminAlert {
   created_at: string;
   resolved_at?: string;
   resolved_by?: number;
-  metadata?: any;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface AdminSecurityLog {
@@ -120,7 +189,7 @@ export interface AdminSecurityLog {
   ip_address: string;
   user_agent: string;
   description: string;
-  metadata?: any;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
   user?: AdminUser;
 }
@@ -129,11 +198,11 @@ export interface AdminSystemSetting {
   id: number;
   category: string;
   key: string;
-  value: any;
+  value: string | number | boolean | Record<string, unknown> | null;
   type: 'string' | 'number' | 'boolean' | 'json';
   description?: string;
   is_sensitive: boolean;
-  validation_rules?: any;
+  validation_rules?: ValidationRules | null;
   last_modified_by?: number;
   last_modified_at?: string;
 }
@@ -145,7 +214,7 @@ export interface PerformanceMetric {
   metric_type: string;
   period: string;
   aggregation_method: string;
-  dimensions?: any;
+  dimensions?: MetricDimensions | null;
   created_at: string;
 }
 
@@ -157,8 +226,8 @@ export interface UserAnalytic {
   retention_rate: number;
   completion_rate: number;
   avg_session_duration: number;
-  device_breakdown?: any;
-  location_breakdown?: any;
+  device_breakdown?: DeviceBreakdown | null;
+  location_breakdown?: LocationBreakdown | null;
 }
 
 export interface SystemStatus {
@@ -208,8 +277,8 @@ export interface HealthQuestionnaire {
   completed_at?: string;
   reviewed_at?: string;
   reviewed_by?: number;
-  responses?: any;
-  ai_analysis?: any;
+  responses?: HealthQuestionnaireResponses | null;
+  ai_analysis?: AIAnalysisResult | null;
 }
 
 export interface GamificationProgress {
@@ -218,7 +287,7 @@ export interface GamificationProgress {
   total_points: number;
   current_level: number;
   badges_earned: string[];
-  achievements: any[];
+  achievements: GamificationAchievement[];
   last_activity: string;
 }
 
@@ -233,7 +302,7 @@ export interface PaginatedResponse<T> {
     from: number;
     to: number;
   };
-  summary?: any;
+  summary?: PaginationSummary | null;
 }
 
 export interface AdminAnalytics {

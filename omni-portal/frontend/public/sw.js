@@ -131,6 +131,11 @@ async function handleApiRequest(request) {
 
 // Handle static assets - Cache First strategy
 async function handleStaticAssets(request) {
+  // TECHNICAL EXCELLENCE FIX: Skip caching for non-HTTP(S) schemes
+  if (!request.url.startsWith('http://') && !request.url.startsWith('https://')) {
+    return fetch(request).catch(() => new Response('Network error', { status: 500 }));
+  }
+  
   const cachedResponse = await caches.match(request);
   
   if (cachedResponse) {

@@ -109,7 +109,7 @@ export default function AlertDetailPage() {
       setLoading(true);
       setError(null);
       const response = await healthRisksApi.alerts.get(alertId);
-      setAlert(response.data.data);
+      setAlert((response.data as any).data || response.data);
     } catch (err) {
       console.error('Error loading alert details:', err);
       setError('Erro ao carregar detalhes do alerta');

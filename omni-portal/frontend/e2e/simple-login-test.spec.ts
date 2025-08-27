@@ -4,12 +4,12 @@ test('simple login test', async ({ page }) => {
   // Go to login page
   await page.goto('/login');
   
-  // Check if we're on the login page
-  await expect(page.locator('h1:has-text("Bem-vindo de volta!")')).toBeVisible();
+  // Check if we're on the login page - use exact text match
+  await expect(page.locator('h1').filter({ hasText: 'Bem-vindo de volta!' })).toBeVisible();
   
-  // Fill in the form
-  await page.fill('input[name="login"]', 'demo@example.com');
-  await page.fill('input[name="password"]', 'DemoPass123!');
+  // Fill in the form using proper selectors
+  await page.fill('input[id="login"]', 'demo@example.com');
+  await page.fill('input[id="password"]', 'DemoPass123!');
   
   // Click login button
   await page.click('button[type="submit"]');

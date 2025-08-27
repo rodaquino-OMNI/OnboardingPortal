@@ -42,6 +42,11 @@ RUN apk upgrade --no-cache && \
         tesseract-ocr-data-eng \
         # Process management
         supervisor \
+        # Log management tools
+        logrotate \
+        coreutils \
+        gzip \
+        findutils \
         # Build tools (temporary)
         linux-headers \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
@@ -157,13 +162,20 @@ RUN mkdir -p \
 # Security: Copy secure PHP configuration
 COPY --chown=root:root docker/php/php.ini /usr/local/etc/php/php.ini
 COPY --chown=root:root docker/php/php-fpm.conf /usr/local/etc/php-fpm.d/www.conf  
-COPY --chown=root:root docker/php/opcache-simple.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY --chown=root:root docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # Security: Copy supervisor configuration with restricted permissions
 COPY --chown=root:root docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Log rotation: Copy log management configurations
+COPY --chown=root:root docker/logrotate/laravel /etc/logrotate.d/laravel
+COPY --chown=root:root scripts/log-rotation.sh /usr/local/bin/log-rotation.sh
+
 RUN chmod 644 /usr/local/etc/php/php.ini /usr/local/etc/php-fpm.d/www.conf \
     && chmod 644 /usr/local/etc/php/conf.d/opcache.ini \
-    && chmod 644 /etc/supervisor/conf.d/supervisord.conf
+    && chmod 644 /etc/supervisor/conf.d/supervisord.conf \
+    && chmod 644 /etc/logrotate.d/laravel \
+    && chmod 755 /usr/local/bin/log-rotation.sh
 
 # Security: Remove sensitive files and set secure permissions
 RUN rm -rf \
@@ -228,23 +240,9 @@ RUN apk add --no-cache \
         tcpdump \
     && rm -rf /var/cache/apk/*
 
-# Development: Install Xdebug with error handling
-RUN set +e && \
-    apk add --no-cache --virtual .build-deps \
-        autoconf \
-        g++ \
-        make \
-        linux-headers \
-        zlib-dev \
-        pkgconfig \
-    && pecl install xdebug \
-    && docker-php-ext-enable xdebug \
-    && apk del .build-deps \
-    && rm -rf /tmp/pear /tmp/* /var/tmp/* \
-    || echo "XDebug installation failed - continuing without debug support"
-
-# Development: Copy Xdebug configuration
-COPY --chown=root:root docker/php/xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+# XDebug is NOT installed in production for performance reasons
+# To enable XDebug in development, use a separate development Dockerfile
+# This significantly improves production performance
 
 # Development: Set development environment
 ENV APP_ENV=local \

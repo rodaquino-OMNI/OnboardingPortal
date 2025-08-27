@@ -1,7 +1,7 @@
 // Chart.js Dynamic Loader
 // Optimizes Chart.js loading for analytics components
 
-import type { ChartConfiguration, ChartType } from 'chart.js';
+import type { ChartConfiguration, ChartType, ChartOptions } from 'chart.js';
 
 let chartJSLoaded = false;
 let chartComponents: any = null;
@@ -65,7 +65,7 @@ export const preloadChartsForAdmin = () => {
 /**
  * Common chart configurations for consistent styling
  */
-export const getChartConfig = (type: ChartType): Partial<ChartConfiguration> => {
+export const getChartConfig = (type: ChartType): Partial<ChartOptions> => {
   const baseConfig = {
     responsive: true,
     maintainAspectRatio: false,
@@ -103,7 +103,7 @@ export const getChartConfig = (type: ChartType): Partial<ChartConfiguration> => 
             },
             beginAtZero: true,
           },
-        },
+        } as any,
       };
     
     case 'bar':
@@ -121,14 +121,14 @@ export const getChartConfig = (type: ChartType): Partial<ChartConfiguration> => 
             },
             beginAtZero: true,
           },
-        },
+        } as any,
       };
     
     case 'pie':
     case 'doughnut':
       return {
         ...baseConfig,
-        scales: undefined, // Pie charts don't use scales
+        scales: undefined as any, // Pie charts don't use scales
       };
     
     default:

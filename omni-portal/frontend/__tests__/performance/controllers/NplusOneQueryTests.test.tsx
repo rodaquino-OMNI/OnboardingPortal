@@ -7,7 +7,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useGamificationIntegration } from '@/hooks/useGamificationIntegration';
+import { useGamificationIntegration } from '@/hooks';
 
 // Mock the API client to track query calls
 const mockApiCalls: Array<{ endpoint: string; timestamp: number; queryCount: number }> = [];

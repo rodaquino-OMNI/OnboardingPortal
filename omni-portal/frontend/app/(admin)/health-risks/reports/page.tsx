@@ -69,7 +69,7 @@ export default function ReportsListPage() {
     try {
       setError(null);
       const response = await healthRisksApi.reports.list();
-      setReports(response.data.data);
+      setReports((response.data as any)?.data || response.data);
     } catch (err) {
       console.error('Error loading reports:', err);
       setError('Erro ao carregar relatórios');
@@ -86,7 +86,7 @@ export default function ReportsListPage() {
       const response = await healthRisksApi.reports.download(report.id);
       
       // Create blob from response
-      const blob = new Blob([response.data], { 
+      const blob = new Blob([response.data as BlobPart], { 
         type: getContentType(report.format) 
       });
       

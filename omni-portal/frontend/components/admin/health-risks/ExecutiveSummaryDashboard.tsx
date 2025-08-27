@@ -33,7 +33,7 @@ export default function ExecutiveSummaryDashboard() {
         include_roi_metrics: true,
         format: 'json'
       });
-      setSummary(response.data);
+      setSummary(response.data as ExecutiveSummary);
     } catch (error) {
       console.error('Failed to load executive summary:', error);
     } finally {
@@ -56,8 +56,8 @@ export default function ExecutiveSummaryDashboard() {
       });
       
       // Handle PDF download URL
-      if (response.data?.download_url) {
-        window.open(response.data.download_url, '_blank');
+      if ((response.data as any)?.download_url) {
+        window.open((response.data as any).download_url, '_blank');
       }
     } catch (error) {
       console.error('Failed to download PDF:', error);

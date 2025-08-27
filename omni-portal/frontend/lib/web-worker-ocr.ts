@@ -134,6 +134,35 @@ class OCRWorkerManager {
       throw new Error('OCR Worker not initialized');
     }
 
+    // CRITICAL FIX: Prepare serializable data BEFORE promise
+    let serializedImageData: string | ArrayBuffer;
+    
+    if (imageData instanceof Blob || imageData instanceof File) {
+      // Convert Blob/File to ArrayBuffer for serialization
+      serializedImageData = await imageData.arrayBuffer();
+    } else if (typeof imageData === 'string') {
+      // Already a string (base64 or URL)
+      serializedImageData = imageData;
+    } else if (imageData instanceof ImageData) {
+      // Convert ImageData to ArrayBuffer
+      const canvas = document.createElement('canvas');
+      canvas.width = imageData.width;
+      canvas.height = imageData.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.putImageData(imageData, 0, 0);
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob!), 'image/png');
+        });
+        serializedImageData = await blob.arrayBuffer();
+      } else {
+        throw new Error('Failed to create canvas context');
+      }
+    } else {
+      // Assume it's already an ArrayBuffer or similar
+      serializedImageData = imageData as any;
+    }
+
     return new Promise((resolve, reject) => {
       if (!this.worker) {
         reject(new Error('Worker not available'));
@@ -163,15 +192,20 @@ class OCRWorkerManager {
       };
 
       this.worker.addEventListener('message', handleMessage);
-
-      // Send processing request
-      this.worker.postMessage({
-        type: 'PROCESS',
-        payload: {
-          imageData,
-          options: {}
-        }
-      });
+      
+      // Send processing request with serializable data
+      try {
+        this.worker.postMessage({
+          type: 'PROCESS',
+          payload: {
+            imageData: serializedImageData,
+            options: {}
+          }
+        });
+      } catch (error) {
+        this.worker.removeEventListener('message', handleMessage);
+        reject(new Error(`Failed to send data to worker: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
     });
   }
 

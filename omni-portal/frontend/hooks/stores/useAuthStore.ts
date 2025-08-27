@@ -7,6 +7,7 @@ import type { LoginResponse } from '@/types/auth';
 import type { LoginData, RegisterData } from '@/lib/schemas/auth';
 import type { AppError } from '@/types';
 import { eventBus, EventTypes } from '@/modules/events/EventBus';
+import { authTokenManager } from '@/lib/auth-token-fix';
 
 interface AuthState {
   user: LoginResponse['user'] | null;
@@ -139,18 +140,13 @@ export const useAuthStore = create<AuthState>()(
                 source: 'useAuthStore.login'
               });
               
-              // Set client-side cookies for middleware (client-side only)
-              if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-                document.cookie = `authenticated=true; path=/; max-age=86400; SameSite=Lax; domain=localhost`;
-                // Set onboarding session for immediate access to onboarding routes
-                document.cookie = `onboarding_session=authenticated; path=/; max-age=7200; SameSite=Lax`;
+              // Use centralized token manager for consistent storage
+              if (typeof window !== 'undefined') {
+                authTokenManager.setToken(response.token, response.user);
                 
-                // Store in localStorage with error handling
-                try {
-                  localStorage.setItem('auth_user', JSON.stringify(response.user));
-                  localStorage.setItem('auth_token', response.token || 'authenticated');
-                } catch (e) {
-                  console.warn('[AuthStore] localStorage error:', e);
+                // Set onboarding session for immediate access to onboarding routes
+                if (typeof document !== 'undefined') {
+                  document.cookie = `onboarding_session=authenticated; path=/; max-age=7200; SameSite=Lax`;
                 }
               }
             }
@@ -251,17 +247,9 @@ export const useAuthStore = create<AuthState>()(
               source: 'useAuthStore.logout'
             });
             
-            // Clear all auth data (client-side only)
+            // Use centralized token manager for consistent cleanup
             if (typeof window !== 'undefined') {
-              if (typeof localStorage !== 'undefined') {
-                localStorage.removeItem('auth_user');
-                localStorage.removeItem('auth_token');
-              }
-              if (typeof document !== 'undefined') {
-                document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=localhost';
-                document.cookie = 'onboarding_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                document.cookie = 'basic_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-              }
+              authTokenManager.clearToken();
             }
             
             set({
@@ -288,14 +276,15 @@ export const useAuthStore = create<AuthState>()(
           const state = get();
           const now = Date.now();
           const lastAuthCheck = (state as any)._lastAuthCheck || 0;
-          const AUTH_CHECK_THROTTLE = 1000; // Reduced throttle for better responsiveness
+          const AUTH_CHECK_THROTTLE = 500; // Reduced throttle for better responsiveness
           
-          // Don't throttle if not authenticated
-          if (now - lastAuthCheck < AUTH_CHECK_THROTTLE && state.isAuthenticated && state.user) {
+          // Don't throttle if not authenticated or loading
+          if (now - lastAuthCheck < AUTH_CHECK_THROTTLE && state.isAuthenticated && state.user && !state.isLoading) {
             return;
           }
           
-          set({ isLoading: true, _lastAuthCheck: now } as any);
+          console.log('%c[AuthStore] Starting auth check', 'color: blue; font-weight: bold');
+          set({ isLoading: true, _lastAuthCheck: now, error: null } as any);
           
           // SSR guard: Check for document availability
           if (typeof document === 'undefined') {
@@ -309,12 +298,15 @@ export const useAuthStore = create<AuthState>()(
           }
           
           const cookies = document.cookie;
+          console.log('[AuthStore] Current cookies:', cookies);
           const hasAuthCookie = cookies.includes('authenticated=true') || 
                                 cookies.includes('auth_token=') ||
                                 cookies.includes('austa_health_portal_session=') ||
+                                cookies.includes('laravel_session=') ||
                                 cookies.includes('XSRF-TOKEN=');
           
           if (!hasAuthCookie) {
+            console.log('[AuthStore] No auth cookies found, clearing state');
             set({
               user: null,
               token: null,
@@ -322,6 +314,8 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
             });
             return;
+          } else {
+            console.log('[AuthStore] Auth cookies found, proceeding with profile check');
           }
           
           const manager = initRequestManager();
@@ -361,13 +355,14 @@ export const useAuthStore = create<AuthState>()(
             }
           } catch (error) {
             // For any error (including 500s that are actually 401s), clear auth state
-            console.log('[AuthStore] checkAuth failed:', error);
+            console.log('%c[AuthStore] checkAuth failed:', 'color: red; font-weight: bold', error);
             
             set({
               user: null,
               token: null,
               isAuthenticated: false,
               isLoading: false,
+              error: error instanceof Error ? error.message : 'Authentication check failed'
             });
             
             // Clear cookies consistently (client-side only)

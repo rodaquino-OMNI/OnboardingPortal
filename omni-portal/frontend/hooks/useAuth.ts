@@ -1,126 +1,21 @@
 'use client';
 
-import { useAuthStore } from './stores/useAuthStore';
-import { featureFlags } from '@/lib/feature-flags';
-import { usageMonitor } from '@/lib/usage-monitor';
-import { useEffect, useRef, useState } from 'react';
+/**
+ * DEPRECATED: This file is being replaced by useUnifiedAuth
+ * Import from useUnifiedAuth instead
+ */
 
-interface AuthResult {
-  success: boolean;
-  error?: string;
-  requires_2fa?: boolean;
-  session_token?: string;
-}
+import { useUnifiedAuth } from './useUnifiedAuth';
+import { useAuthStore } from './stores/useAuthStore';
+import { logger } from '@/lib/logger';
 
 /**
- * Main authentication hook - Router that decides which implementation to use
- * This is the SINGLE ENTRY POINT for all authentication needs
+ * Legacy useAuth hook - redirects to unified implementation
+ * @deprecated Use useUnifiedAuth directly
  */
 export function useAuth() {
-  // SSR hydration fix: Track when we're on client side
-  const [isClient, setIsClient] = useState(false);
-  
-  // Get auth store functions
-  const authStore = useAuthStore();
-  
-  // Determine which implementation to use (only on client, simplified)
-  const shouldUseModular = false; // Disable modular auth for now to prevent issues
-  
-  // Track which version is being used
-  const versionRef = useRef<string>('store');
-
-  // SSR hydration fix: Set client flag
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
-  useEffect(() => {
-    // SSR guard: Only run on client side
-    if (!isClient || typeof window === 'undefined') {
-      return;
-    }
-
-    const version = shouldUseModular ? 'modular' : 'store';
-    
-    if (versionRef.current !== version) {
-      // Log version change
-      console.log(
-        `%c[AUTH ROUTER] Using ${version} implementation`,
-        `color: ${version === 'modular' ? 'green' : 'orange'}; font-weight: bold`,
-        {
-          timestamp: new Date().toISOString(),
-          featureFlag: shouldUseModular,
-          environment: process.env.NODE_ENV
-        }
-      );
-      
-      // Track usage
-      usageMonitor.track('auth.router', version, {
-        timestamp: Date.now(),
-        featureFlag: shouldUseModular
-      });
-      
-      // Store in window for debugging (client-side only)
-      (window as any).__AUTH_VERSION__ = version;
-      (window as any).__AUTH_IMPLEMENTATION__ = {
-        version,
-        timestamp: Date.now(),
-        featureFlags: {
-          USE_MODULAR_AUTH: shouldUseModular,
-          USE_UNIFIED_STATE: featureFlags.get('USE_UNIFIED_STATE'),
-          USE_API_GATEWAY: featureFlags.get('USE_API_GATEWAY'),
-          USE_EVENT_BUS: featureFlags.get('USE_EVENT_BUS')
-        }
-      };
-      
-      versionRef.current = version;
-    }
-  }, [isClient, shouldUseModular]);
-  
-  // Wrap the store methods to provide the expected interface
-  const wrappedLogin = async (data: any): Promise<AuthResult> => {
-    try {
-      await authStore.login(data);
-      return { success: true };
-    } catch (error) {
-      console.error('[useAuth] Login error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      
-      // Check for specific error types
-      if (errorMessage.includes('registration incomplete')) {
-        return {
-          success: false,
-          error: errorMessage,
-          requires_2fa: false
-        };
-      }
-      
-      return { 
-        success: false, 
-        error: errorMessage
-      };
-    }
-  };
-
-  const wrappedRegister = async (data: any): Promise<AuthResult> => {
-    try {
-      await authStore.register(data);
-      return { success: true };
-    } catch (error) {
-      console.error('[useAuth] Register error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Registration failed'
-      };
-    }
-  };
-  
-  // Return the wrapped store implementation with enhanced error handling
-  return {
-    ...authStore,
-    login: wrappedLogin,
-    register: wrappedRegister,
-  };
+  logger.warn('useAuth is deprecated, use useUnifiedAuth instead', null, 'DeprecationWarning');
+  return useUnifiedAuth();
 }
 
 /**
@@ -161,7 +56,13 @@ export function useAuthWithCleanup() {
  */
 export function useAuthWithVerification() {
   const auth = useAuth();
-  const prevStateRef = useRef<any>(null);
+  const prevStateRef = useRef<{
+    isAuthenticated: boolean;
+    hasUser: boolean;
+    isLoading: boolean;
+    hasError: boolean;
+    implementation: string;
+  } | null>(null);
   const [isClient, setIsClient] = useState(false);
   
   // SSR hydration fix
@@ -184,15 +85,11 @@ export function useAuthWithVerification() {
     };
     
     if (prevStateRef.current && JSON.stringify(prevStateRef.current) !== JSON.stringify(currentState)) {
-      console.log(
-        '%c[AUTH VERIFICATION] State changed',
-        'color: purple; font-weight: bold',
-        {
-          from: prevStateRef.current,
-          to: currentState,
-          timestamp: new Date().toISOString()
-        }
-      );
+      logger.debug('Auth state changed', {
+        from: prevStateRef.current,
+        to: currentState,
+        timestamp: new Date().toISOString()
+      }, 'AuthVerification');
       
       // Emit event for monitoring (client-side only)
       window.dispatchEvent(new CustomEvent('auth-state-change', {
@@ -219,18 +116,12 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     
     const implementation = (window as any).__AUTH_IMPLEMENTATION__;
     if (implementation) {
-      console.log(
-        '%c[AUTH RUNTIME CHECK] Authentication system initialized',
-        'color: blue; font-weight: bold',
-        implementation
-      );
+      logger.info('Authentication system initialized', implementation, 'AuthRuntimeCheck');
       
       // Verify feature flags match implementation
       if (implementation.featureFlags.USE_MODULAR_AUTH && implementation.version !== 'modular') {
-        console.error(
-          '%c[AUTH RUNTIME ERROR] Feature flag enabled but modular auth not running!',
-          'color: red; font-weight: bold'
-        );
+        logger.error('Feature flag mismatch: USE_MODULAR_AUTH enabled but modular auth not running', 
+          null, { featureFlags: implementation.featureFlags, version: implementation.version }, 'AuthRuntimeCheck');
       }
     }
   }, 1000);

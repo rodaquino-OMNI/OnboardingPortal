@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+**/node_modules/
+vendor/
+**/vendor/
 
 # Production builds
 /.next/
@@ -20,6 +23,17 @@ node_modules/
 .env.production.secure
 .env.docker
 **/.env.docker
+.env.loadtest
+.env.performance
+.env.test
+.env.testing
+.env.backup
+**/.env.loadtest
+**/.env.performance
+**/.env.test
+**/.env.testing
+**/.env.backup
+**/.env.bak
 
 # SSL certificates and keys (NEVER commit these)
 *.pem
@@ -32,6 +46,7 @@ docker/nginx/ssl/
 
 # IDE and editor files
 .vscode/
+.vscode-extension-lock.json
 .idea/
 *.swp
 *.swo
@@ -79,6 +94,12 @@ test-results/
 playwright-report/
 coverage/
 .nyc_output/
+*.test_cookies.txt
+load-test-results.json
+load_test_results/
+bundle-analysis.json
+load-test.k6.js
+memory-profiler.js
 
 # Laravel cache files
 bootstrap/cache/*.php
@@ -356,6 +377,8 @@ run-integration-tests.sh
 run-video-interview-integration-tests.sh
 create-test-account.sh
 create-test-account2.sh
+load_test.sh
+database-performance-test.js
 
 # Development configuration variations
 .eslintrc.deprecation-rules.json
@@ -420,10 +443,23 @@ CLAUDE.md
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 # Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
 claude-flow.config.json
+config/
 .swarm/
 .hive-mind/
 memory/claude-flow-data.json

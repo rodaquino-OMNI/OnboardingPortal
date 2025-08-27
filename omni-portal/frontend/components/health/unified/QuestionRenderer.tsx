@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { ChevronRight, CheckCircle, Info, AlertCircle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 // INTEGRATION: Use SafeTouchButton for WCAG AAA compliance (48px touch targets)
 import { SafeTouchButton } from '@/components/health/touch/SafeTouchButton';
 import { Button } from '@/components/ui/button';
@@ -10,12 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useQuestionnaire, QuestionnaireFeature } from './BaseHealthQuestionnaire';
-import { HealthQuestion, QuestionValue } from '@/types';
+import { HealthQuestion, QuestionValue, QuestionType } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ErrorBoundary, useErrorHandler } from '../ErrorBoundary';
 import { useUnifiedNavigation, NAVIGATION_PROFILES, NavigationConfig } from '@/hooks/useUnifiedNavigation';
 import { ChronicConditionSelector } from '../structured/ChronicConditionSelector';
 import { MedicationSelector } from '../structured/MedicationSelector';
+import { AllergySelector } from '../structured/AllergySelector';
 import { ContactForm } from '../structured/ContactForm';
 import { SurgeryHistorySelector } from '../structured/SurgeryHistorySelector';
 
@@ -60,7 +62,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       // If current question is null but we have visible questions, 
       // check if we need to adjust the index
       const safeIndex = Math.min(state.currentQuestionIndex, visibleQuestions.length - 1);
-      console.warn(`Question index bounds adjusted from ${state.currentQuestionIndex} to ${safeIndex}`);
+      logger.warn('Question index bounds adjusted', {
+        from: state.currentQuestionIndex,
+        to: safeIndex
+      }, 'QuestionRenderer');
       return visibleQuestions[safeIndex] || null;
     }
     
@@ -78,24 +83,25 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     const requestedProfile = profileName || 'clinical';
     
     // Validate profile exists, with multiple fallback layers for safety
-    if ((NAVIGATION_PROFILES as any)[requestedProfile]) {
-      return (NAVIGATION_PROFILES as any)[requestedProfile];
+    const profile = NAVIGATION_PROFILES[requestedProfile as keyof typeof NAVIGATION_PROFILES];
+    if (profile) {
+      return profile;
     }
     
     // First fallback: clinical (medical safety priority)
     if (NAVIGATION_PROFILES.clinical) {
-      console.warn(`Navigation profile '${requestedProfile}' not found, using clinical profile for safety`);
+      logger.warn('Navigation profile not found, using clinical profile for safety', { requestedProfile }, 'QuestionRenderer');
       return NAVIGATION_PROFILES.clinical;
     }
     
     // Second fallback: standard (should always exist)
     if (NAVIGATION_PROFILES.standard) {
-      console.warn(`Clinical profile not found, using standard profile as fallback`);
+      logger.warn('Clinical profile not found, using standard profile as fallback', null, 'QuestionRenderer');
       return NAVIGATION_PROFILES.standard;
     }
     
     // Final fallback: minimal safe configuration (prevents crashes)
-    console.error('No navigation profiles found, using minimal safe configuration');
+    logger.error('No navigation profiles found, using minimal safe configuration', null, null, 'QuestionRenderer');
     return {
       autoAdvance: false,
       autoAdvanceDelay: 0,
@@ -116,7 +122,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       onNext: nextQuestion,
       onPrevious: previousQuestion,
       onValidationError: (error: string) => {
-        console.error('Validation error:', error);
+        logger.error('Validation error', null, { error }, 'QuestionRenderer');
         setValidationMessage(error);
         setShowError(true);
         // Ensure error is visible by forcing a re-render
@@ -144,7 +150,8 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       const storedValue = state.responses[currentQuestion.id] !== undefined 
         ? state.responses[currentQuestion.id] 
         : null;
-      setLocalValue(storedValue || null);
+      // IMPORTANT: Don't use || here - it converts 0 and false to null!
+      setLocalValue(storedValue ?? null);
       
       // Clear all error states when question changes
       setShowError(false);
@@ -169,14 +176,14 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       if (globalError !== validationMessage || !showError) {
         setValidationMessage(globalError);
         setShowError(true);
-        console.log('Validation error synchronized from global state:', globalError);
+        logger.debug('Validation error synchronized from global state', { globalError }, 'QuestionRenderer');
       }
     } else {
       // Clear local error state when global state clears (atomic operation)
       if (showError || validationMessage) {
         setShowError(false);
         setValidationMessage('');
-        console.log('Validation error cleared from global state');
+        logger.debug('Validation error cleared from global state', null, 'QuestionRenderer');
       }
     }
   }, [currentQuestion?.id, state.validationErrors, validationMessage, showError, currentQuestion]);
@@ -193,6 +200,15 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     try {
       if (!currentQuestion) return;
 
+      // Debug logging for PHQ-9 questions
+      if (process.env.NODE_ENV === 'development' && currentQuestion.metadata?.validatedTool === 'PHQ-9') {
+        logger.debug('PHQ-9 question response', {
+          questionId: currentQuestion.id,
+          value,
+          valueType: typeof value
+        }, 'QuestionRenderer');
+      }
+
       setLocalValue(value);
       setResponse(currentQuestion.id, value);
       
@@ -203,7 +219,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
       // Use unified navigation for response handling
       await navigation.handleResponse(value);
     } catch (error) {
-      console.error('Error handling response:', error);
+      logger.error('Error handling response', error as Error, null, 'QuestionRenderer');
       captureError(error as Error);
     }
   }, [currentQuestion, setResponse, navigation, captureError]);
@@ -213,7 +229,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     try {
       await navigation.handleNext();
     } catch (error) {
-      console.error('Error navigating to next question:', error);
+      logger.error('Error navigating to next question', error as Error, null, 'QuestionRenderer');
       captureError(error as Error);
     }
   }, [navigation, captureError]);
@@ -223,7 +239,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     try {
       navigation.handlePrevious();
     } catch (error) {
-      console.error('Error navigating to previous question:', error);
+      logger.error('Error navigating to previous question', error as Error, null, 'QuestionRenderer');
       captureError(error as Error);
     }
   }, [navigation, captureError]);
@@ -235,7 +251,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     const value = state.responses[currentQuestion.id];
     const error = state.validationErrors[currentQuestion.id];
 
-    switch (currentQuestion.type as any) {
+    switch (currentQuestion.type) {
       case 'boolean':
         return (
           <div className="grid grid-cols-2 gap-4" role="radiogroup" aria-labelledby="question-text">
@@ -271,22 +287,22 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
             {options.map((option, index) => (
               <SafeTouchButton
                 key={`${option.value}-${index}`}
-                variant={value === option.value ? 'primary' : 'secondary'}
+                variant={value === option.value || (typeof value === 'number' && typeof option.value === 'number' && value === option.value) ? 'primary' : 'secondary'}
                 size="standard"
                 onClick={() => handleResponse(option.value)}
                 className="w-full justify-start transition-all hover:scale-[1.02] active:scale-[0.98]"
                 role="radio"
-                aria-checked={value === option.value}
-                aria-describedby={(option as any).description ? `option-desc-${index}` : undefined}
+                aria-checked={value === option.value || (typeof value === 'number' && typeof option.value === 'number' && value === option.value)}
+                aria-describedby={'description' in option && option.description ? `option-desc-${index}` : undefined}
               >
                 <div className="text-left">
                   <div>{option.label}</div>
-                  {(option as any).description && (
+                  {'description' in option && option.description && (
                     <div 
                       id={`option-desc-${index}`}
                       className="text-sm text-gray-600 mt-1"
                     >
-                      {(option as any).description}
+                      {'description' in option ? option.description : ''}
                     </div>
                   )}
                 </div>
@@ -346,7 +362,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
               placeholder="Digite um número"
               min={currentQuestion.validation?.min}
               max={currentQuestion.validation?.max}
-              value={String(localValue || '')}
+              value={localValue !== null && localValue !== undefined ? String(localValue) : ''}
               onChange={(e) => {
                 const val = e.target.value === '' ? null : parseInt(e.target.value);
                 setLocalValue(val);
@@ -370,7 +386,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
             }`}
             rows={4}
             placeholder="Digite sua resposta..."
-            value={(localValue as string) || ''}
+            value={typeof localValue === 'string' ? localValue : ''}
             onChange={(e) => {
               setLocalValue(e.target.value);
               setResponse(currentQuestion.id, e.target.value);
@@ -408,10 +424,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <ChronicConditionSelector
             onComplete={(conditions) => {
-              handleResponse(conditions as any);
+              handleResponse(conditions);
             }}
             isProcessing={false}
-            initialValue={value as any || []}
+            initialValue={Array.isArray(value) ? value : []}
           />
         );
 
@@ -419,10 +435,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <MedicationSelector
             onComplete={(medications) => {
-              handleResponse(medications as any);
+              handleResponse(medications);
             }}
             isProcessing={false}
-            initialValue={value as any || []}
+            initialValue={Array.isArray(value) ? value : []}
           />
         );
 
@@ -430,10 +446,21 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <ContactForm
             onComplete={(contact) => {
-              handleResponse(contact as any);
+              handleResponse(contact);
             }}
             isProcessing={false}
-            initialValue={value as any}
+            initialValue={value}
+          />
+        );
+
+      case 'allergy_list':
+        return (
+          <AllergySelector
+            onComplete={(allergies) => {
+              handleResponse(allergies);
+            }}
+            isProcessing={false}
+            initialValue={Array.isArray(value) ? value : []}
           />
         );
 
@@ -441,10 +468,10 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
         return (
           <SurgeryHistorySelector
             onComplete={(surgeries) => {
-              handleResponse(surgeries as any);
+              handleResponse(surgeries);
             }}
             isProcessing={false}
-            initialValue={value as any || []}
+            initialValue={Array.isArray(value) ? value : []}
           />
         );
 
@@ -477,8 +504,20 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
     });
   };
 
+  // CRITICAL FIX: Ensure all hooks are called before any conditional returns
+  // This prevents "Rendered more hooks than during the previous render" error
+  // During section transitions, currentQuestion can become null but hooks must still execute
+  
+  // If no current question or section (happens during transitions), render a loading state
   if (!currentQuestion || !currentSection) {
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-gray-600">Carregando próxima seção...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -510,9 +549,9 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
                 <Badge variant="outline">
                   {currentSection.title} • Q{state.currentQuestionIndex + 1}/{visibleQuestions.length}
                 </Badge>
-                {(currentQuestion.metadata as any)?.validatedTool && (
+                {currentQuestion.metadata && 'validatedTool' in currentQuestion.metadata && currentQuestion.metadata.validatedTool && (
                   <Badge variant="secondary" className="text-xs">
-                    {(currentQuestion.metadata as any).validatedTool}
+                    {currentQuestion.metadata && 'validatedTool' in currentQuestion.metadata ? String(currentQuestion.metadata.validatedTool) : ''}
                   </Badge>
                 )}
               </div>
@@ -532,7 +571,7 @@ const QuestionRendererInner = memo(function QuestionRendererInner({ config, onPr
               </h2>
 
               {/* Risk Warning */}
-              {(currentQuestion as any).riskWeight && (currentQuestion as any).riskWeight >= 8 && (
+              {currentQuestion.metadata && 'riskWeight' in currentQuestion.metadata && typeof currentQuestion.metadata.riskWeight === 'number' && currentQuestion.metadata.riskWeight >= 8 && (
                 <Alert>
                   <Info className="w-4 h-4" />
                   <AlertDescription>
@@ -634,7 +673,7 @@ export const QuestionRenderer = memo(function QuestionRenderer(props: { config?:
   return (
     <ErrorBoundary
       onError={(error, errorInfo) => {
-        console.error('Question renderer error:', error, errorInfo);
+        logger.error('Question renderer error', error, { errorInfo }, 'QuestionRenderer');
         // Could also send to error tracking service
       }}
       resetKeys={[JSON.stringify(props.config || {})]}

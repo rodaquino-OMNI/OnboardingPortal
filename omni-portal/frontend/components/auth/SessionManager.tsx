@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import { 
+  useSafeTimeout, 
+  useSafeFetch,
+  usePerformanceMonitor,
+  MemoryLeakPrevention 
+} from '@/lib/react-performance-utils';
 
 interface Session {
   id: string;
@@ -14,19 +20,35 @@ interface SessionManagerProps {
   onSessionRevoked?: () => void;
 }
 
-export default function SessionManager({ onSessionRevoked }: SessionManagerProps) {
+const SessionManager = memo(function SessionManager({ onSessionRevoked }: SessionManagerProps) {
+  // Performance monitoring
+  const { renderStats } = usePerformanceMonitor('SessionManager');
+  const { setSafeTimeout, clearSafeTimeout } = useSafeTimeout();
+  const { safeFetch, abortRequest } = useSafeFetch();
+
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [tokenExpired, setTokenExpired] = useState(false);
 
-  const fetchSessions = async () => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearSafeTimeout();
+      abortRequest();
+      MemoryLeakPrevention.cleanup();
+    };
+  }, [clearSafeTimeout, abortRequest]);
+
+  const fetchSessions = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/sessions', {
+      const response = await safeFetch('/api/auth/sessions', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
+
+      if (!response) return; // Request was aborted
 
       if (response.ok) {
         const data = await response.json();
@@ -41,16 +63,18 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [safeFetch]);
 
-  const refreshToken = async () => {
+  const refreshToken = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/refresh', {
+      const response = await safeFetch('/api/auth/refresh', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
+
+      if (!response) return; // Request was aborted
 
       if (response.ok) {
         const data = await response.json();
@@ -64,9 +88,9 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
     } catch (err) {
       setTokenExpired(true);
     }
-  };
+  }, [safeFetch]);
 
-  const setupTokenRefresh = (): (() => void) | undefined => {
+  const setupTokenRefresh = useCallback((): (() => void) | undefined => {
     const tokenExpiresAt = localStorage.getItem('token_expires_at');
     if (!tokenExpiresAt) return undefined;
 
@@ -76,31 +100,33 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
     const refreshIn = Math.max(0, expiresIn - 60000);
 
     if (refreshIn > 0) {
-      const timeoutId = setTimeout(() => {
+      const timeoutId = setSafeTimeout(() => {
         refreshToken();
       }, refreshIn);
       
-      return () => clearTimeout(timeoutId);
+      return () => clearSafeTimeout();
     } else {
       refreshToken();
       return undefined;
     }
-  };
+  }, [setSafeTimeout, clearSafeTimeout, refreshToken]);
 
   useEffect(() => {
     fetchSessions();
     const cleanup = setupTokenRefresh();
     return cleanup;
-  }, []);
+  }, [setupTokenRefresh]);
 
-  const handleRevokeSession = async (sessionId: string) => {
+  const handleRevokeSession = useCallback(async (sessionId: string) => {
     try {
-      const response = await fetch(`/api/auth/sessions/${sessionId}`, {
+      const response = await safeFetch(`/api/auth/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
+
+      if (!response) return; // Request was aborted
 
       if (response.ok) {
         setSessions(sessions.filter(s => s.id !== sessionId));
@@ -111,7 +137,7 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
     } catch (err) {
       setError('Network error');
     }
-  };
+  }, [safeFetch, sessions, onSessionRevoked]);
 
   if (tokenExpired) {
     return (
@@ -157,7 +183,7 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
             ⚠️ Suspicious session detected
           </p>
           <p className="text-sm text-red-600 mt-1">
-            We detected unusual activity. Please review and revoke any sessions you don't recognize.
+            We detected unusual activity. Please review and revoke any sessions you don&apos;t recognize.
           </p>
         </div>
       )}
@@ -242,4 +268,6 @@ export default function SessionManager({ onSessionRevoked }: SessionManagerProps
       </div>
     </div>
   );
-}
+});
+
+export default SessionManager;

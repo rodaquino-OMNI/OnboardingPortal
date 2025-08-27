@@ -7,11 +7,13 @@ import { ServiceWorkerCleanup } from '@/components/ServiceWorkerCleanup';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Providers } from './providers';
 import { ServiceWorkerProvider } from '@/components/ServiceWorkerProvider';
+import { initializeChunkRecovery } from '@/lib/chunk-error-recovery';
 
-const inter = Inter({
+// Configure Inter font
+const inter = Inter({ 
   subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
+  display: 'swap',
+  variable: '--font-inter',
 });
 
 export const metadata: Metadata = {
@@ -41,9 +43,35 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Initialize chunk error recovery
+  if (typeof window !== 'undefined') {
+    initializeChunkRecovery();
+  }
+
   return (
-    <html lang="en" className={inter.variable}>
-      <head />
+    <html lang="en" className={inter.className}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                // Initialize chunk recovery before any other scripts
+                if (typeof window !== 'undefined') {
+                  window.__CHUNK_RECOVERY_INITIALIZED__ = true;
+                  
+                  // Early chunk error detection
+                  window.addEventListener('error', function(e) {
+                    if (e.message && (e.message.includes('Loading chunk') || e.message.includes('ChunkLoadError'))) {
+                      console.warn('[ChunkRecovery] Early chunk error detected, preparing recovery...');
+                      sessionStorage.setItem('chunk_error_detected', Date.now().toString());
+                    }
+                  }, true);
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased" suppressHydrationWarning={true}>
         <ErrorBoundary>
           <Providers>

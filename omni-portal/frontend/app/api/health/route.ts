@@ -11,6 +11,9 @@ export async function GET() {
       ? 'http://nginx/api' // Use nginx service internally
       : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api');
     
+    // For detailed health checks, also try direct backend connection
+    const backendDirectUrl = isInContainer ? 'http://backend:8000/api' : 'http://localhost:8000/api';
+    
     try {
       const response = await fetch(`${apiUrl}/health`, {
         method: 'GET',

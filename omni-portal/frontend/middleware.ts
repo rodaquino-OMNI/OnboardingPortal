@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { logger } from '@/lib/logger';
 
 // Safe debug logging without global object manipulation
 let lastDebugTime = 0;
@@ -18,7 +19,7 @@ export function middleware(request: NextRequest) {
     const response = NextResponse.next();
     
     // Fixed CORS to match actual development port  
-    response.headers.set('Access-Control-Allow-Origin', 'http://localhost:3000');
+    response.headers.set('Access-Control-Allow-Origin', 'http://localhost:3002');
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-TOKEN');
     response.headers.set('Access-Control-Allow-Credentials', 'true');
@@ -40,13 +41,14 @@ export function middleware(request: NextRequest) {
   const now = Date.now();
   if ((pathname === '/home' || pathname === '/login') && (now - lastDebugTime > DEBUG_INTERVAL)) {
     lastDebugTime = now;
-    console.log(`[MIDDLEWARE] Auth check for ${pathname}:`, {
+    logger.debug('Middleware auth check', {
+      pathname,
       hasAuthToken: !!authToken,
       hasSessionCookie: !!sessionCookie,
       hasLaravelSession: !!laravelSession,
       hasSanctumToken: !!sanctumToken,
       isAuthenticated
-    });
+    }, 'Middleware');
   }
 
   // Public routes that don't require authentication
@@ -88,26 +90,35 @@ export function middleware(request: NextRequest) {
 
   // For protected routes, require authentication
   if (isProtectedRoute && !isAuthenticated) {
+    // TECHNICAL EXCELLENCE FIX: Skip RSC requests to prevent client/server mismatch
+    const isRSCRequest = request.headers.get('rsc') === '1' || 
+                        request.headers.get('next-router-state-tree') || 
+                        request.headers.get('next-router-prefetch');
+    
+    if (isRSCRequest) {
+      // Return empty response for RSC requests when not authenticated
+      return new NextResponse(null, { status: 401 });
+    }
     // Enhanced redirect loop prevention
     const referer = request.headers.get('referer');
     const userAgent = request.headers.get('user-agent');
     
     // Check for redirect loops
     if (referer && (referer.includes('/login') || referer.includes('auth'))) {
-      console.log('[MIDDLEWARE] Preventing redirect loop - already from auth page');
+      logger.warn('Preventing redirect loop - already from auth page', { referer }, 'Middleware');
       return NextResponse.next();
     }
     
     // Check for repeated requests from same source
     const redirectCount = request.headers.get('x-redirect-count');
     if (redirectCount && parseInt(redirectCount) > 3) {
-      console.log('[MIDDLEWARE] Preventing redirect loop - too many redirects');
+      logger.warn('Preventing redirect loop - too many redirects', { redirectCount }, 'Middleware');
       return NextResponse.next();
     }
     
     // Only log redirects for debugging, avoid spam
     if (now - lastDebugTime > DEBUG_INTERVAL) {
-      console.log(`[MIDDLEWARE] Redirecting ${pathname} to login - no auth cookies found`);
+      logger.info('Redirecting to login - no auth cookies found', { pathname }, 'Middleware');
     }
     
     const loginUrl = new URL('/login', request.url);
@@ -121,6 +132,16 @@ export function middleware(request: NextRequest) {
 
   // For onboarding routes, check authentication state and session
   if (isOnboardingRoute) {
+    // TECHNICAL EXCELLENCE FIX: Skip RSC request redirects to prevent client/server mismatch
+    const isRSCRequest = request.headers.get('rsc') === '1' || 
+                        request.headers.get('next-router-state-tree') || 
+                        request.headers.get('next-router-prefetch');
+    
+    if (isRSCRequest) {
+      // Allow RSC requests to proceed without redirect to prevent fallback to browser navigation
+      return NextResponse.next();
+    }
+    
     // Check if there's any indication of user being in onboarding flow
     const onboardingSession = request.cookies.get('onboarding_session');
     const hasBasicAuth = request.cookies.get('basic_auth');
@@ -136,7 +157,7 @@ export function middleware(request: NextRequest) {
       
       // Allow direct access to welcome page for new users
       if (pathname === '/welcome' && (!referer || userAgent?.includes('curl'))) {
-        console.log('[MIDDLEWARE] Allowing direct access to welcome page');
+        logger.info('Allowing direct access to welcome page', { referer, userAgent: userAgent?.substring(0, 50) }, 'Middleware');
         
         // Set temporary onboarding session for new users
         const response = NextResponse.next();
@@ -191,4 +212,6 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|public|sw.js|manifest.json).*)',
   ],
+  // Ensure middleware runs on Node.js runtime to avoid Edge Runtime issues
+  runtime: 'nodejs'
 };

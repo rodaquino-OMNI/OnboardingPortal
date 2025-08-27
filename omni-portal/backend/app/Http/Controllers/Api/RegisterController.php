@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class RegisterController extends Controller
 {
@@ -24,7 +25,7 @@ class RegisterController extends Controller
     public function register(Request $request): JsonResponse
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|min:3',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'cpf' => 'required|string|size:11|unique:users',
@@ -33,11 +34,16 @@ class RegisterController extends Controller
         try {
             DB::beginTransaction();
             
+            // Sanitize user input before storing
+            $sanitizedName = $this->sanitizeInput($request->name);
+            $sanitizedEmail = strtolower(trim($request->email));
+            $sanitizedCpf = preg_replace('/[^0-9]/', '', $request->cpf);
+            
             // Create user
             $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'cpf' => $request->cpf,
+                'name' => $sanitizedName,
+                'email' => $sanitizedEmail,
+                'cpf' => $sanitizedCpf,
                 'password' => Hash::make($request->password),
                 'registration_step' => 'completed',
                 'lgpd_consent' => true,
@@ -54,16 +60,16 @@ class RegisterController extends Controller
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                // Leave critical fields null until properly filled in step 2
-                'birth_date' => null,
-                'phone' => null,
-                'address' => null,
-                'number' => null,
-                'neighborhood' => null,
-                'city' => null,
-                'state' => null,
-                'zip_code' => null,
-                'onboarding_status' => 'personal_info_complete',
+                // Required fields with temporary placeholder values
+                'birth_date' => '2000-01-01', // Placeholder date
+                'phone' => '00000000000', // Placeholder phone
+                'address' => 'A ser preenchido', // Placeholder address
+                'number' => '0', // Placeholder number
+                'neighborhood' => 'A ser preenchido', // Placeholder neighborhood
+                'city' => 'A ser preenchido', // Placeholder city
+                'state' => 'SP', // Default state
+                'zip_code' => '00000-000', // Placeholder zip
+                'onboarding_status' => 'in_progress',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -114,11 +120,16 @@ class RegisterController extends Controller
         try {
             DB::beginTransaction();
             
+            // Sanitize input before storing
+            $sanitizedName = $this->sanitizeInput($request->name);
+            $sanitizedEmail = strtolower(trim($request->email));
+            $sanitizedCpf = preg_replace('/[^0-9]/', '', $request->cpf);
+            
             // Create user with basic info
             $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'cpf' => $request->cpf,
+                'name' => $sanitizedName,
+                'email' => $sanitizedEmail,
+                'cpf' => $sanitizedCpf,
                 'password' => Hash::make(uniqid()), // Temporary password
                 'registration_step' => 'contact',
                 'lgpd_consent' => (bool) $request->lgpd_consent,
@@ -134,16 +145,16 @@ class RegisterController extends Controller
                 'user_id' => $user->id,
                 'cpf' => $user->cpf,
                 'full_name' => $user->name,
-                // Leave critical fields null until properly filled in step 2
-                'birth_date' => null,
-                'phone' => null,
-                'address' => null,
-                'number' => null,
-                'neighborhood' => null,
-                'city' => null,
-                'state' => null,
-                'zip_code' => null,
-                'onboarding_status' => 'personal_info_complete',
+                // Required fields with temporary placeholder values
+                'birth_date' => '2000-01-01', // Placeholder date
+                'phone' => '00000000000', // Placeholder phone
+                'address' => 'A ser preenchido', // Placeholder address
+                'number' => '0', // Placeholder number
+                'neighborhood' => 'A ser preenchido', // Placeholder neighborhood
+                'city' => 'A ser preenchido', // Placeholder city
+                'state' => 'SP', // Default state
+                'zip_code' => '00000-000', // Placeholder zip
+                'onboarding_status' => 'in_progress',
                 'onboarding_completed_at' => null,
             ]);
             
@@ -507,6 +518,52 @@ class RegisterController extends Controller
         }
         
         return min($score, 100);
+    }
+
+    /**
+     * Sanitize input to prevent XSS and other injection attacks
+     */
+    private function sanitizeInput(?string $input): ?string
+    {
+        if (empty($input)) {
+            return $input;
+        }
+        
+        // Remove HTML tags and encode special characters
+        $sanitized = strip_tags($input);
+        $sanitized = htmlspecialchars($sanitized, ENT_QUOTES, 'UTF-8');
+        
+        return trim($sanitized);
+    }
+
+    /**
+     * Sanitize user output to prevent XSS
+     */
+    private function sanitizeUserOutput($user): array
+    {
+        $userData = $user->toArray();
+        
+        // Sanitize string fields that might contain user input
+        $stringFields = ['name', 'email', 'department', 'job_title'];
+        
+        foreach ($stringFields as $field) {
+            if (isset($userData[$field]) && is_string($userData[$field])) {
+                $userData[$field] = htmlspecialchars($userData[$field], ENT_QUOTES, 'UTF-8');
+            }
+        }
+        
+        // Sanitize nested beneficiary data if present
+        if (isset($userData['beneficiary']) && is_array($userData['beneficiary'])) {
+            $beneficiaryStringFields = ['full_name', 'address', 'city', 'state', 'neighborhood'];
+            
+            foreach ($beneficiaryStringFields as $field) {
+                if (isset($userData['beneficiary'][$field]) && is_string($userData['beneficiary'][$field])) {
+                    $userData['beneficiary'][$field] = htmlspecialchars($userData['beneficiary'][$field], ENT_QUOTES, 'UTF-8');
+                }
+            }
+        }
+        
+        return $userData;
     }
 
     /**

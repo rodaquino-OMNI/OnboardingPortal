@@ -10,6 +10,7 @@ use Laravel\Sanctum\Sanctum;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Cache;
 
 class AuthenticationTest extends TestCase
 {
@@ -30,7 +31,8 @@ class AuthenticationTest extends TestCase
     {
         // Create a user with related models
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'name' => 'Test User',
+            'email' => 'valid@example.com',
             'password' => Hash::make('password123'),
             'email_verified_at' => now(),
             'registration_step' => 'completed',
@@ -43,7 +45,7 @@ class AuthenticationTest extends TestCase
 
         // Attempt login
         $response = $this->postJson('/api/auth/login', [
-            'email' => 'test@example.com',
+            'email' => 'valid@example.com',
             'password' => 'password123',
             'device_name' => 'web'
         ]);
@@ -158,15 +160,17 @@ class AuthenticationTest extends TestCase
      */
     public function test_login_fails_with_inactive_account()
     {
-        // Create inactive user
+        // Create inactive user (ensure it's not locked) with unique email
         $user = User::factory()->create([
-            'email' => 'test@example.com',
+            'email' => 'inactive@example.com',
             'password' => Hash::make('password123'),
-            'is_active' => false
+            'is_active' => false,
+            'failed_login_attempts' => 0,
+            'locked_until' => null
         ]);
 
         $response = $this->postJson('/api/auth/login', [
-            'email' => 'test@example.com',
+            'email' => 'inactive@example.com',
             'password' => 'password123'
         ]);
 
@@ -190,14 +194,14 @@ class AuthenticationTest extends TestCase
             'password' => Hash::make('password123')
         ]);
 
-        $throttleKey = 'test@example.com|127.0.0.1';
+        $throttleKey = 'login_throttle:test@example.com|127.0.0.1';
         
-        // Clear rate limiter first
-        RateLimiter::clear($throttleKey);
+        // Clear cache-based rate limiter first
+        Cache::forget($throttleKey);
 
         // Attempt login 5 times with wrong password, clearing rate limiter between attempts
         for ($i = 0; $i < 5; $i++) {
-            RateLimiter::clear($throttleKey);
+            Cache::forget($throttleKey);
             $this->postJson('/api/auth/login', [
                 'email' => 'test@example.com',
                 'password' => 'wrongpassword'
@@ -210,7 +214,7 @@ class AuthenticationTest extends TestCase
         $this->assertTrue($user->isLocked());
 
         // Clear rate limiter to test account lock specifically
-        RateLimiter::clear($throttleKey);
+        Cache::forget($throttleKey);
 
         // Try to login with correct password - should be blocked by account lock
         $response = $this->postJson('/api/auth/login', [

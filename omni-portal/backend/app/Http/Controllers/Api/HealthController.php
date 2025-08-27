@@ -24,12 +24,22 @@ class HealthController extends Controller
             try {
                 DB::connection()->getPdo();
                 DB::select('SELECT 1');
+                $driver = config('database.default');
+                $connectionConfig = config('database.connections.' . $driver);
+                
                 $checks['database'] = [
                     'status' => 'healthy',
                     'response_time' => round((microtime(true) - $dbStart) * 1000, 2) . 'ms',
-                    'driver' => config('database.default'),
-                    'host' => config('database.connections.' . config('database.default') . '.host')
+                    'driver' => $driver
                 ];
+                
+                // Add connection-specific details
+                if ($driver === 'sqlite') {
+                    $checks['database']['database'] = $connectionConfig['database'] ?? 'N/A';
+                } else {
+                    $checks['database']['host'] = $connectionConfig['host'] ?? 'N/A';
+                    $checks['database']['port'] = $connectionConfig['port'] ?? 'N/A';
+                }
             } catch (\Exception $e) {
                 $checks['database'] = [
                     'status' => 'unhealthy',
@@ -38,22 +48,33 @@ class HealthController extends Controller
                 $overallHealthy = false;
             }
 
-            // Redis health check
+            // Redis health check (optional in development)
             $redisStart = microtime(true);
             try {
-                Redis::ping();
-                $checks['redis'] = [
-                    'status' => 'healthy',
-                    'response_time' => round((microtime(true) - $redisStart) * 1000, 2) . 'ms',
-                    'host' => config('database.redis.default.host'),
-                    'port' => config('database.redis.default.port')
-                ];
+                if (class_exists('\Redis') && extension_loaded('redis')) {
+                    Redis::ping();
+                    $checks['redis'] = [
+                        'status' => 'healthy',
+                        'response_time' => round((microtime(true) - $redisStart) * 1000, 2) . 'ms',
+                        'host' => config('database.redis.default.host'),
+                        'port' => config('database.redis.default.port')
+                    ];
+                } else {
+                    $checks['redis'] = [
+                        'status' => 'unavailable',
+                        'message' => 'Redis extension not installed - using file cache'
+                    ];
+                }
             } catch (\Exception $e) {
                 $checks['redis'] = [
-                    'status' => 'unhealthy',
-                    'error' => $e->getMessage()
+                    'status' => 'unavailable',
+                    'error' => $e->getMessage(),
+                    'message' => 'Redis unavailable - using fallback cache'
                 ];
-                $overallHealthy = false;
+                // Don't mark overall health as unhealthy for Redis in development
+                if (config('app.env') === 'production') {
+                    $overallHealthy = false;
+                }
             }
 
             // Storage health check
@@ -104,13 +125,15 @@ class HealthController extends Controller
     }
 
     /**
-     * Simple liveness check
+     * Simple liveness check - no external dependencies
      */
     public function live()
     {
         return response()->json([
             'status' => 'alive',
             'timestamp' => now()->toISOString(),
+            'service' => 'omni-portal-backend',
+            'version' => config('app.version', '1.0.0'),
             'uptime' => $this->getUptime()
         ], 200);
     }
@@ -123,7 +146,18 @@ class HealthController extends Controller
         try {
             // Quick checks for essential services
             DB::select('SELECT 1');
-            Redis::ping();
+            
+            // Only check Redis if available
+            if (class_exists('\Redis') && extension_loaded('redis')) {
+                try {
+                    Redis::ping();
+                } catch (\Exception $e) {
+                    // Redis check failed but don't fail readiness in development
+                    if (config('app.env') === 'production') {
+                        throw $e;
+                    }
+                }
+            }
 
             return response()->json([
                 'status' => 'ready',

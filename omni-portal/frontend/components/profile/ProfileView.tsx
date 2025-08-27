@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import Image from 'next/image';
 import { Profile, ProfileMetrics } from '@/modules/profile/ProfileService';
 
 interface ProfileViewProps {
@@ -31,9 +32,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="flex items-center space-x-4">
             <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
               {profile.avatar ? (
-                <img 
+                <Image 
                   src={profile.avatar} 
                   alt={profile.name}
+                  width={80}
+                  height={80}
                   className="w-full h-full rounded-full object-cover"
                 />
               ) : (

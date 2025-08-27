@@ -17,15 +17,23 @@ export class AuthSync {
   }
 
   /**
-   * Check if authentication cookies exist
+   * Check if authentication exists (cookies or localStorage tokens)
    */
   hasAuthCookies(): boolean {
     if (typeof document === 'undefined') return false;
     
-    return document.cookie.includes('authenticated=true') || 
+    // Check cookies
+    const hasCookies = document.cookie.includes('authenticated=true') || 
            document.cookie.includes('auth_token=') ||
            document.cookie.includes('austa_health_portal_session=') ||
+           document.cookie.includes('laravel_session=') ||
            document.cookie.includes('XSRF-TOKEN=');
+    
+    // Also check localStorage for Bearer tokens
+    const hasToken = localStorage.getItem('auth_token') && 
+                    localStorage.getItem('auth_token') !== 'null';
+    
+    return hasCookies || hasToken;
   }
 
   /**
@@ -37,7 +45,7 @@ export class AuthSync {
     const cookies = document.cookie.split(';');
     for (const cookie of cookies) {
       const [name, value] = cookie.trim().split('=');
-      if (name === 'auth_token') {
+      if (name === 'auth_token' && value) {
         return decodeURIComponent(value);
       }
     }

@@ -4,6 +4,8 @@ namespace Tests\Unit\Services;
 
 use Tests\TestCase;
 use App\Services\OCRService;
+use App\Services\BrazilianDocumentService;
+use App\Services\ValidationUtilityService;
 use App\Models\Beneficiary;
 use App\Models\User;
 use Aws\Textract\TextractClient;
@@ -20,7 +22,9 @@ class OCRServiceTest extends TestCase
     {
         parent::setUp();
         
-        $this->ocrService = new OCRService();
+        $documentService = new BrazilianDocumentService();
+        $validationService = new ValidationUtilityService($documentService);
+        $this->ocrService = new OCRService($documentService, $validationService);
         
         // Create test beneficiary
         $user = User::factory()->create();

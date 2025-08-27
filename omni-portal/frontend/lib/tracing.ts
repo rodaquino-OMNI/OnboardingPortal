@@ -1,16 +1,58 @@
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-web';
-import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
-import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
-import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
-import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
-import { ZoneContextManager } from '@opentelemetry/context-zone';
-import { context, trace } from '@opentelemetry/api';
+// Lazy loaded OpenTelemetry imports to reduce initial bundle size
+let tracingModules: any = null;
+
+async function loadTracingModules() {
+  if (tracingModules) return tracingModules;
+  
+  const [
+    { WebTracerProvider },
+    { Resource },
+    { SemanticResourceAttributes },
+    { BatchSpanProcessor },
+    { JaegerExporter },
+    { OTLPTraceExporter },
+    { registerInstrumentations },
+    { FetchInstrumentation },
+    { XMLHttpRequestInstrumentation },
+    { UserInteractionInstrumentation },
+    { DocumentLoadInstrumentation },
+    { ZoneContextManager },
+    { context, trace }
+  ] = await Promise.all([
+    import('@opentelemetry/sdk-trace-web'),
+    import('@opentelemetry/resources'),
+    import('@opentelemetry/semantic-conventions'),
+    import('@opentelemetry/sdk-trace-web'),
+    import('@opentelemetry/exporter-jaeger'),
+    import('@opentelemetry/exporter-trace-otlp-http'),
+    import('@opentelemetry/instrumentation'),
+    import('@opentelemetry/instrumentation-fetch'),
+    import('@opentelemetry/instrumentation-xml-http-request'),
+    import('@opentelemetry/instrumentation-user-interaction'),
+    import('@opentelemetry/instrumentation-document-load'),
+    import('@opentelemetry/context-zone'),
+    import('@opentelemetry/api')
+  ]);
+
+  tracingModules = {
+    WebTracerProvider,
+    Resource,
+    SemanticResourceAttributes,
+    BatchSpanProcessor,
+    JaegerExporter,
+    OTLPTraceExporter,
+    registerInstrumentations,
+    FetchInstrumentation,
+    XMLHttpRequestInstrumentation,
+    UserInteractionInstrumentation,
+    DocumentLoadInstrumentation,
+    ZoneContextManager,
+    context,
+    trace
+  };
+
+  return tracingModules;
+}
 
 // Configuration
 const config = {
@@ -25,12 +67,27 @@ const config = {
 
 let isInitialized = false;
 
-export function initializeTracing(): void {
+export async function initializeTracing(): Promise<void> {
   if (!config.enabled || isInitialized || typeof window === 'undefined') {
     return;
   }
 
   try {
+    const {
+      WebTracerProvider,
+      Resource,
+      SemanticResourceAttributes,
+      BatchSpanProcessor,
+      JaegerExporter,
+      OTLPTraceExporter,
+      registerInstrumentations,
+      FetchInstrumentation,
+      XMLHttpRequestInstrumentation,
+      UserInteractionInstrumentation,
+      DocumentLoadInstrumentation,
+      ZoneContextManager
+    } = await loadTracingModules();
+
     // Create resource
     const resource = new Resource({
       [SemanticResourceAttributes.SERVICE_NAME]: config.serviceName,
@@ -114,11 +171,12 @@ export function initializeTracing(): void {
 }
 
 // Custom tracing utilities
-export function createSpan(name: string, attributes?: Record<string, any>) {
+export async function createSpan(name: string, attributes?: Record<string, any>) {
   if (!config.enabled || typeof window === 'undefined') {
     return null;
   }
 
+  const { trace } = await loadTracingModules();
   const tracer = trace.getTracer(config.serviceName, config.serviceVersion);
   return tracer.startSpan(name, {
     attributes: {
@@ -128,16 +186,16 @@ export function createSpan(name: string, attributes?: Record<string, any>) {
   });
 }
 
-export function withTracing<T>(
+export async function withTracing<T>(
   name: string,
   fn: () => T | Promise<T>,
   attributes?: Record<string, any>
-): T | Promise<T> {
+): Promise<T> {
   if (!config.enabled || typeof window === 'undefined') {
     return fn();
   }
 
-  const span = createSpan(name, attributes);
+  const span = await createSpan(name, attributes);
   if (!span) {
     return fn();
   }
@@ -172,22 +230,24 @@ export function withTracing<T>(
   }
 }
 
-export function addSpanEvent(name: string, attributes?: Record<string, any>) {
+export async function addSpanEvent(name: string, attributes?: Record<string, any>) {
   if (!config.enabled || typeof window === 'undefined') {
     return;
   }
 
+  const { trace } = await loadTracingModules();
   const activeSpan = trace.getActiveSpan();
   if (activeSpan) {
     activeSpan.addEvent(name, attributes);
   }
 }
 
-export function setSpanAttribute(key: string, value: any) {
+export async function setSpanAttribute(key: string, value: any) {
   if (!config.enabled || typeof window === 'undefined') {
     return;
   }
 
+  const { trace } = await loadTracingModules();
   const activeSpan = trace.getActiveSpan();
   if (activeSpan) {
     activeSpan.setAttribute(key, value);
@@ -220,7 +280,10 @@ export function useTracing(componentName: string) {
   };
 }
 
-// Initialize when module loads in browser
-if (typeof window !== 'undefined') {
-  initializeTracing();
+// Initialize when module loads in browser (only if enabled)
+if (typeof window !== 'undefined' && config.enabled) {
+  // Defer initialization to avoid blocking page load
+  setTimeout(() => {
+    initializeTracing().catch(console.error);
+  }, 1000);
 }

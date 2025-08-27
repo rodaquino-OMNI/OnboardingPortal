@@ -101,8 +101,8 @@ export function useCancellableRequest() {
 
   React.useEffect(() => {
     // Cleanup all active requests on unmount
+    const currentRequests = activeRequests.current;
     return () => {
-      const currentRequests = activeRequests.current;
       currentRequests.forEach(request => {
         if (!request.isCancelled()) {
           request.cancel();

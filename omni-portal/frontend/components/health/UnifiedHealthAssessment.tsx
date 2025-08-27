@@ -1,6 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { 
+  usePerformanceMonitor,
+  useComponentLifecycle,
+  useSafeTimeout,
+  MemoryLeakPrevention
+} from '@/lib/react-performance-utils';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -36,12 +42,17 @@ interface UnifiedHealthAssessmentProps {
   onGamificationEvent?: (event: any) => void;
 }
 
-function UnifiedHealthAssessmentInner({ 
+const UnifiedHealthAssessmentInner = memo(function UnifiedHealthAssessmentInner({ 
   onComplete, 
   onDomainChange,
   onProgressUpdate,
   onGamificationEvent
 }: UnifiedHealthAssessmentProps) {
+  // Performance monitoring
+  const { renderStats } = usePerformanceMonitor('UnifiedHealthAssessment');
+  const lifecycle = useComponentLifecycle('UnifiedHealthAssessment');
+  const { setSafeTimeout, clearSafeTimeout } = useSafeTimeout();
+
   // CRITICAL PERFORMANCE FIX: Use useMemo to prevent expensive object recreation on every render
   const flow = useMemo(() => new UnifiedHealthFlow(), []);
   const [currentQuestion, setCurrentQuestion] = useState<HealthQuestion | null>(null);
@@ -57,6 +68,14 @@ function UnifiedHealthAssessmentInner({
   const [isClient, setIsClient] = useState(false);
   const { captureError } = useErrorHandler();
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      clearSafeTimeout();
+      MemoryLeakPrevention.cleanup();
+    };
+  }, [clearSafeTimeout]);
+
   // Define addBotMessage first since it's used by other callbacks
   const addBotMessage = useCallback((content: string, domain?: string) => {
     setConversationHistory(prev => [...prev, {
@@ -65,7 +84,7 @@ function UnifiedHealthAssessmentInner({
       timestamp: new Date(),
       ...(domain !== undefined && { domain })
     }]);
-  }, [setConversationHistory]);
+  }, []);
 
   const addUserMessage = useCallback((content: string) => {
     setConversationHistory(prev => [...prev, {
@@ -73,7 +92,7 @@ function UnifiedHealthAssessmentInner({
       content,
       timestamp: new Date()
     }]);
-  }, [setConversationHistory]);
+  }, []);
 
   const handleResponse = async (value: any) => {
     if (!currentQuestion) return;
@@ -141,10 +160,11 @@ function UnifiedHealthAssessmentInner({
           "Com base nas suas respostas, preparei recomendações personalizadas para você."
         );
         
-        // Remove auto-advancement - user will click continue button in the complete view
+        // Complete the assessment
+        onComplete(result.results!);
         break;
     }
-  }, [onProgressUpdate, onGamificationEvent]);
+  }, [addBotMessage, onDomainChange, onProgressUpdate, onGamificationEvent, onComplete]);
 
   const formatResponseForDisplay = useCallback((question: HealthQuestion, value: any): string => {
     if (question.type === 'scale') {
@@ -495,10 +515,10 @@ function UnifiedHealthAssessmentInner({
       </div>
     </div>
   );
-}
+});
 
-// Helper Components
-function MultiSelectQuestion({ question, onComplete }: { question: HealthQuestion, onComplete: (value: any[]) => void }) {
+// Helper Components with memoization
+const MultiSelectQuestion = memo(function MultiSelectQuestion({ question, onComplete }: { question: HealthQuestion, onComplete: (value: any[]) => void }) {
   const [selected, setSelected] = useState<any[]>([]);
 
   const toggleOption = (value: any) => {
@@ -542,9 +562,9 @@ function MultiSelectQuestion({ question, onComplete }: { question: HealthQuestio
       )}
     </div>
   );
-}
+});
 
-function TextInputQuestion({ question, onComplete }: { question: HealthQuestion, onComplete: (value: any) => void }) {
+const TextInputQuestion = memo(function TextInputQuestion({ question, onComplete }: { question: HealthQuestion, onComplete: (value: any) => void }) {
   const [value, setValue] = useState('');
 
   const handleSubmit = () => {
@@ -579,7 +599,9 @@ function TextInputQuestion({ question, onComplete }: { question: HealthQuestion,
       </Button>
     </div>
   );
-}
+});
+
+export { MultiSelectQuestion, TextInputQuestion };
 
 // Main component with error boundary wrapper
 export function UnifiedHealthAssessment(props: UnifiedHealthAssessmentProps) {

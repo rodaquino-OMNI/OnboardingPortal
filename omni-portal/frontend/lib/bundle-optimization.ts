@@ -153,7 +153,7 @@ class BundleOptimizer {
     const observer = new PerformanceObserver((list) => {
       list.getEntries().forEach((entry) => {
         if (entry.name.includes('chunk') || entry.name.includes('.js')) {
-          this.recordMetric('totalSize', entry.transferSize || 0);
+          this.recordMetric('totalSize', (entry as any).transferSize || 0);
         }
       });
     });

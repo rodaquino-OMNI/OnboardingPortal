@@ -51,11 +51,11 @@ return new class extends Migration
             $table->timestamps();
             
             // Indexes
-            $table->index(['status', 'appointment_type_id', 'expires_at']);
-            $table->index(['beneficiary_id']);
-            $table->index(['healthcare_professional_id']);
-            $table->index(['medical_urgency', 'priority_score']);
-            $table->index(['status', 'expires_at']);
+            $table->index(['status', 'appointment_type_id', 'expires_at'], 'idx_waitlist_status_type_expires');
+            $table->index(['beneficiary_id'], 'idx_waitlist_beneficiary');
+            $table->index(['healthcare_professional_id'], 'idx_waitlist_professional');
+            $table->index(['medical_urgency', 'priority_score'], 'idx_waitlist_urgency_priority');
+            $table->index(['status', 'expires_at'], 'idx_waitlist_status_expires');
         });
     }
 

@@ -11,12 +11,24 @@ const nextConfig = {
   
   // Build performance optimizations
   productionBrowserSourceMaps: false,
+  
+  // Enhanced modular imports for better tree-shaking
   modularizeImports: {
+    // OpenTelemetry lazy loading
     '@opentelemetry/api': {
-      transform: '@opentelemetry/api/{{member}}'
+      transform: '@opentelemetry/api/{{member}}',
+      preventFullImport: true
     },
+    // Lucide React optimized imports
     'lucide-react': {
-      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}'
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+      preventFullImport: true,
+      skipDefaultConversion: true
+    },
+    // Lodash tree-shaking
+    'lodash-es': {
+      transform: 'lodash-es/{{member}}',
+      preventFullImport: true
     }
   },
   images: {
@@ -111,21 +123,65 @@ const nextConfig = {
       }
     });
 
-    // Optimized bundle splitting for faster builds
+    // Enhanced bundle splitting for better caching and smaller chunks
     if (!isServer && !dev) {
       config.optimization.splitChunks = {
         chunks: 'all',
-        minSize: 20000,
-        maxSize: 244000,
+        minSize: 15000,
+        maxSize: 200000, // Smaller max size for better caching
+        maxAsyncRequests: 10,
+        maxInitialRequests: 6,
         cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            priority: 10,
+          // React and core framework
+          framework: {
+            test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
+            name: 'framework',
+            priority: 40,
             chunks: 'all',
             enforce: true,
             reuseExistingChunk: true
           },
+          
+          // Large libraries that change infrequently
+          lib: {
+            test: /[\\/]node_modules[\\/](@tanstack|framer-motion|chart\.js|tesseract\.js)[\\/]/,
+            name: 'lib',
+            priority: 30,
+            chunks: 'all',
+            enforce: true,
+            reuseExistingChunk: true
+          },
+          
+          // UI libraries
+          ui: {
+            test: /[\\/]node_modules[\\/](@radix-ui|lucide-react)[\\/]/,
+            name: 'ui',
+            priority: 20,
+            chunks: 'all',
+            reuseExistingChunk: true
+          },
+          
+          // OpenTelemetry (lazy loaded, so separate chunk)
+          telemetry: {
+            test: /[\\/]node_modules[\\/]@opentelemetry[\\/]/,
+            name: 'telemetry',
+            priority: 15,
+            chunks: 'async', // Only load when needed
+            reuseExistingChunk: true
+          },
+          
+          // Other vendor code
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendor',
+            priority: 10,
+            chunks: 'all',
+            reuseExistingChunk: true,
+            minChunks: 1,
+            maxSize: 150000
+          },
+          
+          // Common app code
           common: {
             name: 'common',
             minChunks: 2,

@@ -23,10 +23,10 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string'], // Allow both email and CPF
-            'password' => ['required', 'string'],
+            'email' => ['required', 'string', 'max:255'], // Allow both email and CPF
+            'password' => ['required', 'string', 'min:8'],
             'remember' => ['boolean'],
-            'device_name' => ['sometimes', 'string', 'max:255'], // For mobile apps
+            'device_name' => ['sometimes', 'string', 'max:100'], // Limit device name length
         ];
     }
 
@@ -46,10 +46,13 @@ class LoginRequest extends FormRequest
      */
     public function getLoginField(): string
     {
-        $login = $this->input('email');
+        $login = trim($this->input('email'));
         
-        // Check if it's a CPF (numbers only)
-        if (preg_match('/^\d{11}$/', preg_replace('/[^0-9]/', '', $login))) {
+        // Clean the login input and check if it's a CPF
+        $cleanedLogin = preg_replace('/[^0-9]/', '', $login);
+        
+        // Check if it's a CPF (exactly 11 digits after cleaning)
+        if (strlen($cleanedLogin) === 11 && preg_match('/^\d{11}$/', $cleanedLogin)) {
             return 'cpf';
         }
         
@@ -62,11 +65,14 @@ class LoginRequest extends FormRequest
     public function getCredentials(): array
     {
         $field = $this->getLoginField();
-        $value = $this->input('email');
+        $value = trim($this->input('email'));
         
         // Clean CPF if needed
         if ($field === 'cpf') {
             $value = preg_replace('/[^0-9]/', '', $value);
+        } else {
+            // For email, normalize to lowercase and validate format
+            $value = strtolower($value);
         }
         
         return [

@@ -19,9 +19,9 @@ export default function AuthLayout({
       {/* Right side - Decorative */}
       <div className="hidden lg:block lg:w-1/2 relative bg-gradient-to-br from-blue-600 via-purple-600 to-purple-800">
         <div className="absolute inset-0 bg-black/10" />
-        <div className="relative h-full flex items-center justify-center p-12">
+        <div className="relative h-full flex items-start justify-center pt-[120px] px-12">
           <div className="max-w-md text-white">
-            <h2 className="text-4xl font-bold mb-6 tracking-tight">Bem-vindo ao Portal de Onboarding</h2>
+            <h2 className="text-4xl font-bold mb-6 tracking-tight">Aqui inicia sua jornada no Austa</h2>
             <p className="text-lg mb-8 opacity-90 leading-relaxed">
               Junte-se a nós e comece sua jornada de forma simples e rápida. 
               Nosso processo de onboarding foi projetado para ser intuitivo e eficiente.

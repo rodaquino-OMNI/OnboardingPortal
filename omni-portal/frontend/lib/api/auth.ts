@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { LoginData, RegisterData, ForgotPasswordData, ResetPasswordData } from '@/lib/schemas/auth';
 import type { AuthResponse, AuthUser } from '@/types/auth';
+import { logger } from '@/lib/logger';
 
 // Use the proper LoginResponse type from types/auth.ts
 import type { LoginResponse } from '@/types/auth';
@@ -18,13 +19,27 @@ const api = axios.create({
   timeout: 15000, // 15 second timeout
 });
 
-// Add CSRF token to requests - tokens now handled via httpOnly cookies
-api.interceptors.request.use((config) => {
+// Add authentication and CSRF tokens to requests
+api.interceptors.request.use(async (config) => {
   // Add XSRF token for Sanctum stateful requests
   const xsrfToken = getCookie('XSRF-TOKEN');
   if (xsrfToken) {
-    // Use X-CSRF-TOKEN header for Laravel CSRF protection
-    config.headers['X-CSRF-TOKEN'] = xsrfToken;
+    // Use X-XSRF-TOKEN header for Sanctum (not X-CSRF-TOKEN)
+    config.headers['X-XSRF-TOKEN'] = decodeURIComponent(xsrfToken);
+  }
+  
+  // Add auth token from authTokenManager for authenticated requests
+  try {
+    const { authTokenManager } = await import('@/lib/auth-token-fix');
+    const authHeader = authTokenManager.getAuthHeader();
+    if (authHeader) {
+      config.headers.Authorization = authHeader;
+      console.debug('[Auth API] Bearer token attached to request');
+    } else {
+      console.debug('[Auth API] No auth token found, using cookie authentication');
+    }
+  } catch (e) {
+    console.warn('[Auth API] Could not attach auth token:', e);
   }
   
   // Add AbortSignal support if provided
@@ -51,7 +66,7 @@ function getCookie(name: string): string | null {
       return cookieValue ? decodeURIComponent(cookieValue) : null;
     }
   } catch (error) {
-    console.warn(`Error reading cookie ${name}:`, error);
+    logger.warn('Error reading cookie', error, 'CookieManager');
   }
   return null;
 }
@@ -61,10 +76,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      console.log('[API INTERCEPTOR] 401 Error:', {
+      logger.info('401 Authentication error', {
         url: error.config?.url,
         method: error.config?.method
-      });
+      }, 'ApiInterceptor');
       
       // Don't redirect for public endpoints or gamification endpoints
       const isPublicEndpoint = error.config?.url?.includes('/public/') || 
@@ -86,7 +101,7 @@ api.interceptors.response.use(
       // 5. We're on the client side
       if (!isPublicEndpoint && !isAuthEndpoint && !hasAuthCookie && 
           typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        console.log('[API INTERCEPTOR] Redirecting to login');
+        logger.info('Redirecting to login page', null, 'ApiInterceptor');
         window.location.href = '/login';
       }
     }
@@ -141,6 +156,14 @@ export const authApi = {
       throw new Error(`Registration incomplete. Please complete step: ${registrationStep}`);
     }
     
+    // Store token if provided by backend
+    if (response.data.token) {
+      // Import and use authTokenManager for consistent token storage
+      const { authTokenManager } = await import('@/lib/auth-token-fix');
+      authTokenManager.setToken(response.data.token, response.data.user);
+      console.log('[Auth API] Token stored after login:', response.data.token.substring(0, 10) + '...');
+    }
+    
     // Return the response in the expected format (with token if provided)
     return {
       token: response.data.token || 'secured-httponly-cookie', // Use actual token if provided
@@ -152,8 +175,8 @@ export const authApi = {
         points: response.data.user?.gamification_progress?.points || 0,
         level: response.data.user?.gamification_progress?.level || 1,
         lgpd_consent: response.data.user?.lgpd_consent || false,
-        lgpd_consent_at: response.data.user?.lgpd_consent_at || undefined,
-        last_login_at: response.data.user?.last_login_at || undefined,
+        ...(response.data.user?.lgpd_consent_at && { lgpd_consent_at: response.data.user.lgpd_consent_at }),
+        ...(response.data.user?.last_login_at && { last_login_at: response.data.user.last_login_at }),
       }
     };
   },
@@ -231,8 +254,8 @@ export const authApi = {
         points: step3Response.data.user.gamification_progress?.points || 0,
         level: step3Response.data.user.gamification_progress?.level || 1,
         lgpd_consent: step3Response.data.user.lgpd_consent || false,
-        lgpd_consent_at: step3Response.data.user.lgpd_consent_at || undefined,
-        last_login_at: step3Response.data.user.last_login_at || undefined,
+        ...(step3Response.data.user.lgpd_consent_at && { lgpd_consent_at: step3Response.data.user.lgpd_consent_at }),
+        ...(step3Response.data.user.last_login_at && { last_login_at: step3Response.data.user.last_login_at }),
       }
     };
   },
@@ -256,9 +279,10 @@ export const authApi = {
     try {
       const response = await api.get<{ user: AuthResponse['user'] }>('/auth/user');
       return response.data.user;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If unauthenticated, throw error to be handled by checkAuth
-      if (error.response?.status === 401 || error.response?.data?.message === 'Unauthenticated.') {
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      if (axiosError.response?.status === 401 || axiosError.response?.data?.message === 'Unauthenticated.') {
         throw new Error('Unauthenticated');
       }
       throw error;

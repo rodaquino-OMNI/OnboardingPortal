@@ -10,6 +10,7 @@ import '@testing-library/jest-dom';
 // Import components that handle telemedicine security
 import { VideoConferencing } from '@/components/video/VideoConferencing';
 import InterviewUnlockCard from '@/components/dashboard/InterviewUnlockCard';
+import { InterviewScheduler } from '@/components/interview/InterviewScheduler';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 // Mock security-related modules

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ApiResponse, GamificationStats, GamificationBadge, LeaderboardEntry } from '@/types';
+import { DashboardSummary, GamificationLevel } from '@/types/api';
 import { LGPDPrivacySettings, LGPDConsentHistoryEntry, LGPDDataProcessingActivity, LGPDConsentWithdrawal, LGPDAccountDeletionRequest } from '@/types/lgpd';
 import { getApiUrl } from '@/lib/api-config';
 
@@ -181,6 +182,8 @@ class ApiService {
     if (axios.isAxiosError(error)) {
       return {
         success: false,
+        data: null as never,
+        status: error.response?.status || 500,
         error: {
           code: error.response?.data?.error?.code || 'UNKNOWN_ERROR',
           message: error.response?.data?.error?.message || error.message,
@@ -190,6 +193,8 @@ class ApiService {
     }
     return {
       success: false,
+      data: null as any,
+      status: 500,
       error: {
         code: 'UNKNOWN_ERROR',
         message: 'An unexpected error occurred',

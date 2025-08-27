@@ -3,6 +3,8 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { HealthQuestion, QuestionValue } from '@/types';
 import { useCancellableRequest } from '@/lib/async-utils';
+import { logger } from '@/lib/logger';
+import { useSafeTimeout, useSafeInterval } from '@/lib/react-performance-utils';
 
 export interface NavigationConfig {
   autoAdvance: boolean;
@@ -39,8 +41,11 @@ export function useUnifiedNavigation(
 ) {
   const finalConfig = { ...DEFAULT_CONFIG, ...config };
   const { makeRequest, cancelAll } = useCancellableRequest();
-  const autoAdvanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const navigationInProgressRef = useRef(false);
+  // MEMORY LEAK FIX: Replace raw timeout/interval with safe versions
+  const { setSafeTimeout, clearSafeTimeout } = useSafeTimeout();
+  const { setSafeInterval, clearSafeInterval } = useSafeInterval();
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // CRITICAL FIX: Use ref to always get current value and avoid stale closures
   const questionValueRef = useRef<QuestionValue>(questionValue);
@@ -48,15 +53,30 @@ export function useUnifiedNavigation(
     questionValueRef.current = questionValue;
   }, [questionValue]);
 
-  // Clear any pending auto-advance on unmount or question change
+  // MEMORY LEAK FIX: Comprehensive cleanup on unmount and question change
   useEffect(() => {
     return () => {
-      if (autoAdvanceTimeoutRef.current) {
-        clearTimeout(autoAdvanceTimeoutRef.current);
+      // Clear safe timeouts and intervals
+      clearSafeTimeout();
+      clearSafeInterval();
+      
+      // Clear any remaining progress interval
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
+      
+      // Cancel all pending requests
       cancelAll();
+      
+      // Reset navigation state
+      navigationInProgressRef.current = false;
+      
+      logger.debug('Navigation hook cleanup completed', {
+        questionId: currentQuestion?.id
+      }, 'useUnifiedNavigation');
     };
-  }, [currentQuestion, cancelAll]);
+  }, [currentQuestion, cancelAll, clearSafeTimeout, clearSafeInterval]);
 
   // Determine if question should auto-advance with enhanced safety checks
   const shouldAutoAdvance = useCallback((question: HealthQuestion): boolean => {
@@ -117,9 +137,10 @@ export function useUnifiedNavigation(
       questionValueRef.current = value;
       
       // Clear any pending auto-advance to prevent conflicts
-      if (autoAdvanceTimeoutRef.current) {
-        clearTimeout(autoAdvanceTimeoutRef.current);
-        autoAdvanceTimeoutRef.current = null;
+      clearSafeTimeout();
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
 
       // Notify callbacks that response was updated
@@ -138,9 +159,9 @@ export function useUnifiedNavigation(
             let remainingTime = finalConfig.autoAdvanceDelay;
             const interval = 100; // Update every 100ms for smooth progress
             
-            const progressInterval = setInterval(() => {
+            const progressInterval = setSafeInterval(() => {
               if (abortSignal.aborted) {
-                clearInterval(progressInterval);
+                clearSafeInterval();
                 reject(new Error('Navigation cancelled'));
                 return;
               }
@@ -150,17 +171,17 @@ export function useUnifiedNavigation(
               callbacks.onProgress?.(Math.min(progress, 100));
               
               if (remainingTime <= 0) {
-                clearInterval(progressInterval);
+                clearSafeInterval();
                 resolve();
               }
             }, interval);
             
             // Store the interval reference for cleanup
-            autoAdvanceTimeoutRef.current = progressInterval as any;
+            progressIntervalRef.current = progressInterval;
 
             abortSignal.addEventListener('abort', () => {
-              clearInterval(progressInterval);
-              autoAdvanceTimeoutRef.current = null;
+              clearSafeInterval();
+              progressIntervalRef.current = null;
               reject(new Error('Navigation cancelled'));
             });
           });
@@ -175,14 +196,15 @@ export function useUnifiedNavigation(
       }
     } catch (error) {
       if (error instanceof Error && error.message !== 'Navigation cancelled') {
-        console.error('Navigation error:', error);
+        logger.error('Navigation error', error, null, 'UnifiedNavigation');
         callbacks.onValidationError?.('Erro ao processar resposta. Tente novamente.');
       }
     } finally {
       navigationInProgressRef.current = false;
-      if (autoAdvanceTimeoutRef.current) {
-        clearTimeout(autoAdvanceTimeoutRef.current);
-        autoAdvanceTimeoutRef.current = null;
+      clearSafeTimeout();
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
       }
     }
   }, [currentQuestion, shouldAutoAdvance, finalConfig.autoAdvanceDelay, makeRequest, callbacks]);
@@ -272,7 +294,7 @@ export function useUnifiedNavigation(
       callbacks.onNavigationComplete?.();
 
     } catch (error) {
-      console.error('Navigation error:', error);
+      logger.error('Navigation error', error as Error, null, 'UnifiedNavigation');
       callbacks.onValidationError('Erro ao navegar. Tente novamente.');
     } finally {
       navigationInProgressRef.current = false;
@@ -284,26 +306,28 @@ export function useUnifiedNavigation(
     if (navigationInProgressRef.current) return;
 
     // Cancel any pending auto-advance
-    if (autoAdvanceTimeoutRef.current) {
-      clearTimeout(autoAdvanceTimeoutRef.current);
-      autoAdvanceTimeoutRef.current = null;
+    clearSafeTimeout();
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
 
     cancelAll();
     callbacks.onPrevious();
-  }, [callbacks, cancelAll]);
+  }, [callbacks, cancelAll, clearSafeTimeout]);
 
   // Cancel navigation
   const cancelNavigation = useCallback(() => {
     navigationInProgressRef.current = false;
     
-    if (autoAdvanceTimeoutRef.current) {
-      clearTimeout(autoAdvanceTimeoutRef.current);
-      autoAdvanceTimeoutRef.current = null;
+    clearSafeTimeout();
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
     
     cancelAll();
-  }, [cancelAll]);
+  }, [cancelAll, clearSafeTimeout]);
 
   // Get navigation state with enhanced information and validation
   const getNavigationState = useCallback(() => {
@@ -312,6 +336,18 @@ export function useUnifiedNavigation(
     // TECHNICAL EXCELLENCE: Explicitly handle all valid response types including false and 0
     let hasValue = false;
     const currentValue = questionValueRef.current;
+    
+    // Debug logging for validation issues
+    if (process.env.NODE_ENV === 'development' && currentQuestion) {
+      logger.debug('Navigation validation details', {
+        questionId: currentQuestion.id,
+        questionType: currentQuestion.type,
+        value: currentValue,
+        valueType: typeof currentValue,
+        required: currentQuestion.required,
+        metadata: currentQuestion.metadata
+      }, 'UnifiedNavigation');
+    }
     
     if (currentValue !== null && currentValue !== undefined) {
       // Boolean questions: both true and false are valid values
@@ -323,8 +359,14 @@ export function useUnifiedNavigation(
       else if (currentQuestion?.type === 'select') {
         // For select questions, any value that's not null/undefined is valid
         // This includes numeric 0, string "0", or any other option value
-        // BUT empty string should still be considered invalid
-        hasValue = currentValue !== '';
+        // IMPORTANT: 0 is a valid value (e.g., "Nunca" in PHQ-9)
+        if (typeof currentValue === 'number') {
+          hasValue = true; // All numbers including 0 are valid
+        } else if (typeof currentValue === 'string') {
+          hasValue = currentValue !== ''; // Only empty string is invalid
+        } else {
+          hasValue = currentValue !== null && currentValue !== undefined;
+        }
       }
       // Scale questions: numeric values including 0 are valid
       else if (currentQuestion?.type === 'scale') {
@@ -344,19 +386,44 @@ export function useUnifiedNavigation(
       else if (currentQuestion?.type === 'number') {
         hasValue = typeof currentValue === 'number';
       }
+      // Medication list: empty array is VALID (user may not take medications)
+      else if (currentQuestion && 'type' in currentQuestion && (currentQuestion as any).type === 'medication_list') {
+        hasValue = Array.isArray(currentValue); // Empty array is acceptable
+      }
+      // Surgery history: empty array is VALID (user may not have had surgeries)
+      else if (currentQuestion && 'type' in currentQuestion && (currentQuestion as any).type === 'surgery_history') {
+        hasValue = Array.isArray(currentValue); // Empty array is acceptable
+      }
+      // Chronic conditions: empty array is VALID (user may not have chronic conditions)
+      else if (currentQuestion && 'type' in currentQuestion && (currentQuestion as any).type === 'chronic_conditions') {
+        hasValue = Array.isArray(currentValue); // Empty array is acceptable
+      }
+      // Emergency contact: object with required fields
+      else if (currentQuestion && 'type' in currentQuestion && (currentQuestion as any).type === 'emergency_contact') {
+        hasValue = currentValue !== null && typeof currentValue === 'object';
+      }
       // Default: any non-null/undefined value is valid
       else {
         hasValue = true;
       }
     }
     
+    // Debug logging for validation result
+    if (process.env.NODE_ENV === 'development' && currentQuestion) {
+      const canNavigate = !currentQuestion.required || hasValue;
+      logger.debug('Navigation validation result', {
+        hasValue,
+        canNavigateNext: canNavigate
+      }, 'UnifiedNavigation');
+    }
+    
     return {
       isNavigating: navigationInProgressRef.current,
       willAutoAdvance,
       autoAdvanceDelay: finalConfig.autoAdvanceDelay,
-      hasPendingAutoAdvance: autoAdvanceTimeoutRef.current !== null,
+      hasPendingAutoAdvance: progressIntervalRef.current !== null,
       navigationProfile: finalConfig.autoAdvance ? 'auto' : 'manual',
-      remainingAutoAdvanceTime: autoAdvanceTimeoutRef.current ? finalConfig.autoAdvanceDelay : 0,
+      remainingAutoAdvanceTime: progressIntervalRef.current ? finalConfig.autoAdvanceDelay : 0,
       canNavigateNext: currentQuestion ? (
         !currentQuestion.required || hasValue
       ) : false,

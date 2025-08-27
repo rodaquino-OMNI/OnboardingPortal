@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Exception;
+use App\Exceptions\FileProcessingException;
+use App\Exceptions\InvalidImageException;
 
 class SecureFileUploadService
 {
@@ -210,9 +212,13 @@ class SecureFileUploadService
     private function validateImageIntegrity(UploadedFile $file): bool
     {
         try {
-            $imageInfo = @getimagesize($file->getRealPath());
+            $imageInfo = getimagesize($file->getRealPath());
             if ($imageInfo === false) {
-                return false;
+                Log::error('Failed to get image size information', [
+                    'file' => $file->getClientOriginalName(),
+                    'path' => $file->getRealPath()
+                ]);
+                throw new InvalidImageException('Unable to read image size information');
             }
             
             // Verify dimensions are reasonable

@@ -1,0 +1,7 @@
+{
+  "name": "Test Step 1 User",
+  "email": "step1@example.com",
+  "cpf": "11111111111",
+  "lgpd_consent": true,
+  "lgpd_consent_explicit": true
+}

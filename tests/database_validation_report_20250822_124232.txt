@@ -1,0 +1,15 @@
+Database Validation Report - Fri Aug 22 12:42:32 -03 2025
+======================================
+================================
+ LOADING CONFIGURATION
+================================
+[INFO] Database: austa_portal
+[INFO] Host: 127.0.0.1:3306
+[INFO] Username: root
+================================
+ CONNECTIVITY TESTS
+================================
+[TEST] Testing MySQL database connectivity
+[WARN] MySQL client not installed, skipping direct connection test
+[TEST] Testing Laravel database connection
+[FAIL] Laravel database connection failed

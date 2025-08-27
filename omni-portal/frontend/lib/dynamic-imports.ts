@@ -12,8 +12,8 @@ export const loadTesseract = async () => {
 
 // jsPDF dynamic import with minimal bundle impact
 export const loadJsPDF = async () => {
-  const { jsPDF } = await import('jspdf');
-  return { jsPDF };
+  const jsPDFModule = await import('jspdf');
+  return { jsPDF: jsPDFModule.default };
 };
 
 // Chart.js dynamic imports for analytics
@@ -79,7 +79,7 @@ export function createDynamicComponent<T = {}>(
     ssr?: boolean;
     loading?: ComponentType;
   } = {}
-): LazyExoticComponent<ComponentType<T>> {
+): ComponentType<T> {
   const DefaultLoading = () => {
     return React.createElement('div', {
       className: 'flex items-center justify-center p-4'

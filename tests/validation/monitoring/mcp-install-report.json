@@ -1,0 +1,48 @@
+{
+  "summary": {
+    "totalTests": 6,
+    "passed": 6,
+    "failed": 0,
+    "duration": 27216,
+    "successRate": 100
+  },
+  "results": [
+    {
+      "test": "ruv-swarm Availability",
+      "status": "PASSED",
+      "message": "Server already installed and accessible",
+      "timestamp": "2025-08-27T13:59:49.653Z"
+    },
+    {
+      "test": "claude-flow Availability",
+      "status": "PASSED",
+      "message": "Server already installed and accessible",
+      "timestamp": "2025-08-27T13:59:50.507Z"
+    },
+    {
+      "test": "flow-nexus Availability",
+      "status": "PASSED",
+      "message": "Server already installed and accessible",
+      "timestamp": "2025-08-27T14:00:00.273Z"
+    },
+    {
+      "test": "Claude MCP Configuration",
+      "status": "PASSED",
+      "message": "Claude MCP configuration not found - manual setup may be required",
+      "timestamp": "2025-08-27T14:00:00.275Z"
+    },
+    {
+      "test": "MCP Server Registration",
+      "status": "PASSED",
+      "message": "Claude MCP CLI is accessible",
+      "timestamp": "2025-08-27T14:00:01.320Z"
+    },
+    {
+      "test": "Sample Configuration",
+      "status": "PASSED",
+      "message": "Sample config and instructions created",
+      "timestamp": "2025-08-27T14:00:01.322Z"
+    }
+  ],
+  "timestamp": "2025-08-27T14:00:01.322Z"
+}

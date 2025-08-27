@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { useClientOnly, useIsMobile } from '@/hooks/useClientOnly';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -505,9 +506,11 @@ export function EnhancedDocumentUpload({
 
             {showPreview && preview && (
               <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                <img
+                <Image
                   src={preview}
                   alt="Preview"
+                  width={400}
+                  height={300}
                   className="w-full h-auto max-h-64 object-contain"
                 />
               </div>

@@ -24,9 +24,10 @@ const unifiedRegistrationSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres').max(255, 'Nome muito longo'),
   email: z.string().email('Email inválido').max(255, 'Email muito longo'),
   cpf: z.string()
-    .min(11, 'CPF deve ter 11 dígitos')
-    .max(11, 'CPF deve ter 11 dígitos')
-    .regex(/^\d{11}$/, 'CPF deve conter apenas números'),
+    .min(1, 'CPF é obrigatório')
+    .transform(val => val.replace(/\D/g, ''))
+    .refine(val => val.length === 11, 'CPF deve ter 11 dígitos')
+    .refine(val => /^\d{11}$/.test(val), 'CPF deve conter apenas números'),
 
   // Step 2: Contact and Personal Details (RegisterStep2Request) - NEW REQUIRED FIELDS
   birth_date: z.string()
@@ -315,6 +316,11 @@ export function UnifiedRegistrationForm() {
             <div
               className="bg-blue-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progressPercentage}%` }}
+              role="progressbar"
+              aria-valuenow={Math.round(progressPercentage)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Registration progress: ${Math.round(progressPercentage)}% complete`}
             />
           </div>
         </div>

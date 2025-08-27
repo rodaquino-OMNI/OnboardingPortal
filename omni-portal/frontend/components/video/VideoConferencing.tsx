@@ -334,7 +334,7 @@ export function VideoConferencing({
         }
       }
     }
-  }, [makeRequest]); // makeRequest dependency only
+  }, [makeRequest, stopScreenShare]); // makeRequest dependency only
 
   // Stop screen sharing
   const stopScreenShare = useCallback(async () => {

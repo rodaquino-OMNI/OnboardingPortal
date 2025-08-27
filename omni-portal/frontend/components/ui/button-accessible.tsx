@@ -2,7 +2,7 @@ import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { a11y } from '@/lib/utils/accessibility';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from '@/lib/icon-optimization';
 
 const buttonVariants = cva(
   cn(

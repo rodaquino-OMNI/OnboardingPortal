@@ -5,13 +5,19 @@ namespace App\Services;
 use Aws\Textract\TextractClient;
 use Illuminate\Support\Facades\Log;
 use App\Models\Beneficiary;
+use App\Services\BrazilianDocumentService;
+use App\Services\ValidationUtilityService;
 
 class OCRService
 {
     protected $textractClient;
+    protected BrazilianDocumentService $documentService;
+    protected ValidationUtilityService $validationService;
 
-    public function __construct()
-    {
+    public function __construct(
+        BrazilianDocumentService $documentService,
+        ValidationUtilityService $validationService
+    ) {
         $this->textractClient = new TextractClient([
             'version' => 'latest',
             'region' => config('services.aws.region', 'us-east-1'),
@@ -20,6 +26,9 @@ class OCRService
                 'secret' => config('services.aws.secret'),
             ]
         ]);
+        
+        $this->documentService = $documentService;
+        $this->validationService = $validationService;
     }
 
     /**
@@ -317,17 +326,38 @@ class OCRService
     }
 
     /**
-     * Validate extracted data against beneficiary information
+     * Validate extracted data against beneficiary information with enhanced confidence validation
      */
-    public function validateExtractedData(string $documentType, array $extractedData, Beneficiary $beneficiary): array
+    public function validateExtractedData(string $documentType, array $extractedData, Beneficiary $beneficiary, array $confidenceScores = []): array
     {
         $validation = [
             'is_valid' => true,
             'errors' => [],
             'warnings' => [],
-            'confidence_score' => 0
+            'confidence_score' => 0,
+            'ocr_quality' => null
         ];
 
+        // Validate OCR confidence scores first
+        if (!empty($confidenceScores)) {
+            $ocrValidation = $this->validationService->validateOCRConfidence($confidenceScores);
+            $validation['ocr_quality'] = $ocrValidation;
+            
+            // Add warnings for low confidence
+            if ($ocrValidation['needs_fallback']) {
+                $validation['warnings'][] = 'Qualidade do OCR baixa, resultados podem ser imprecisos';
+            }
+            
+            if ($ocrValidation['needs_retry']) {
+                $validation['warnings'][] = 'Qualidade do OCR muito baixa, considere nova captura';
+                // Don't proceed with validation if quality is too low
+                $validation['is_valid'] = false;
+                $validation['errors'][] = 'Qualidade da imagem insuficiente para validação confiável';
+                return $validation;
+            }
+        }
+
+        // Proceed with document-specific validation
         switch ($documentType) {
             case 'rg':
             case 'cnh':
@@ -395,28 +425,35 @@ class OCRService
     }
 
     /**
-     * Validate CPF document
+     * Validate CPF document with enhanced validation
      */
     protected function validateCPFDocument(array $data, Beneficiary $beneficiary, array $validation): array
     {
         if (isset($data['cpf'])) {
-            $documentCPF = preg_replace('/[^0-9]/', '', $data['cpf']);
-            $beneficiaryCPF = preg_replace('/[^0-9]/', '', $beneficiary->cpf);
+            // Use enhanced CPF validation
+            $cpfValidation = $this->documentService->validateCPF($data['cpf']);
             
-            if ($documentCPF !== $beneficiaryCPF) {
-                $validation['errors'][] = 'CPF do documento não confere';
+            if (!$cpfValidation['is_valid']) {
+                $validation['errors'] = array_merge($validation['errors'], $cpfValidation['errors']);
                 $validation['is_valid'] = false;
             } else {
-                $validation['confidence_score'] += 50;
+                // Compare with beneficiary CPF
+                $beneficiaryCPF = $this->documentService->cleanCPF($beneficiary->cpf ?? '');
+                
+                if ($cpfValidation['clean'] !== $beneficiaryCPF) {
+                    $validation['errors'][] = 'CPF do documento não confere com o cadastro';
+                    $validation['is_valid'] = false;
+                } else {
+                    $validation['confidence_score'] += 50;
+                }
             }
         }
 
         if (isset($data['name'])) {
-            $similarity = 0;
-            similar_text(
-                strtolower($this->normalizeString($beneficiary->full_name)),
-                strtolower($this->normalizeString($data['name'])),
-                $similarity
+            $similarity = $this->documentService->calculateSimilarity(
+                $beneficiary->full_name ?? '',
+                $data['name'],
+                false
             );
             
             $validation['confidence_score'] += $similarity * 0.5;
@@ -484,28 +521,23 @@ class OCRService
     }
 
     /**
-     * Normalize string for comparison
+     * Normalize string for comparison with proper Brazilian character handling
      */
     protected function normalizeString(string $string): string
     {
-        // Remove accents and special characters
-        $string = iconv('UTF-8', 'ASCII//TRANSLIT', $string);
-        // Remove extra spaces and convert to lowercase
-        return trim(preg_replace('/\s+/', ' ', strtolower($string)));
+        return $this->documentService->normalizeString($string, false);
     }
 
     /**
-     * Parse date from various formats
+     * Parse date from various formats with proper year handling
+     * Fixed: 90 → 1990 instead of 0090
      */
     protected function parseDate(string $dateString): ?string
     {
-        $formats = ['d/m/Y', 'd-m-Y', 'Y-m-d', 'd/m/y', 'd-m-y'];
+        $dateValidation = $this->documentService->parseDate($dateString);
         
-        foreach ($formats as $format) {
-            $date = \DateTime::createFromFormat($format, $dateString);
-            if ($date) {
-                return $date->format('Y-m-d');
-            }
+        if ($dateValidation['is_valid']) {
+            return $dateValidation['formatted'];
         }
         
         return null;

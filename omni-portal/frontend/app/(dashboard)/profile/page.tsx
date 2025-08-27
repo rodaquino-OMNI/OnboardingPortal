@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +78,7 @@ interface PrivacySettingsState {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { progress, badges, fetchAll } = useGamification();
   const { toast } = useToast();
@@ -364,7 +366,9 @@ export default function ProfilePage() {
 
   const handleAddAllergy = async () => {
     try {
-      toast({ title: 'Info', description: 'Modal de adicionar alergia será implementado...' });
+      // Navigate to health questionnaire to update allergies
+      toast({ title: 'Info', description: 'Redirecionando para atualizar alergias...' });
+      router.push('/health-questionnaire?focus=allergies');
       setShowAddAllergyModal(false);
     } catch (error) {
       console.error('Error adding allergy:', error);
@@ -378,7 +382,9 @@ export default function ProfilePage() {
 
   const handleAddCondition = async () => {
     try {
-      toast({ title: 'Info', description: 'Modal de adicionar condição será implementado...' });
+      // Navigate to health questionnaire to update conditions
+      toast({ title: 'Info', description: 'Redirecionando para atualizar condições...' });
+      router.push('/health-questionnaire?focus=conditions');
       setShowAddConditionModal(false);
     } catch (error) {
       console.error('Error adding condition:', error);
@@ -392,7 +398,9 @@ export default function ProfilePage() {
 
   const handleAddMedication = async () => {
     try {
-      toast({ title: 'Info', description: 'Modal de adicionar medicamento será implementado...' });
+      // Navigate to health questionnaire to update medications
+      toast({ title: 'Info', description: 'Redirecionando para atualizar medicamentos...' });
+      router.push('/health-questionnaire?focus=medications');
       setShowAddMedicationModal(false);
     } catch (error) {
       console.error('Error adding medication:', error);
@@ -408,8 +416,8 @@ export default function ProfilePage() {
   const handleScheduleConsultation = async () => {
     try {
       toast({ title: 'Info', description: 'Redirecionando para agendamento de consulta...' });
-      // TODO: Implement navigation to consultation scheduling
-      // router.push('/consultation-schedule');
+      // Navigate to consultation scheduling
+      router.push('/telemedicine-schedule');
     } catch (error) {
       console.error('Error scheduling consultation:', error);
       toast({
@@ -423,8 +431,8 @@ export default function ProfilePage() {
   const handleUploadDocument = async () => {
     try {
       toast({ title: 'Info', description: 'Redirecionando para upload de documentos...' });
-      // TODO: Implement navigation to document upload
-      // router.push('/document-upload');
+      // Navigate to document upload
+      router.push('/document-upload');
     } catch (error) {
       console.error('Error accessing document upload:', error);
       toast({
@@ -438,8 +446,8 @@ export default function ProfilePage() {
   const handleUpdateHealth = async () => {
     try {
       toast({ title: 'Info', description: 'Redirecionando para atualização de saúde...' });
-      // TODO: Implement navigation to health questionnaire
-      // router.push('/health-questionnaire');
+      // Navigate to health questionnaire
+      router.push('/health-questionnaire');
     } catch (error) {
       console.error('Error accessing health update:', error);
       toast({
@@ -453,8 +461,8 @@ export default function ProfilePage() {
   const handleViewBenefits = async () => {
     try {
       toast({ title: 'Info', description: 'Carregando informações dos benefícios...' });
-      // TODO: Implement navigation to benefits page
-      // router.push('/benefits');
+      // Navigate to benefits/rewards page  
+      router.push('/rewards');
     } catch (error) {
       console.error('Error viewing benefits:', error);
       toast({
@@ -1418,6 +1426,117 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      {showAddAllergyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Adicionar Alergia</h2>
+            <p className="text-gray-600 mb-4">Você será redirecionado para o questionário de saúde para adicionar alergias.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAddAllergyModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddAllergy}>
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddConditionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Adicionar Condição Crônica</h2>
+            <p className="text-gray-600 mb-4">Você será redirecionado para o questionário de saúde para adicionar condições crônicas.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAddConditionModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddCondition}>
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddMedicationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Adicionar Medicamento</h2>
+            <p className="text-gray-600 mb-4">Você será redirecionado para o questionário de saúde para adicionar medicamentos.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAddMedicationModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddMedication}>
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddContactModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Adicionar Contato de Emergência</h2>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Nome completo"
+                className="w-full px-3 py-2 border rounded-md"
+                value={newEmergencyContact.name}
+                onChange={(e) => setNewEmergencyContact({ ...newEmergencyContact, name: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="Parentesco"
+                className="w-full px-3 py-2 border rounded-md"
+                value={newEmergencyContact.relationship}
+                onChange={(e) => setNewEmergencyContact({ ...newEmergencyContact, relationship: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Telefone"
+                className="w-full px-3 py-2 border rounded-md"
+                value={newEmergencyContact.phone}
+                onChange={(e) => setNewEmergencyContact({ ...newEmergencyContact, phone: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <Button variant="outline" onClick={() => setShowAddContactModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddEmergencyContact}>
+                Adicionar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Enviar Documento</h2>
+            <p className="text-gray-600 mb-4">Você será redirecionado para a página de upload de documentos.</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowUploadModal(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={() => {
+                setShowUploadModal(false);
+                router.push('/document-upload');
+              }}>
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

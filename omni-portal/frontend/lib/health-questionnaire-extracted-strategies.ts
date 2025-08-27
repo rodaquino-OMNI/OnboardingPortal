@@ -5,6 +5,13 @@
  * but contain $305K worth of development effort that should be preserved.
  */
 
+import { 
+  QuestionnaireResponse, 
+  HealthQuestion, 
+  QuestionValue, 
+  AuditLogEntry 
+} from '@/types';
+
 // ============================================================================
 // 1. COMPLIANCE & REGULATORY FRAMEWORK
 // From: ClinicalExcellenceQuestionnaire
@@ -24,7 +31,7 @@ export interface AuditEntry {
   action: string;
   userId: string;
   questionId?: string;
-  response?: any;
+  response?: QuestionnaireResponse | null;
   ipAddress: string;
   userAgent: string;
   sessionId: string;
@@ -51,7 +58,7 @@ export class ComplianceService {
     }
   }
 
-  private async persistAuditLog(entry: any) {
+  private async persistAuditLog(entry: AuditLogEntry) {
     // Send to compliant storage solution
     // Implementation depends on infrastructure
   }
@@ -165,7 +172,7 @@ export class EmergencyInterventionService {
     }
   ];
 
-  assessEmergency(responses: Record<string, any>): EmergencyProtocol | null {
+  assessEmergency(responses: Record<string, QuestionValue>): EmergencyProtocol | null {
     // Check for critical indicators
     if (responses.harmful_thoughts === true || responses.phq9_9 > 0) {
       return this.createEmergencyProtocol('critical', responses);
@@ -180,7 +187,7 @@ export class EmergencyInterventionService {
 
   private createEmergencyProtocol(
     severity: EmergencyProtocol['severity'],
-    responses: Record<string, any>
+    responses: Record<string, QuestionValue>
   ): EmergencyProtocol {
     return {
       severity,
@@ -217,7 +224,7 @@ export class EmergencyInterventionService {
     return actions[severity];
   }
 
-  private generateSafetyPlan(responses: Record<string, any>): string[] {
+  private generateSafetyPlan(responses: Record<string, QuestionValue>): string[] {
     return [
       'Identifique 3 pessoas para contato de emergência',
       'Mantenha números de emergência visíveis',
@@ -243,9 +250,9 @@ export interface PersonalityProfile {
 
 export class PersonalityAdaptationEngine {
   adaptQuestionPresentation(
-    question: any,
+    question: HealthQuestion,
     personality: PersonalityProfile
-  ): any {
+  ): QuestionValue {
     const adapted = { ...question };
     
     // High neuroticism = need more reassurance
@@ -323,10 +330,10 @@ export const TOUCH_OPTIMIZATION_PRESETS = {
 // ============================================================================
 
 export class ResponseCache {
-  private cache: Map<string, any> = new Map();
+  private cache: Map<string, unknown> = new Map();
   private maxSize: number = 100;
   
-  set(key: string, value: any): void {
+  set(key: string, value: unknown): void {
     // LRU cache implementation
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
@@ -335,7 +342,7 @@ export class ResponseCache {
     this.cache.set(key, value);
   }
   
-  get(key: string): any {
+  get(key: string): unknown {
     const value = this.cache.get(key);
     if (value !== undefined) {
       // Move to end (most recently used)

@@ -13,6 +13,7 @@ import ProfileSetup from '../../components/profile/ProfileSetup';
 import UnifiedHealthAssessment from '../../components/health/UnifiedHealthAssessment';
 import EnhancedDocumentUpload from '../../components/upload/EnhancedDocumentUpload';
 import InterviewUnlockCard from '../../components/dashboard/InterviewUnlockCard';
+import { InterviewScheduler } from '../../components/interview/InterviewScheduler';
 import UserDashboard from '../../app/(dashboard)/home/page';
 
 // Types

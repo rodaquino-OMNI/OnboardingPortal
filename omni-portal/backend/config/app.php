@@ -103,7 +103,7 @@ return [
         App\Providers\OCRServiceProvider::class,
         App\Providers\SecurityServiceProvider::class,
         App\Providers\RewardServiceProvider::class,
-        // App\Providers\TracingServiceProvider::class, // Temporarily disabled
+        // App\Providers\TracingServiceProvider::class, // Temporarily disabled due to OTLP transport issue
     ])->toArray(),
 
     /*

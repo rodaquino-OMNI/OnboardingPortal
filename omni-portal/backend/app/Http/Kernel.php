@@ -15,7 +15,7 @@ class Kernel extends HttpKernel
      */
     protected $middleware = [
         \App\Http\Middleware\TrustProxies::class,
-        \Illuminate\Http\Middleware\HandleCors::class,
+        \Illuminate\Http\Middleware\HandleCors::class, // Use Laravel's native CORS
         \Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
@@ -36,13 +36,28 @@ class Kernel extends HttpKernel
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Single security headers implementation
         ],
 
         'api' => [
-            \App\Http\Middleware\ForceJsonResponse::class,
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
-            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            // Optimized middleware order for API requests
+            \App\Http\Middleware\ApiPerformanceMiddleware::class, // Performance monitoring wrapper
+            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Security headers (single implementation)
+            \App\Http\Middleware\ApiRateLimiter::class, // Rate limiting before auth
+            \App\Http\Middleware\ApiSecurityMiddleware::class, // Request validation
+            \App\Http\Middleware\ForceJsonResponse::class, // JSON response formatting
+            \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route model binding
+        ],
+
+        'sanctum' => [
+            // Authentication-enabled API middleware group
+            \App\Http\Middleware\ApiPerformanceMiddleware::class, // Performance monitoring
+            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Security headers
+            \App\Http\Middleware\ApiRateLimiter::class, // Rate limiting
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class, // Sanctum session
+            \App\Http\Middleware\ApiSecurityMiddleware::class, // Request validation
+            \App\Http\Middleware\ForceJsonResponse::class, // JSON responses
+            \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route binding
         ],
     ];
 
@@ -64,6 +79,9 @@ class Kernel extends HttpKernel
         'precognitive' => \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+        'api.throttle' => \App\Http\Middleware\ApiRateLimiter::class,
+        'api.performance' => \App\Http\Middleware\ApiPerformanceMiddleware::class,
+        'api.security' => \App\Http\Middleware\ApiSecurityMiddleware::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,

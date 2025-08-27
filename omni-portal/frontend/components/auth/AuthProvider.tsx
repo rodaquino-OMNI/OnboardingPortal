@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useAuthStore } from '@/hooks/stores/useAuthStore';
+import { useUnifiedAuth } from '@/hooks/useUnifiedAuth';
+import { logger } from '@/lib/logger';
 
 interface AuthContextType {
   isInitialized: boolean;
@@ -33,8 +34,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
-  // Get auth store functions
-  const { checkAuth, isLoading, error } = useAuthStore();
+  // Get unified auth functions
+  const { checkAuth, isLoading, error } = useUnifiedAuth();
 
   // SSR hydration fix: Track when we're on client side
   useEffect(() => {
@@ -51,35 +52,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
     let isMounted = true;
     let retryCount = 0;
     const maxRetries = 3;
+    // MEMORY LEAK FIX: AbortController for cleanup
+    const abortController = new AbortController();
 
     const initializeAuth = async () => {
       try {
-        console.log('[AuthProvider] Initializing authentication...');
+        // MEMORY LEAK FIX: Check if aborted before proceeding
+        if (abortController.signal.aborted) {
+          return;
+        }
         
-        // Check for existing authentication with timeout
+        logger.info('Initializing authentication...', null, 'AuthProvider');
+        
+        // Check for existing authentication with timeout and abort signal
         await Promise.race([
           checkAuth(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Auth initialization timeout')), 10000)
-          )
+          new Promise((_, reject) => {
+            const timeoutId = setTimeout(() => reject(new Error('Auth initialization timeout')), 5000); // Reduced timeout
+            abortController.signal.addEventListener('abort', () => {
+              clearTimeout(timeoutId);
+              reject(new Error('Auth initialization aborted'));
+            });
+          })
         ]);
         
-        if (isMounted) {
-          console.log('[AuthProvider] Authentication initialized successfully');
+        if (isMounted && !abortController.signal.aborted) {
+          logger.info('Authentication initialized successfully', null, 'AuthProvider');
           setIsInitialized(true);
           setInitializationError(null);
         }
         
       } catch (error) {
-        console.error('[AuthProvider] Failed to initialize authentication:', error);
+        logger.error('Failed to initialize authentication', error, null, 'AuthProvider');
         
-        if (isMounted) {
+        if (isMounted && !abortController.signal.aborted) {
           if (retryCount < maxRetries) {
             retryCount++;
-            console.log(`[AuthProvider] Retrying authentication (${retryCount}/${maxRetries})...`);
-            setTimeout(initializeAuth, 1000 * retryCount); // Exponential backoff
+            logger.info(`Retrying authentication (${retryCount}/${maxRetries})`, null, 'AuthProvider');
+            const retryTimeoutId = setTimeout(initializeAuth, 1000 * retryCount); // Exponential backoff
+            // MEMORY LEAK FIX: Clear timeout on abort
+            abortController.signal.addEventListener('abort', () => {
+              clearTimeout(retryTimeoutId);
+            });
           } else {
-            setInitializationError(error instanceof Error ? error.message : 'Authentication initialization failed');
+            const errorMessage = error instanceof Error ? error.message : 'Authentication initialization failed';
+            logger.error('Authentication initialization failed after retries', { error: errorMessage }, 'AuthProvider');
+            setInitializationError(errorMessage);
             setIsInitialized(true); // Still set as initialized so app can continue
           }
         }
@@ -91,6 +109,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     return () => {
       isMounted = false;
+      // MEMORY LEAK FIX: Abort all pending operations
+      abortController.abort();
     };
   }, [isClient, checkAuth]); // Include checkAuth but with proper cleanup
 

@@ -78,13 +78,20 @@ class DatabaseQueryValidator
     public static function initialize(): void
     {
         // Skip initialization in testing environment or when explicitly disabled
-        if (app()->environment('testing') || !config('security.query_validator_enabled', true)) {
+        if (app()->environment('testing') || 
+            !config('security.query_validator_enabled', true) ||
+            config('app.env') === 'testing') {
             return;
         }
         
-        DB::listen(function ($query) {
-            self::validateQuery($query);
-        });
+        try {
+            DB::listen(function ($query) {
+                self::validateQuery($query);
+            });
+        } catch (\Exception $e) {
+            // Silently fail if database connection is not available
+            \Log::debug('Failed to register DB listener: ' . $e->getMessage());
+        }
     }
     
     /**
@@ -92,9 +99,24 @@ class DatabaseQueryValidator
      */
     private static function validateQuery($query): void
     {
+        // Skip validation in testing environment or when explicitly disabled
+        if (app()->environment('testing') || 
+            app()->environment('local') && config('app.debug', false) ||
+            !config('security.query_validator_enabled', true)) {
+            return;
+        }
+        
         $sql = $query->sql;
         $bindings = $query->bindings;
         $time = $query->time;
+        
+        // Allow framework queries in local/development environments
+        if (app()->environment('local') && self::isFrameworkQuery($sql)) {
+            // Still monitor but don't block
+            self::monitorSlowQueries($sql, $time);
+            self::trackQueryStatistics($sql);
+            return;
+        }
         
         // Check for dangerous patterns
         foreach (self::DANGEROUS_PATTERNS as $pattern) {
@@ -119,6 +141,45 @@ class DatabaseQueryValidator
         
         // Track query statistics
         self::trackQueryStatistics($sql);
+    }
+    
+    /**
+     * Check if query is a legitimate framework query
+     */
+    private static function isFrameworkQuery(string $sql): bool
+    {
+        $sql = strtolower(trim($sql));
+        
+        // Laravel framework patterns
+        $frameworkPatterns = [
+            'select * from information_schema',
+            'show tables',
+            'show columns',
+            'describe ',
+            'pragma ',
+            'select version()',
+            'select database()',
+            'select sqlite_version()',
+            'select * from migrations',
+            'insert into migrations',
+            'create table migrations',
+            'create table if not exists',
+            'select * from sqlite_master',
+            'select name from sqlite_master',
+            'analyze table',  // Database optimization command
+            'analyze',        // SQLite analyze command
+            'explain ',       // Query plan analysis
+            'show create table',
+            'show index',
+        ];
+        
+        foreach ($frameworkPatterns as $pattern) {
+            if (strpos($sql, $pattern) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**

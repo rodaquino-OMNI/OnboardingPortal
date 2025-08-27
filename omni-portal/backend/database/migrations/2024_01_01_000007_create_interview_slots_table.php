@@ -18,11 +18,13 @@ return new class extends Migration
             $table->time('start_time');
             $table->time('end_time');
             $table->integer('duration_minutes')->default(30);
+            $table->boolean('is_available')->default(true);
             $table->enum('status', ['available', 'booked', 'blocked', 'completed', 'cancelled'])->default('available');
-            $table->enum('interview_type', ['initial', 'follow_up', 'medical', 'psychological', 'nutritional'])->default('initial');
+            $table->enum('interview_type', ['initial', 'follow_up', 'medical', 'psychological', 'nutritional', 'initial_consultation', 'specialty_consultation'])->default('initial');
             $table->boolean('is_recurring')->default(false);
             $table->enum('recurrence_pattern', ['daily', 'weekly', 'biweekly', 'monthly'])->nullable();
             $table->date('recurrence_end_date')->nullable();
+            $table->enum('recurring_pattern', ['daily', 'weekly', 'biweekly', 'monthly'])->nullable();
             $table->integer('max_bookings')->default(1); // For group sessions
             $table->integer('current_bookings')->default(0);
             $table->decimal('price', 8, 2)->nullable(); // If paid consultations

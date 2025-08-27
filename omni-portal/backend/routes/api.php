@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MetricsController;
+use App\Http\Requests\Auth\LoginRequest;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,18 +20,31 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Metrics endpoint for Prometheus (temporarily disabled)
-// Route::get('/metrics', MetricsController::class)->name('metrics');
+// Metrics endpoint for Prometheus
+Route::get('/metrics', [MetricsController::class, 'index'])->name('metrics');
 
-// Health check endpoint
-Route::get('/health', function () {
-    return response()->json([
-        'status' => 'healthy',
-        'timestamp' => now()->toISOString(),
-        'service' => 'omni-portal-backend',
-        'version' => config('app.version', '1.0.0'),
-    ]);
-})->name('health');
+
+// Health check endpoints
+Route::prefix('health')->middleware('throttle:30,1')->group(function () {
+    // Comprehensive health check
+    Route::get('/', [App\Http\Controllers\Api\HealthController::class, 'health'])->name('health');
+    
+    // Kubernetes-style liveness probe
+    Route::get('/live', [App\Http\Controllers\Api\HealthController::class, 'live'])->name('health.live');
+    
+    // Kubernetes-style readiness probe
+    Route::get('/ready', [App\Http\Controllers\Api\HealthController::class, 'ready'])->name('health.ready');
+    
+    // Legacy health endpoint for backwards compatibility
+    Route::get('/status', function () {
+        return response()->json([
+            'status' => 'healthy',
+            'timestamp' => now()->toISOString(),
+            'service' => 'omni-portal-backend',
+            'version' => config('app.version', '1.0.0'),
+        ]);
+    })->name('health.status');
+});
 
 // Tracing test endpoint (temporarily disabled)
 /*
@@ -84,6 +98,12 @@ Route::prefix('auth')->group(function () {
         Route::delete('register/cancel', [App\Http\Controllers\Api\RegisterController::class, 'cancel'])->name('auth.register.cancel');
     });
     
+    // Social Authentication Routes
+    Route::get('{provider}/redirect', [App\Http\Controllers\Api\SocialAuthController::class, 'redirect'])
+        ->name('auth.social.redirect');
+    Route::get('{provider}/callback', [App\Http\Controllers\Api\SocialAuthController::class, 'callback'])
+        ->name('auth.social.callback');
+    
     // Protected authentication endpoints
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('logout', [App\Http\Controllers\Api\AuthController::class, 'logout'])->name('auth.logout');
@@ -128,6 +148,10 @@ Route::middleware('auth:sanctum')->prefix('health-questionnaires')->group(functi
     
     Route::post('/submit-dual-pathway', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitDualPathway'])
         ->name('health-questionnaires.submit-dual-pathway');
+    
+    // Test endpoint for scoring algorithms (development only)
+    Route::get('/test-scoring', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'testScoring'])
+        ->name('health-questionnaires.test-scoring');
 });
 
 // Gamification Routes

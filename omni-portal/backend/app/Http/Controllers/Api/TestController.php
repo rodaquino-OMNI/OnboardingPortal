@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Cache;
+use App\Helpers\RequestHelper;
 
 class TestController extends Controller
 {
@@ -19,63 +20,67 @@ class TestController extends Controller
     }
     
     /**
-     * Test Redis session functionality
+     * Test stateless cache functionality (replaces session tests)
      */
-    public function testRedisSession(Request $request)
+    public function testStatelessCache(Request $request)
     {
         try {
-            // Test Redis connection
-            $redisConnection = Redis::connection('session');
+            // Test Redis connection for cache
+            $redisConnection = Redis::connection('cache');
             $redisConnection->ping();
             
-            // Test session storage
-            $sessionKey = 'test_session_' . time();
-            $sessionData = [
+            // Test cache storage (stateless approach)
+            $cacheKey = 'test_cache_' . time();
+            $testData = [
                 'user_id' => 123,
-                'test_data' => 'Redis session test',
+                'test_data' => 'Stateless cache test',
+                'request_id' => RequestHelper::generateRequestId($request),
                 'timestamp' => now()->toISOString()
             ];
             
-            // Store session data
-            Session::put($sessionKey, $sessionData);
+            // Store data in cache
+            Cache::put($cacheKey, $testData, 300); // 5 minutes
             
-            // Retrieve session data
-            $retrievedData = Session::get($sessionKey);
+            // Retrieve cache data
+            $retrievedData = Cache::get($cacheKey);
             
             // Check if data matches
-            $isWorking = $retrievedData === $sessionData;
+            $isWorking = $retrievedData === $testData;
             
-            // Get session ID and Redis key info
-            $sessionId = Session::getId();
-            $redisKey = config('session.connection') . ':' . $sessionId;
+            // Test request helper functionality
+            $requestId = RequestHelper::generateRequestId($request);
+            $trackingId = RequestHelper::generateTrackingId();
+            $fingerprint = RequestHelper::getClientFingerprint($request);
             
             return response()->json([
                 'status' => 'success',
-                'message' => 'Redis session test completed',
+                'message' => 'Stateless cache test completed',
                 'results' => [
                     'redis_connection' => 'connected',
-                    'session_driver' => config('session.driver'),
-                    'session_connection' => config('session.connection'),
-                    'redis_database' => config('database.redis.session.database'),
-                    'session_id' => $sessionId,
-                    'redis_key_pattern' => $redisKey,
-                    'session_working' => $isWorking,
-                    'stored_data' => $sessionData,
-                    'retrieved_data' => $retrievedData
+                    'cache_driver' => config('cache.default'),
+                    'cache_connection' => config('cache.stores.redis.connection'),
+                    'redis_database' => config('database.redis.cache.database'),
+                    'cache_key' => $cacheKey,
+                    'cache_working' => $isWorking,
+                    'stored_data' => $testData,
+                    'retrieved_data' => $retrievedData,
+                    'request_helpers' => [
+                        'request_id' => $requestId,
+                        'tracking_id' => $trackingId,
+                        'client_fingerprint' => substr($fingerprint, 0, 16) . '...',
+                        'has_valid_request_id' => RequestHelper::hasValidRequestId($request)
+                    ]
                 ]
             ]);
             
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Redis session test failed',
+                'message' => 'Stateless cache test failed',
                 'error' => $e->getMessage(),
                 'config' => [
-                    'session_driver' => config('session.driver'),
-                    'session_connection' => config('session.connection'),
-                    'redis_host' => config('database.redis.session.host'),
-                    'redis_port' => config('database.redis.session.port'),
-                    'redis_database' => config('database.redis.session.database')
+                    'cache_driver' => config('cache.default'),
+                    'cache_connection' => config('cache.stores.redis.connection')
                 ]
             ], 500);
         }
@@ -89,8 +94,8 @@ class TestController extends Controller
         try {
             $connections = [];
             
-            // Test all Redis connections
-            foreach (['default', 'cache', 'session'] as $connection) {
+            // Test all Redis connections (focus on cache instead of session)
+            foreach (['default', 'cache'] as $connection) {
                 try {
                     $redis = Redis::connection($connection);
                     $redis->ping();
@@ -112,11 +117,16 @@ class TestController extends Controller
                 'status' => 'success',
                 'message' => 'Redis configuration test completed',
                 'connections' => $connections,
-                'session_config' => [
-                    'driver' => config('session.driver'),
-                    'connection' => config('session.connection'),
-                    'lifetime' => config('session.lifetime'),
-                    'encrypt' => config('session.encrypt')
+                'cache_config' => [
+                    'driver' => config('cache.default'),
+                    'connection' => config('cache.stores.redis.connection'),
+                    'prefix' => config('cache.prefix'),
+                    'serialization' => config('cache.stores.redis.options.serializer')
+                ],
+                'api_mode' => [
+                    'stateless' => true,
+                    'session_dependency' => 'removed',
+                    'authentication' => 'token_based'
                 ]
             ]);
             
@@ -124,6 +134,53 @@ class TestController extends Controller
             return response()->json([
                 'status' => 'error',
                 'message' => 'Redis configuration test failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Test stateless security features
+     */
+    public function testStatelessSecurity(Request $request)
+    {
+        try {
+            // Test request helper functions
+            $requestId = RequestHelper::generateRequestId($request);
+            $trackingId = RequestHelper::generateTrackingId();
+            $fingerprint = RequestHelper::getClientFingerprint($request);
+            $operationId = RequestHelper::getOperationId(123, 'test_security');
+
+            // Test rate limiting mechanism
+            $rateLimitKey = "test_rate_limit:" . $fingerprint;
+            $currentCount = Cache::get($rateLimitKey, 0);
+            Cache::put($rateLimitKey, $currentCount + 1, 60);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Stateless security test completed',
+                'security_features' => [
+                    'request_id' => $requestId,
+                    'tracking_id' => $trackingId,
+                    'client_fingerprint' => substr($fingerprint, 0, 16) . '...',
+                    'operation_id' => $operationId,
+                    'rate_limit_key' => $rateLimitKey,
+                    'rate_limit_count' => $currentCount + 1,
+                    'request_validation' => RequestHelper::hasValidRequestId($request)
+                ],
+                'request_info' => [
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'method' => $request->method(),
+                    'path' => $request->path(),
+                    'headers_count' => count($request->headers->all())
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Stateless security test failed',
                 'error' => $e->getMessage()
             ], 500);
         }

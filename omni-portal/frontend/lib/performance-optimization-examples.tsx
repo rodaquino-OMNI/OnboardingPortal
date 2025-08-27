@@ -4,6 +4,7 @@
  */
 
 import { memo, useMemo, useCallback, lazy, Suspense } from 'react';
+import Image from 'next/image';
 import { usePerformanceMonitor } from './performance-monitor';
 
 // Example 1: Optimized component with React.memo and proper dependency arrays
@@ -121,13 +122,12 @@ export function OptimizedImage({
   priority = false 
 }: OptimizedImageProps) {
   return (
-    <img
+    <Image
       src={src}
       alt={alt}
       width={width}
       height={height}
-      loading={priority ? 'eager' : 'lazy'}
-      decoding="async"
+      priority={priority}
       style={{ 
         maxWidth: '100%', 
         height: 'auto',

@@ -339,7 +339,14 @@ class GamificationService
      */
     public function getLeaderboard(?int $companyId = null, int $limit = 10): array
     {
-        $query = GamificationProgress::with('beneficiary')
+        // Pre-load all levels to eliminate N+1 queries - Technical Excellence
+        $levelsMap = \Cache::remember('gamification_levels_map', 3600, function () {
+            return GamificationLevel::pluck('name', 'level_number')->toArray();
+        });
+        
+        // Optimize query with selective loading and proper indexes
+        $query = GamificationProgress::with(['beneficiary:id,full_name,profile_picture,company_id'])
+            ->select(['beneficiary_id', 'total_points', 'current_level', 'badges_earned', 'engagement_score'])
             ->orderBy('total_points', 'desc')
             ->orderBy('current_level', 'desc')
             ->orderBy('engagement_score', 'desc');
@@ -350,15 +357,16 @@ class GamificationService
             });
         }
         
-        return $query->limit($limit)->get()->map(function ($progress) {
+        // Single query execution with optimized mapping
+        return $query->limit($limit)->get()->map(function ($progress) use ($levelsMap) {
             return [
                 'beneficiary_id' => $progress->beneficiary_id,
-                'name' => $progress->beneficiary->full_name,
-                'avatar' => $progress->beneficiary->profile_picture,
+                'name' => $progress->beneficiary->full_name ?? 'Unknown',
+                'avatar' => $progress->beneficiary->profile_picture ?? null,
                 'total_points' => $progress->total_points,
                 'current_level' => $progress->current_level,
-                'level_name' => GamificationLevel::where('level_number', $progress->current_level)->value('name'),
-                'badges_count' => count($progress->badges_earned ?? []),
+                'level_name' => $levelsMap[$progress->current_level] ?? 'Level ' . $progress->current_level,
+                'badges_count' => is_array($progress->badges_earned) ? count($progress->badges_earned) : 0,
                 'engagement_score' => $progress->engagement_score,
             ];
         })->toArray();

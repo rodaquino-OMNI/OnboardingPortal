@@ -7,15 +7,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-// use Spatie\Permission\Traits\HasRoles; // Temporarily disabled
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
-// use Spatie\Permission\Traits\HasRoles; // Temporarily disabled
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable; // Removed HasRoles temporarily
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -81,6 +80,7 @@ class User extends Authenticatable
         'locked_until' => 'datetime',
         'preferences' => 'array',
         'is_active' => 'boolean',
+        'social_login' => 'boolean',
     ];
 
     /**
@@ -182,11 +182,17 @@ class User extends Authenticatable
         return $this->hasOneThrough(
             GamificationProgress::class,
             Beneficiary::class,
-            'user_id',
-            'beneficiary_id',
-            'id',
-            'id'
-        );
+            'user_id',          // Foreign key on the beneficiaries table
+            'beneficiary_id',   // Foreign key on the gamification_progress table
+            'id',               // Local key on the users table
+            'id'                // Local key on the beneficiaries table
+        )->select([
+            'gamification_progress.id',
+            'gamification_progress.beneficiary_id',
+            'gamification_progress.total_points',
+            'gamification_progress.current_level',
+            'gamification_progress.badges_earned'
+        ]);
     }
 
     /**

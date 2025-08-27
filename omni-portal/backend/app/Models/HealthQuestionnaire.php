@@ -88,38 +88,62 @@ class HealthQuestionnaire extends Model
 
     /**
      * Get sections completed in the questionnaire
+     * OPTIMIZED: Cached computation and early returns
      */
     public function getSectionsCompleted(): array
     {
+        // Early return if no data
         if (!$this->template || !$this->responses) {
             return [];
+        }
+
+        // Cache key for this computation
+        $cacheKey = "sections_completed:{$this->id}";
+        
+        // Check if we can use cached result
+        if (cache()->has($cacheKey)) {
+            return cache()->get($cacheKey);
         }
 
         $sectionsCompleted = [];
         $templateSections = $this->template->sections ?? [];
         $responses = $this->responses ?? [];
 
+        // Optimize by pre-calculating response keys
+        $responseKeys = array_keys($responses);
+
         foreach ($templateSections as $sectionKey => $section) {
             $questions = $section['questions'] ?? [];
+            
+            if (empty($questions)) {
+                continue; // Skip empty sections
+            }
+            
             $sectionResponses = 0;
+            $totalQuestions = count($questions);
             
             foreach ($questions as $question) {
                 $questionId = $question['id'] ?? $question['key'] ?? null;
-                if ($questionId && isset($responses[$questionId])) {
+                if ($questionId && in_array($questionId, $responseKeys, true)) {
                     $sectionResponses++;
                 }
             }
             
             if ($sectionResponses > 0) {
+                $completionPercentage = round(($sectionResponses / $totalQuestions) * 100);
+                
                 $sectionsCompleted[] = [
                     'section' => $sectionKey,
                     'name' => $section['name'] ?? $sectionKey,
                     'completed_questions' => $sectionResponses,
-                    'total_questions' => count($questions),
-                    'completion_percentage' => count($questions) > 0 ? round(($sectionResponses / count($questions)) * 100) : 0
+                    'total_questions' => $totalQuestions,
+                    'completion_percentage' => $completionPercentage
                 ];
             }
         }
+
+        // Cache the result for 5 minutes
+        cache()->put($cacheKey, $sectionsCompleted, 300);
 
         return $sectionsCompleted;
     }

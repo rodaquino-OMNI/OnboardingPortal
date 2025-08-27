@@ -10,7 +10,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'default' => env('DB_CONNECTION', 'mysql'),
+    'default' => env('DB_CONNECTION', 'sqlite'),
 
     /*
     |--------------------------------------------------------------------------
@@ -35,7 +35,7 @@ return [
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'password' => env('DB_PASSWORD'),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
@@ -43,9 +43,25 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Performance optimized options
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::ATTR_PERSISTENT => env('DB_PERSISTENT', false),
+                PDO::ATTR_TIMEOUT => env('DB_TIMEOUT', 3), // Reduced from 5 to 3 seconds
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci, sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE', time_zone='+00:00', wait_timeout=28800, interactive_timeout=28800",
+                // Connection pooling optimizations
+                PDO::MYSQL_ATTR_LOCAL_INFILE => false,
+                PDO::MYSQL_ATTR_COMPRESS => env('DB_COMPRESS', false),
             ]) : [],
+            // Additional Laravel-specific optimizations
+            'pool' => [
+                'size' => env('DB_POOL_SIZE', 10),
+                'timeout' => env('DB_POOL_TIMEOUT', 30),
+                'max_connections' => env('DB_MAX_CONNECTIONS', 50),
+                'min_connections' => env('DB_MIN_CONNECTIONS', 5),
+            ],
         ],
 
         // MySQL HA Configuration with Read/Write Splitting
@@ -59,14 +75,14 @@ return [
                 'port' => env('DB_READ_PORT', '3306'),
                 'database' => env('DB_DATABASE', 'omni_portal'),
                 'username' => env('DB_READ_USERNAME', 'omni_reader'),
-                'password' => env('DB_READ_PASSWORD', 'omnireader123'),
+                'password' => env('DB_READ_PASSWORD'),
             ],
             'write' => [
                 'host' => env('DB_WRITE_HOST', '127.0.0.1'), // Master
                 'port' => env('DB_WRITE_PORT', '3306'),
                 'database' => env('DB_DATABASE', 'omni_portal'),
                 'username' => env('DB_WRITE_USERNAME', 'omni_user'),
-                'password' => env('DB_WRITE_PASSWORD', 'omnipass123'),
+                'password' => env('DB_WRITE_PASSWORD'),
             ],
             'sticky' => true,
             'charset' => 'utf8mb4',
@@ -90,7 +106,7 @@ return [
             'port' => env('PROXYSQL_PORT', '6033'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_USERNAME', 'omni_user'),
-            'password' => env('DB_PASSWORD', 'omnipass123'),
+            'password' => env('DB_PASSWORD'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -113,7 +129,7 @@ return [
             'port' => env('DB_MASTER_PORT', '3306'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_MASTER_USERNAME', 'omni_user'),
-            'password' => env('DB_MASTER_PASSWORD', 'omnipass123'),
+            'password' => env('DB_MASTER_PASSWORD'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -133,7 +149,7 @@ return [
             'port' => env('DB_SLAVE1_PORT', '3307'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_SLAVE_USERNAME', 'omni_reader'),
-            'password' => env('DB_SLAVE_PASSWORD', 'omnireader123'),
+            'password' => env('DB_SLAVE_PASSWORD'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -152,7 +168,7 @@ return [
             'port' => env('DB_SLAVE2_PORT', '3308'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_SLAVE_USERNAME', 'omni_reader'),
-            'password' => env('DB_SLAVE_PASSWORD', 'omnireader123'),
+            'password' => env('DB_SLAVE_PASSWORD'),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix' => '',
@@ -172,7 +188,7 @@ return [
             'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'omni_portal'),
             'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'password' => env('DB_PASSWORD'),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,

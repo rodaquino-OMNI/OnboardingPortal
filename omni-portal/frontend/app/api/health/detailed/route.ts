@@ -6,7 +6,10 @@ export async function GET() {
     const startTime = Date.now();
     
     // Check API backend connectivity with detailed endpoints
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const isInContainer = process.env.HOSTNAME === '0.0.0.0' || process.env.NODE_ENV === 'production';
+    const apiUrl = isInContainer 
+      ? 'http://nginx/api' // Use nginx service internally for consistent routing
+      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api');
     
     // Check backend health endpoint
     try {

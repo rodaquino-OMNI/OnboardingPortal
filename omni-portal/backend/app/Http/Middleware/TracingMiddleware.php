@@ -21,7 +21,7 @@ class TracingMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!config('otel.enabled')) {
+        if (!config('otel.enabled', false)) {
             return $next($request);
         }
 
@@ -38,8 +38,9 @@ class TracingMiddleware
                 'http.host' => $request->getHost(),
                 'http.target' => $request->getRequestUri(),
                 'http.flavor' => $request->getProtocolVersion(),
-                'user.id' => Auth::id(),
-                'user.authenticated' => Auth::check(),
+                // Avoid using Auth facade which triggers session initialization
+                // 'user.id' => Auth::id(),
+                // 'user.authenticated' => Auth::check(),
             ]);
 
         $span = $spanBuilder->startSpan();

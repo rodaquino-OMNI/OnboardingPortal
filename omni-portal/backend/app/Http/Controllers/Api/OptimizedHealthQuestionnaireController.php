@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Helpers\RequestHelper;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 
@@ -115,7 +116,8 @@ class OptimizedHealthQuestionnaireController extends Controller
                 'metadata' => [
                     'user_agent' => $request->userAgent(),
                     'ip_address' => $request->ip(),
-                    'session_id' => session()->getId(),
+                    'request_id' => RequestHelper::generateRequestId($request),
+                    'tracking_id' => RequestHelper::generateTrackingId(),
                     'start_timestamp' => now()->timestamp
                 ]
             ]);

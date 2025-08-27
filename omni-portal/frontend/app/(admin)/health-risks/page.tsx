@@ -26,6 +26,8 @@ import { healthRisksApi } from '@/lib/api/admin/health-risks';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
+import { RealTimeAlertsProvider, NotificationBadge } from '@/components/admin/health-risks/RealTimeAlertsProvider';
+import { RoleBasedAccess } from '@/components/admin/RoleBasedAccess';
 
 interface DashboardData {
   overview: {
@@ -64,7 +66,7 @@ interface DashboardData {
   };
 }
 
-export default function HealthRisksDashboard() {
+function HealthRisksDashboardContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('7days');
@@ -76,7 +78,7 @@ export default function HealthRisksDashboard() {
       setLoading(true);
       setError(null);
       const response = await healthRisksApi.dashboard(timeframe);
-      setDashboardData(response.data);
+      setDashboardData(response.data as any);
     } catch (err) {
       console.error('Error loading dashboard:', err);
       setError('Erro ao carregar dados do dashboard');
@@ -134,7 +136,8 @@ export default function HealthRisksDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <RoleBasedAccess requiredPermissions={['view_health_risks']} requiredSensitivityLevel="internal">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -157,12 +160,15 @@ export default function HealthRisksDashboard() {
             <option value="30days">Últimos 30 dias</option>
           </select>
           
-          <Link href="/admin/health-risks/reports/generate">
-            <Button>
-              <FileText className="w-4 h-4 mr-2" />
-              Gerar Relatório
-            </Button>
-          </Link>
+          <RoleBasedAccess requiredPermissions={['export_data']}>
+            <Link href="/admin/health-risks/reports/generate">
+              <Button className="relative">
+                <FileText className="w-4 h-4 mr-2" />
+                Gerar Relatório
+                <NotificationBadge className="absolute -top-2 -right-2" />
+              </Button>
+            </Link>
+          </RoleBasedAccess>
         </div>
       </div>
 
@@ -358,6 +364,15 @@ export default function HealthRisksDashboard() {
           <p className="text-sm text-gray-600 mt-1">Intervenções bem-sucedidas</p>
         </Card>
       </div>
-    </div>
+      </div>
+    </RoleBasedAccess>
+  );
+}
+
+export default function HealthRisksDashboard() {
+  return (
+    <RealTimeAlertsProvider>
+      <HealthRisksDashboardContent />
+    </RealTimeAlertsProvider>
   );
 }

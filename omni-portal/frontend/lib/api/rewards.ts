@@ -72,7 +72,7 @@ class RewardsAPI {
    */
   async getRewards(): Promise<RewardsResponse> {
     try {
-      const response = await api.get('/rewards');
+      const response = await api.get('/api/rewards');
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -139,7 +139,7 @@ class RewardsAPI {
    */
   async getRewardHistory(): Promise<RewardHistoryResponse> {
     try {
-      const response = await api.get('/rewards/history');
+      const response = await api.get('/api/rewards/history');
       return response.data;
     } catch (error: any) {
       if (error.response?.status === 401) {

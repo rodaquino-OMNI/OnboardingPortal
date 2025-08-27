@@ -1,35 +1,280 @@
-import '@testing-library/jest-dom'
-import 'jest-axe/extend-expect'
-// Polyfill fetch and text encoding for test environment (required for MSW and API calls)
-const { TextEncoder, TextDecoder } = require('util')
-
-// Use whatwg-fetch polyfill for Jest environment
+// Critical: Polyfills must be loaded FIRST before any MSW code
+// Install fetch polyfill with all required globals
 require('whatwg-fetch')
 
-global.TextEncoder = TextEncoder  
+// Install critical Node.js polyfills for MSW v2
+const { TextEncoder, TextDecoder } = require('util')
+global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
-// Polyfill for Node.js stream APIs in jsdom
-global.TransformStream = global.TransformStream || class {
-  constructor() {
-    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
-    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+// Stream API polyfills (required by MSW v2 interceptors)
+if (!global.TransformStream) {
+  global.TransformStream = class TransformStream {
+    constructor(transformer = {}) {
+      this.readable = {
+        getReader: () => ({
+          read: () => Promise.resolve({ done: true, value: undefined })
+        })
+      }
+      this.writable = {
+        getWriter: () => ({
+          write: (chunk) => Promise.resolve(),
+          close: () => Promise.resolve()
+        })
+      }
+    }
   }
 }
 
-global.CompressionStream = global.CompressionStream || class {
-  constructor() {
-    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
-    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+if (!global.CompressionStream) {
+  global.CompressionStream = class CompressionStream {
+    constructor(format) {
+      this.readable = {
+        getReader: () => ({
+          read: () => Promise.resolve({ done: true, value: undefined })
+        })
+      }
+      this.writable = {
+        getWriter: () => ({
+          write: (chunk) => Promise.resolve(),
+          close: () => Promise.resolve()
+        })
+      }
+    }
   }
 }
 
-global.DecompressionStream = global.DecompressionStream || class {
-  constructor() {
-    this.readable = { getReader: () => ({ read: () => Promise.resolve({ done: true }) }) }
-    this.writable = { getWriter: () => ({ write: () => Promise.resolve(), close: () => Promise.resolve() }) }
+if (!global.DecompressionStream) {
+  global.DecompressionStream = class DecompressionStream {
+    constructor(format) {
+      this.readable = {
+        getReader: () => ({
+          read: () => Promise.resolve({ done: true, value: undefined })
+        })
+      }
+      this.writable = {
+        getWriter: () => ({
+          write: (chunk) => Promise.resolve(),
+          close: () => Promise.resolve()
+        })
+      }
+    }
   }
 }
+
+// ReadableStream polyfill
+if (!global.ReadableStream) {
+  global.ReadableStream = class ReadableStream {
+    constructor(underlyingSource = {}, strategy = {}) {
+      this._reader = null
+    }
+    
+    getReader() {
+      if (this._reader) throw new Error('ReadableStream is already locked to a reader')
+      this._reader = {
+        read: () => Promise.resolve({ done: true, value: undefined }),
+        releaseLock: () => { this._reader = null }
+      }
+      return this._reader
+    }
+  }
+}
+
+// BroadcastChannel polyfill (required for MSW WebSocket support)
+if (!global.BroadcastChannel) {
+  global.BroadcastChannel = class BroadcastChannel {
+    constructor(name) {
+      this.name = name
+      this._listeners = new Map()
+    }
+    
+    postMessage(message) {
+      // In test environment, we can simulate broadcasting
+      const messageEvent = { data: message, type: 'message' }
+      this._listeners.get('message')?.forEach(callback => {
+        setTimeout(() => callback(messageEvent), 0)
+      })
+    }
+    
+    addEventListener(type, listener) {
+      if (!this._listeners.has(type)) {
+        this._listeners.set(type, new Set())
+      }
+      this._listeners.get(type).add(listener)
+    }
+    
+    removeEventListener(type, listener) {
+      this._listeners.get(type)?.delete(listener)
+    }
+    
+    close() {
+      this._listeners.clear()
+    }
+  }
+}
+
+// Install Fetch API polyfills for MSW
+if (!global.Request) {
+  global.Request = globalThis.Request || class Request {
+    constructor(input, init = {}) {
+      this.url = typeof input === 'string' ? input : input.url || ''
+      this.method = init.method || 'GET'
+      this.headers = new Headers(init.headers)
+      this.body = init.body
+      this.mode = init.mode || 'cors'
+      this.credentials = init.credentials || 'same-origin'
+    }
+    
+    clone() {
+      return new Request(this.url, {
+        method: this.method,
+        headers: this.headers,
+        body: this.body,
+        mode: this.mode,
+        credentials: this.credentials
+      })
+    }
+    
+    async json() {
+      return JSON.parse(this.body || '{}')
+    }
+    
+    async text() {
+      return String(this.body || '')
+    }
+  }
+}
+
+if (!global.Response) {
+  global.Response = globalThis.Response || class Response {
+    constructor(body, init = {}) {
+      this.body = body
+      this.status = init.status || 200
+      this.statusText = init.statusText || 'OK'
+      this.headers = new Headers(init.headers)
+      this.ok = this.status >= 200 && this.status < 300
+      this.redirected = false
+      this.type = 'basic'
+      this.url = ''
+    }
+    
+    clone() {
+      return new Response(this.body, {
+        status: this.status,
+        statusText: this.statusText,
+        headers: this.headers
+      })
+    }
+    
+    static json(data, init = {}) {
+      return new Response(JSON.stringify(data), {
+        ...init,
+        headers: {
+          'content-type': 'application/json',
+          ...init.headers
+        }
+      })
+    }
+    
+    async json() {
+      return typeof this.body === 'string' ? JSON.parse(this.body) : this.body
+    }
+    
+    async text() {
+      return typeof this.body === 'string' ? this.body : JSON.stringify(this.body)
+    }
+    
+    async arrayBuffer() {
+      const text = await this.text()
+      return new TextEncoder().encode(text).buffer
+    }
+  }
+}
+
+if (!global.Headers) {
+  global.Headers = globalThis.Headers || class Headers {
+    constructor(init = {}) {
+      this._headers = new Map()
+      if (init) {
+        if (init instanceof Headers) {
+          init.forEach((value, key) => this.set(key, value))
+        } else if (Array.isArray(init)) {
+          init.forEach(([key, value]) => this.set(key, value))
+        } else {
+          Object.entries(init).forEach(([key, value]) => this.set(key, value))
+        }
+      }
+    }
+    
+    append(name, value) {
+      const existing = this.get(name)
+      this.set(name, existing ? `${existing}, ${value}` : value)
+    }
+    
+    delete(name) {
+      this._headers.delete(name.toLowerCase())
+    }
+    
+    get(name) {
+      return this._headers.get(name.toLowerCase()) || null
+    }
+    
+    has(name) {
+      return this._headers.has(name.toLowerCase())
+    }
+    
+    set(name, value) {
+      this._headers.set(name.toLowerCase(), String(value))
+    }
+    
+    forEach(callback, thisArg) {
+      this._headers.forEach((value, key) => {
+        callback.call(thisArg, value, key, this)
+      })
+    }
+    
+    keys() {
+      return this._headers.keys()
+    }
+    
+    values() {
+      return this._headers.values()
+    }
+    
+    entries() {
+      return this._headers.entries()
+    }
+    
+    [Symbol.iterator]() {
+      return this.entries()
+    }
+  }
+}
+
+// Now load testing libraries
+require('@testing-library/jest-dom')
+require('jest-axe/extend-expect')
+
+// Setup MSW for API mocking (after polyfills)
+const { startServer, stopServer, resetHandlers } = require('./__tests__/setup/api-mocks')
+
+// Start server before all tests
+beforeAll(() => {
+  startServer()
+})
+
+// Reset handlers after each test
+afterEach(() => {
+  resetHandlers()
+})
+
+// Stop server after all tests
+afterAll(() => {
+  stopServer()
+})
+// Polyfills already installed above
+
+// Stream polyfills already installed above
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
@@ -122,31 +367,7 @@ global.performance = {
   now: jest.fn(() => Date.now()),
 }
 
-// Mock BroadcastChannel
-global.BroadcastChannel = class BroadcastChannel {
-  constructor(name) {
-    this.name = name
-    this.listeners = []
-  }
-  postMessage(message) {
-    this.listeners.forEach(listener => {
-      listener({ data: message })
-    })
-  }
-  addEventListener(event, callback) {
-    if (event === 'message') {
-      this.listeners.push(callback)
-    }
-  }
-  removeEventListener(event, callback) {
-    if (event === 'message') {
-      this.listeners = this.listeners.filter(l => l !== callback)
-    }
-  }
-  close() {
-    this.listeners = []
-  }
-}
+// BroadcastChannel already polyfilled above
 
 // Mock window.location
 const mockLocation = {
@@ -169,58 +390,7 @@ global.act = require('react').act
 
 // TextEncoder/TextDecoder already defined above
 
-// Add polyfills for MSW
-if (typeof global.Request === 'undefined') {
-  global.Request = class Request {
-    constructor(input, init) {
-      this.url = input
-      this.method = init?.method || 'GET'
-      this.headers = new Map(Object.entries(init?.headers || {}))
-      this.body = init?.body
-    }
-  }
-}
-
-if (typeof global.Response === 'undefined') {
-  global.Response = class Response {
-    constructor(body, init) {
-      this.body = body
-      this.status = init?.status || 200
-      this.statusText = init?.statusText || ''
-      this.headers = new Map(Object.entries(init?.headers || {}))
-      this.ok = this.status >= 200 && this.status < 300
-    }
-    
-    async json() {
-      return typeof this.body === 'string' ? JSON.parse(this.body) : this.body
-    }
-    
-    async text() {
-      return typeof this.body === 'string' ? this.body : JSON.stringify(this.body)
-    }
-  }
-}
-
-if (typeof global.Headers === 'undefined') {
-  global.Headers = class Headers extends Map {
-    constructor(init) {
-      super()
-      if (init) {
-        Object.entries(init).forEach(([key, value]) => {
-          this.set(key.toLowerCase(), value)
-        })
-      }
-    }
-    
-    get(name) {
-      return super.get(name.toLowerCase())
-    }
-    
-    set(name, value) {
-      return super.set(name.toLowerCase(), value)
-    }
-  }
-}
+// Polyfills already installed above - this section is redundant
 
 // Mock console.error to filter out React act() warnings in tests
 const originalError = console.error;

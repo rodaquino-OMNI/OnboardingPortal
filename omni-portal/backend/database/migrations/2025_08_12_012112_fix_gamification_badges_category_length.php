@@ -11,10 +11,31 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('gamification_badges', function (Blueprint $table) {
-            // Increase category column length to handle longer values like 'telemedicine'
-            $table->string('category', 50)->change();
-        });
+        // Check if table exists before trying to modify it
+        if (Schema::hasTable('gamification_badges')) {
+            Schema::table('gamification_badges', function (Blueprint $table) {
+                // Increase category column length to handle longer values like 'telemedicine'
+                $table->string('category', 50)->change();
+            });
+        } else {
+            // Create the table if it doesn't exist
+            Schema::create('gamification_badges', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->string('icon')->nullable();
+                $table->string('category', 50)->default('general');
+                $table->integer('points_required')->default(0);
+                $table->string('criteria')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+                
+                // Add performance indexes
+                $table->index(['category', 'is_active']);
+                $table->index(['points_required']);
+                $table->index(['name']);
+            });
+        }
     }
 
     /**

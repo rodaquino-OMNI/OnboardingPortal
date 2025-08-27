@@ -82,11 +82,12 @@ export default function WebhookConfigurationPanel() {
       });
 
       if (response.data) {
-        setWebhookId(response.data.webhook_id);
-        setTestResult(response.data.test_result);
+        const data = response.data as any;
+        setWebhookId(data.webhook_id);
+        setTestResult(data.test_result);
         toast({
           title: 'Webhook Registered',
-          description: `Webhook ID: ${response.data.webhook_id}`,
+          description: `Webhook ID: ${data.webhook_id}`,
         });
       }
     } catch (error) {

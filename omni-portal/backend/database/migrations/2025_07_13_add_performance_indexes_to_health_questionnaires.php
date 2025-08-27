@@ -8,12 +8,50 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * Check if an index exists on a table
+     * Check if an index exists on a table (database-agnostic)
      */
     private function indexExists(string $table, string $indexName): bool
     {
-        $indexes = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$indexName]);
-        return !empty($indexes);
+        $driver = DB::connection()->getDriverName();
+        
+        try {
+            switch ($driver) {
+                case 'sqlite':
+                    // For SQLite, query the sqlite_master table
+                    $result = DB::select(
+                        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ? AND tbl_name = ?", 
+                        [$indexName, $table]
+                    );
+                    return !empty($result);
+                    
+                case 'mysql':
+                    // For MySQL, use SHOW INDEX
+                    $result = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$indexName]);
+                    return !empty($result);
+                    
+                case 'pgsql':
+                    // For PostgreSQL, query information_schema
+                    $result = DB::select(
+                        "SELECT indexname FROM pg_indexes WHERE tablename = ? AND indexname = ?", 
+                        [$table, $indexName]
+                    );
+                    return !empty($result);
+                    
+                default:
+                    // Fallback: Use Laravel's Schema::hasIndex if available
+                    // Note: This method was added in newer Laravel versions
+                    if (method_exists(Schema::class, 'hasIndex')) {
+                        return Schema::hasIndex($table, $indexName);
+                    }
+                    
+                    // Last resort: assume index doesn't exist and let Laravel handle duplicates
+                    return false;
+            }
+        } catch (\Exception $e) {
+            // If index checking fails, assume it doesn't exist
+            // Laravel will handle duplicate index creation gracefully
+            return false;
+        }
     }
 
     /**
@@ -40,14 +78,15 @@ return new class extends Migration
             
             // Progressive screening performance indexes
             $this->addIndexIfNotExists($table, ['progressive_layer', 'created_at'], 'idx_health_progressive_created');
-            $this->addIndexIfNotExists($table, ['risk_level', 'emergency_detected'], 'idx_health_risk_emergency');
+            $this->addIndexIfNotExists($table, ['severity_level', 'emergency_detected'], 'idx_health_risk_emergency');
             
             // AI processing performance indexes
-            $this->addIndexIfNotExists($table, ['status', 'ai_insights'], 'idx_health_status_ai_null');
+            // Note: ai_insights is a JSON column and cannot be directly indexed in MySQL
+            $this->addIndexIfNotExists($table, ['status', 'created_at'], 'idx_health_status_created');
             $this->addIndexIfNotExists($table, ['template_id', 'status', 'completed_at'], 'idx_health_template_status_completed');
             
             // Reporting and analytics indexes
-            $this->addIndexIfNotExists($table, ['completed_at', 'risk_level'], 'idx_health_completed_risk');
+            $this->addIndexIfNotExists($table, ['completed_at', 'severity_level'], 'idx_health_completed_risk');
             $this->addIndexIfNotExists($table, ['beneficiary_id', 'completed_at', 'status'], 'idx_health_beneficiary_completed_status');
         });
 
@@ -61,13 +100,7 @@ return new class extends Migration
         }
 
         // Add composite index for pathway experiences if table exists
-        if (Schema::hasTable('pathway_experiences')) {
-            Schema::table('pathway_experiences', function (Blueprint $table) {
-                $this->addIndexIfNotExists($table, ['beneficiary_id', 'pathway'], 'idx_pathway_beneficiary_pathway');
-                $this->addIndexIfNotExists($table, ['created_at', 'pathway'], 'idx_pathway_created_pathway');
-                $this->addIndexIfNotExists($table, ['engagement_score', 'risk_level'], 'idx_pathway_engagement_risk');
-            });
-        }
+        // Note: pathway_experiences table doesn't exist yet, keeping for future compatibility
     }
 
     /**
@@ -92,7 +125,7 @@ return new class extends Migration
             $this->dropIndexIfExists($table, 'idx_health_status_saved');
             $this->dropIndexIfExists($table, 'idx_health_progressive_created');
             $this->dropIndexIfExists($table, 'idx_health_risk_emergency');
-            $this->dropIndexIfExists($table, 'idx_health_status_ai_null');
+            $this->dropIndexIfExists($table, 'idx_health_status_created');
             $this->dropIndexIfExists($table, 'idx_health_template_status_completed');
             $this->dropIndexIfExists($table, 'idx_health_completed_risk');
             $this->dropIndexIfExists($table, 'idx_health_beneficiary_completed_status');
@@ -106,12 +139,6 @@ return new class extends Migration
             });
         }
 
-        if (Schema::hasTable('pathway_experiences')) {
-            Schema::table('pathway_experiences', function (Blueprint $table) {
-                $this->dropIndexIfExists($table, 'idx_pathway_beneficiary_pathway');
-                $this->dropIndexIfExists($table, 'idx_pathway_created_pathway');
-                $this->dropIndexIfExists($table, 'idx_pathway_engagement_risk');
-            });
-        }
+        // pathway_experiences table doesn't exist yet, keeping for future compatibility
     }
 };

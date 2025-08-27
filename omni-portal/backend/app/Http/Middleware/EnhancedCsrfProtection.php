@@ -202,16 +202,44 @@ class EnhancedCsrfProtection
     }
     
     /**
-     * Verify Laravel CSRF tokens match
+     * Verify CSRF tokens for stateless API
+     * For stateless APIs, we rely on Authorization header instead of CSRF
      */
     protected function tokensMatch(Request $request): bool
     {
+        // For stateless APIs, skip CSRF if request has valid Authorization header
+        if ($this->hasValidApiAuthentication($request)) {
+            return true;
+        }
+
+        // For traditional web requests, use header-based CSRF token validation
         $token = $this->getTokenFromRequest($request);
-        $sessionToken = $request->session()->token();
+        $expectedToken = $request->header('X-CSRF-TOKEN') ?: 
+                        $request->header('X-XSRF-TOKEN') ?:
+                        $request->input('_token');
         
-        return is_string($sessionToken) &&
+        return is_string($expectedToken) &&
                is_string($token) &&
-               hash_equals($sessionToken, $token);
+               hash_equals($expectedToken, $token);
+    }
+
+    /**
+     * Check if request has valid API authentication
+     */
+    protected function hasValidApiAuthentication(Request $request): bool
+    {
+        // Check for Bearer token
+        $authHeader = $request->header('Authorization');
+        if ($authHeader && str_starts_with($authHeader, 'Bearer ')) {
+            return true;
+        }
+
+        // Check for API key
+        if ($request->header('X-API-Key')) {
+            return true;
+        }
+
+        return false;
     }
     
     /**

@@ -1,0 +1,4 @@
+
+  ....................⨯..................................⨯⨯.⨯.....⨯⨯..⨯⨯⨯...⨯.
+  ⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯............⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯...⨯..⨯.⨯⨯...⨯..........
+  ......⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯⨯[2025-08-27T19:23:17.261Z] INFO [memory-store] Initialized SQLite at: /Users/rodrigo/claude-projects/OnboardingPortal/omni-portal/backend/.swarm/memory.db

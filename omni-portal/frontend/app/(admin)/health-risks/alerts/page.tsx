@@ -72,8 +72,9 @@ export default function AlertsListPage() {
       setLoading(true);
       setError(null);
       const response = await healthRisksApi.alerts.list(filters);
-      setAlerts(response.data.data);
-      setMeta(response.data.meta);
+      const data = response.data as any;
+      setAlerts(data.data || data);
+      setMeta(data.meta || {});
     } catch (err) {
       console.error('Error loading alerts:', err);
       setError('Erro ao carregar alertas');

@@ -114,7 +114,7 @@ export function ServiceWorkerProvider({ children }: ServiceWorkerProviderProps) 
             </div>
             <div className="ml-3">
               <p className="text-sm text-amber-800">
-                You're offline. Some features may be limited.
+                You&apos;re offline. Some features may be limited.
               </p>
             </div>
           </div>

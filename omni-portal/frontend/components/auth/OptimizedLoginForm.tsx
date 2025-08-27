@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { loginSchema, type LoginData } from '@/lib/schemas/auth';
-import { useAuth } from '@/hooks/useAuth';
+import { useUnifiedAuth } from '@/hooks/useUnifiedAuth';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { SocialLoginButton } from './SocialLoginButton';
@@ -17,7 +17,7 @@ import TwoFactorAuth from './TwoFactorAuth';
 // PERFORMANCE OPTIMIZATION: Memoize LoginForm component to prevent unnecessary re-renders
 const OptimizedLoginForm = memo(function OptimizedLoginForm() {
   const router = useRouter();
-  const { login, socialLogin, error: authError, clearError, isAuthenticated } = useAuth();
+  const { login, socialLogin, error: authError, clearError, isAuthenticated } = useUnifiedAuth();
   const [showSuccess, setShowSuccess] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [requires2FA, setRequires2FA] = useState(false);

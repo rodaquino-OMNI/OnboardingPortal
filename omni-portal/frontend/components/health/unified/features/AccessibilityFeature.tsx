@@ -24,7 +24,7 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
   const [highContrast, setHighContrast] = useState(config?.highContrast || false);
 
   // Read current question aloud
-  const readCurrentQuestion = () => {
+  const readCurrentQuestion = useCallback(() => {
     if (!config?.textToSpeech) return;
 
     const question = getCurrentQuestion();
@@ -40,10 +40,10 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
     
     window.speechSynthesis.speak(utterance);
     announce(`Lendo pergunta: ${question.text}`);
-  };
+  }, [config?.textToSpeech, config?.language, getCurrentQuestion]);
 
   // Announce help information
-  const announceHelp = () => {
+  const announceHelp = useCallback(() => {
     const helpText = `
       Atalhos de teclado disponíveis:
       Alt + R: Ler pergunta atual em voz alta.
@@ -53,14 +53,14 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
       Enter ou Espaço: Selecionar opção.
     `;
     announce(helpText);
-  };
+  }, []);
 
   // Toggle high contrast
-  const toggleHighContrast = () => {
+  const toggleHighContrast = useCallback(() => {
     setHighContrast(!highContrast);
     document.body.classList.toggle('high-contrast');
     announce(`Modo de alto contraste ${!highContrast ? 'ativado' : 'desativado'}`);
-  };
+  }, [highContrast]);
 
   // Setup keyboard navigation
   const setupKeyboardNavigation = useCallback(() => {
@@ -84,7 +84,7 @@ export function AccessibilityFeatureComponent({ config }: { config?: Accessibili
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [announceHelp, readCurrentQuestion, toggleHighContrast]);
 
   // Setup screen reader announcements
   const setupScreenReaderAnnouncements = () => {

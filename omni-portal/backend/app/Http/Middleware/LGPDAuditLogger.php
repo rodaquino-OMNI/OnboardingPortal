@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AuditLog;
+use App\Helpers\RequestHelper;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -81,8 +82,7 @@ class LGPDAuditLogger
             'browser_version' => $agent->version($agent->browser()),
             'platform' => $agent->platform(),
             'device_type' => $agent->deviceType(),
-            'session_id' => session()->getId(),
-            'request_id' => $request->header('X-Request-ID') ?? uniqid(),
+            'request_id' => RequestHelper::generateRequestId($request),
             'is_sensitive_data' => $isSensitiveData,
             'is_successful' => $response->getStatusCode() < 400,
             'legal_basis' => $legalBasis,

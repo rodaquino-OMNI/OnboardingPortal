@@ -16,23 +16,25 @@ export default function DashboardHome() {
     setMounted(true);
   }, []);
 
-  // Check authentication status when component mounts
-  useEffect(() => {
-    if (mounted) {
-      checkAuth();
-    }
-  }, [mounted, checkAuth]);
+  // REMOVED: Duplicate auth check that competes with DashboardLayout
+  // DashboardLayout now handles all authentication checks
+  // useEffect(() => {
+  //   if (mounted) {
+  //     checkAuth();
+  //   }
+  // }, [mounted, checkAuth]);
 
   useEffect(() => {
-    // Only redirect after component is mounted and user is authenticated
-    if (mounted && isAuthenticated && !isLoading) {
+    // SIMPLIFIED: Only handle redirect for authenticated users
+    // Remove dependency on isLoading to prevent hanging
+    if (mounted && isAuthenticated) {
       console.log('[DashboardPage] User is authenticated, redirecting to /home');
       // Use replace instead of push to prevent back button issues
       router.replace('/home');
-    } else if (mounted && !isLoading) {
+    } else if (mounted) {
       console.log('[DashboardPage] User not authenticated, showing landing page');
     }
-  }, [mounted, isAuthenticated, isLoading, router]);
+  }, [mounted, isAuthenticated, router]); // Removed isLoading dependency
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

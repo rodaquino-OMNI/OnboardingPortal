@@ -54,7 +54,7 @@ class SocialAuthController extends Controller
     /**
      * Handle OAuth callback
      */
-    public function callback(string $provider): JsonResponse
+    public function callback(string $provider)
     {
         try {
             $providers = ['google', 'facebook', 'instagram'];
@@ -147,13 +147,8 @@ class SocialAuthController extends Controller
             ])
         ]);
         
-        // Create gamification progress
-        $user->gamificationProgress()->create([
-            'points' => 50, // Bonus points for social signup
-            'level' => 1,
-            'badges_earned' => 0,
-            'activities_completed' => 1
-        ]);
+        // Note: Beneficiary and gamification progress will be created 
+        // during the onboarding process when user provides required information
         
         return $user;
     }

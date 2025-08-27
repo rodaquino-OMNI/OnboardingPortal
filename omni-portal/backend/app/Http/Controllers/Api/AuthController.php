@@ -5,213 +5,104 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
+use Illuminate\Http\Response;
 
 class AuthController extends Controller
 {
     /**
-     * Handle user login
+     * Handle user login using unified auth logic
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        // Rate limiting key
-        $throttleKey = strtolower($request->input('email')) . '|' . $request->ip();
-        
-        // Check rate limit (5 attempts per minute)
-        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = RateLimiter::availableIn($throttleKey);
-            
-            throw ValidationException::withMessages([
-                'email' => ["Muitas tentativas de login. Por favor, tente novamente em {$seconds} segundos."],
-            ]);
-        }
-        
-        // Get credentials with field validation
+        $authService = app(AuthService::class);
         $credentials = $request->getCredentials();
         $field = $request->getLoginField();
         
-        // Whitelist allowed fields to prevent SQL injection
-        $allowedFields = ['email', 'cpf'];
-        if (!in_array($field, $allowedFields, true)) {
-            throw ValidationException::withMessages([
-                'email' => ['Campo de login inválido.'],
-            ]);
-        }
+        $result = $authService->login($credentials, $field, $request);
         
-        // Use parameterized query with field whitelisting
-        $user = User::where($field, '=', $credentials[$field])->first();
-        
-        if (!$user || !Hash::check($credentials['password'], $user->password)) {
-            RateLimiter::hit($throttleKey, 60);
-            
-            // If user exists, increment failed attempts
-            if ($user) {
-                $user->incrementFailedLoginAttempts();
-            }
-            
-            throw ValidationException::withMessages([
-                'email' => ['As credenciais fornecidas estão incorretas.'],
-            ]);
-        }
-        
-        // Check if account is locked
-        if ($user->isLocked()) {
-            throw ValidationException::withMessages([
-                'email' => ['Sua conta está bloqueada devido a múltiplas tentativas de login falhadas. Tente novamente mais tarde.'],
-            ]);
-        }
-        
-        // Check if user is active
-        if (!$user->is_active) {
-            throw ValidationException::withMessages([
-                'email' => ['Sua conta está inativa. Entre em contato com o administrador.'],
-            ]);
-        }
-        
-        // Check if registration is completed
-        if (!$user->isRegistrationCompleted()) {
+        // Handle registration incomplete case
+        if ($result['type'] === 'registration_incomplete') {
             return response()->json([
-                'message' => 'Registro incompleto',
-                'registration_step' => $user->registration_step,
-                'user_id' => $user->id,
+                'message' => $result['message'],
+                'registration_step' => $result['registration_step'],
+                'user_id' => $result['user_id'],
             ], 200);
         }
         
-        // Clear rate limiter on successful login
-        RateLimiter::clear($throttleKey);
-        
-        // Record successful login
-        $user->recordSuccessfulLogin($request->ip());
-        
-        // Create token
-        $deviceName = $request->input('device_name', 'web');
-        $token = $user->createToken($deviceName)->plainTextToken;
-        
-        // Load relationships
-        $user->load(['beneficiary', 'gamificationProgress']); // Removed 'roles' temporarily
-        
-        // Set token as httpOnly cookie for enhanced security
+        // Create response with auth cookie
         $response = response()->json([
-            'message' => 'Login realizado com sucesso',
-            'user' => $user,
-            'token' => $token,  // Include token in response for frontend to use
-            'success' => true,
+            'message' => htmlspecialchars($result['message'], ENT_QUOTES, 'UTF-8'),
+            'user' => $result['user'],
+            'token' => $result['token'],
+            'success' => $result['success'],
+            'performance' => $result['performance'],
         ]);
         
-        // Add httpOnly, secure, SameSite cookie with the token
-        // Note: Laravel will automatically encrypt this cookie
-        $response->cookie(
-            'auth_token',
-            $token,
-            config('sanctum.expiration', 525600), // 1 year default
-            '/',
-            null, // No domain restriction for localhost
-            false, // Not secure for localhost development
-            true, // httpOnly
-            false, // raw (don't encode)
-            'Lax' // SameSite=Lax for better compatibility
-        );
-        
-        return $response;
+        return $authService->createAuthCookie($result['token'], $response);
     }
     
     /**
-     * Handle user logout
+     * Handle user logout using unified auth logic
      */
     public function logout(Request $request): JsonResponse
     {
-        // Revoke current token
-        $request->user()->currentAccessToken()->delete();
+        $authService = app(AuthService::class);
+        $result = $authService->logout($request);
         
-        // Clear the httpOnly auth cookie
-        $response = response()->json([
-            'message' => 'Logout realizado com sucesso',
-        ]);
+        $response = response()->json($result);
         
-        $response->cookie(
-            'auth_token',
-            '',
-            -1, // Expire immediately
-            '/',
-            'localhost', // Same domain as login
-            config('session.secure', false), // Use same config as login
-            true, // httpOnly
-            false,
-            'Lax' // SameSite=Lax - same as login
-        );
-        
-        return $response;
+        return $authService->clearAuthCookie($response);
     }
     
     /**
-     * Handle logout from all devices
+     * Handle logout from all devices using unified auth logic
      */
     public function logoutAll(Request $request): JsonResponse
     {
-        // Revoke all tokens
-        $request->user()->tokens()->delete();
+        $authService = app(AuthService::class);
+        $result = $authService->logoutAll($request);
         
-        // Clear the httpOnly auth cookie
-        $response = response()->json([
-            'message' => 'Logout realizado em todos os dispositivos',
-        ]);
+        $response = response()->json($result);
         
-        $response->cookie(
-            'auth_token',
-            '',
-            -1, // Expire immediately
-            '/',
-            'localhost', // Same domain as login
-            config('session.secure', false), // Use same config as login
-            true, // httpOnly
-            false,
-            'Lax' // SameSite=Lax - same as login
-        );
-        
-        return $response;
+        return $authService->clearAuthCookie($response);
     }
     
     /**
-     * Refresh token (get new token)
+     * Refresh token using unified auth logic
      */
     public function refresh(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $authService = app(AuthService::class);
+        $result = $authService->refreshToken($request);
         
-        // Delete current token
-        $request->user()->currentAccessToken()->delete();
-        
-        // Create new token
-        $deviceName = $request->input('device_name', 'web');
-        $token = $user->createToken($deviceName)->plainTextToken;
-        
-        return response()->json([
-            'message' => 'Token renovado com sucesso',
-            'token' => $token,
-            'token_type' => 'Bearer',
-        ]);
+        return response()->json($result);
     }
     
     /**
-     * Get current authenticated user
+     * Get current authenticated user using unified auth logic
      */
     public function user(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $user->load(['beneficiary', 'gamificationProgress']);
+        $authService = app(AuthService::class);
+        $result = $authService->getAuthenticatedUser($request);
         
-        return response()->json([
-            'user' => $user,
-        ]);
+        return response()->json($result);
     }
     
     /**
-     * Verify if email exists (for registration)
+     * Verify if email exists using unified auth logic
      */
     public function checkEmail(Request $request): JsonResponse
     {
@@ -219,15 +110,14 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
         ]);
         
-        $exists = User::where('email', $request->email)->exists();
+        $authService = app(AuthService::class);
+        $result = $authService->checkEmailExists($request->email);
         
-        return response()->json([
-            'exists' => $exists,
-        ]);
+        return response()->json($result);
     }
     
     /**
-     * Verify if CPF exists (for registration)
+     * Verify if CPF exists using unified auth logic
      */
     public function checkCpf(Request $request): JsonResponse
     {
@@ -235,13 +125,9 @@ class AuthController extends Controller
             'cpf' => ['required', 'string'],
         ]);
         
-        // Clean CPF
-        $cpf = preg_replace('/[^0-9]/', '', $request->cpf);
+        $authService = app(AuthService::class);
+        $result = $authService->checkCpfExists($request->cpf);
         
-        $exists = User::where('cpf', $cpf)->exists();
-        
-        return response()->json([
-            'exists' => $exists,
-        ]);
+        return response()->json($result);
     }
 }

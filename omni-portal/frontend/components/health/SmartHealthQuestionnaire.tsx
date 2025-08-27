@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Heart, Brain, Activity, Shield, AlertTriangle, 
   CheckCircle, Trophy, Sparkles, ChevronRight,
@@ -489,9 +489,7 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
             <fieldset className="grid grid-cols-2 gap-3" 
                      aria-labelledby={`question-${currentQuestion.id}`}
                      aria-describedby={`${currentQuestion.validation ? `question-${currentQuestion.id}-help` : ''} ${multiError ? `question-${currentQuestion.id}-error` : ''}`.trim()}
-                     aria-invalid={multiError ? 'true' : 'false'}
-                     role="group"
-                     aria-required={currentQuestion.required}>
+                     role="group">
               <legend className="sr-only">{currentQuestion.text} (Selecione uma ou mais opções)</legend>
               {multiOptions.map((option, index) => {
                 const selected = responses[currentQuestion.id]?.includes(option.value);
@@ -848,9 +846,9 @@ function SmartHealthQuestionnaireInner({ onComplete, userId, progressiveResults 
   );
 }
 
-// Main component export with error boundary wrapper
-export function SmartHealthQuestionnaire(props: SmartHealthQuestionnaireProps) {
+// PERFORMANCE OPTIMIZATION: Memoized component to prevent unnecessary re-renders
+export const SmartHealthQuestionnaire = React.memo(function SmartHealthQuestionnaire(props: SmartHealthQuestionnaireProps) {
   return (
     <SmartHealthQuestionnaireInner {...props} />
   );
-}
+});

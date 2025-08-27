@@ -27,6 +27,7 @@ const Progress = React.forwardRef<
           aria-valuenow={value}
           aria-valuemin={0}
           aria-valuemax={max}
+          aria-label={`Progress: ${percentage}% complete`}
         />
       </div>
       {showLabel && (

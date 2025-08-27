@@ -1,15 +1,16 @@
 import type { OCRResult, OCRBlock, BoundingBox, ExtractedDocumentData, DocumentValidation } from '@/types/ocr';
+import type { OCRWorkerManager, RecognizeResult } from '@/types/ocr-worker';
 import { makeCancellable, type CancellableRequest } from './async-utils';
-import { loadTesseract } from './dynamic-imports';
+import { loadTesseractSafely } from './tesseract-fix';
 
 // Dynamic imports for Tesseract.js
-let tesseractWorker: any = null;
+const tesseractWorker: any = null;
 let tesseractUtils: any = null;
 
 const initializeTesseract = async () => {
   if (!tesseractUtils) {
-    const { createWorker } = await loadTesseract();
-    tesseractUtils = { createWorker };
+    // Use the safe loader with proper configuration
+    tesseractUtils = await loadTesseractSafely();
   }
   return tesseractUtils;
 };
@@ -133,13 +134,13 @@ export class OCRService {
 
       try {
         // Validate and optimize image before processing
-        const qualityCheck = await validateImageQuality(file);
+        const qualityCheck = await this.validateImageQuality(file);
         if (!qualityCheck.isValid) {
           throw new Error(`Image quality issues: ${qualityCheck.issues.join(', ')}`);
         }
 
         // Compress image before OCR with cancellation support
-        const compressedFile = await compressImage(file, {
+        const compressedFile = await this.compressImage(file, {
           maxWidth: 1920,
           maxHeight: 1920,
           quality: 0.9,
@@ -446,6 +447,81 @@ export class OCRService {
    */
   getActiveOperationCount(): number {
     return this.activeRequests.size;
+  }
+
+  /**
+   * Validate image quality before OCR processing
+   */
+  private async validateImageQuality(file: File): Promise<{ isValid: boolean; issues: string[] }> {
+    const issues: string[] = [];
+    let isValid = true;
+
+    // Check file size (should be reasonable)
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      issues.push('File too large (max 10MB)');
+      isValid = false;
+    }
+
+    if (file.size < 1000) { // 1KB
+      issues.push('File too small (likely corrupted)');
+      isValid = false;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      issues.push('File is not an image');
+      isValid = false;
+    }
+
+    return { isValid, issues };
+  }
+
+  /**
+   * Compress image for OCR processing
+   */
+  private async compressImage(file: File, options: {
+    maxWidth: number;
+    maxHeight: number;
+    quality: number;
+  }): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+        if (width > options.maxWidth || height > options.maxHeight) {
+          const ratio = Math.min(options.maxWidth / width, options.maxHeight / height);
+          width *= ratio;
+          height *= ratio;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], file.name, { type: file.type }));
+              } else {
+                reject(new Error('Failed to compress image'));
+              }
+            },
+            file.type,
+            options.quality
+          );
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
   }
 }
 

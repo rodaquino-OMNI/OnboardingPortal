@@ -27,6 +27,9 @@ class TracingServiceProvider extends ServiceProvider
             return;
         }
 
+        // Temporarily disable for testing to avoid SpanExporter issues
+        return;
+
         $this->app->singleton(TracerProvider::class, function () {
             return $this->createTracerProvider();
         });
@@ -37,6 +40,9 @@ class TracingServiceProvider extends ServiceProvider
         if (!config('otel.enabled')) {
             return;
         }
+
+        // Temporarily disable for testing
+        return;
 
         $tracerProvider = $this->app->make(TracerProvider::class);
         

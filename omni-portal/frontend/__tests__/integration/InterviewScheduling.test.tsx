@@ -10,6 +10,9 @@ import '@testing-library/jest-dom';
 
 // Component under test - Updated to use new InterviewUnlockCard
 import InterviewUnlockCard from '../../components/dashboard/InterviewUnlockCard';
+import { InterviewScheduler } from '../../components/interview/InterviewScheduler';
+import { InterviewCalendar } from '../../components/interview/InterviewCalendar';
+import { InterviewConfirmation } from '../../components/interview/InterviewConfirmation';
 // Note: InterviewScheduler component has been replaced with InterviewUnlockCard + telemedicine-schedule flow
 
 // Types
@@ -244,9 +247,15 @@ describe('Interview Scheduling System Integration', () => {
     it('should display available interview slots across multiple timezones', async () => {
       renderWithProviders(<InterviewScheduler />);
 
-      // Wait for slots to load
+      // Wait for slots to load completely (not just the loading screen)
       await waitFor(() => {
         expect(screen.getByText(/available interview slots/i)).toBeInTheDocument();
+        expect(screen.queryByText(/loading interview slots/i)).not.toBeInTheDocument();
+      }, { timeout: 5000 });
+
+      // Wait for timezone selector to appear
+      await waitFor(() => {
+        expect(screen.getByLabelText(/timezone/i)).toBeInTheDocument();
       });
 
       // Verify slots are displayed

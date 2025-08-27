@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Test</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0051a5;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔐 Login Functionality Test</h1>
+        <p>Test the login fix directly against the API</p>
+        
+        <div>
+            <label>Email/CPF:</label>
+            <input type="text" id="email" value="admin@omnihealth.com" placeholder="admin@omnihealth.com">
+            
+            <label>Password:</label>
+            <input type="password" id="password" value="Admin@123" placeholder="Admin@123">
+        </div>
+        
+        <button onclick="testDirectLogin()">🎯 Test Direct API Login</button>
+        <button onclick="testFrontendLogin()">🖥️ Test Frontend Login</button>
+        <button onclick="clearResult()">🗑️ Clear Results</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const resultDiv = document.getElementById('result');
+        
+        function showResult(message, type = 'loading') {
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = message;
+        }
+        
+        function clearResult() {
+            resultDiv.className = '';
+            resultDiv.textContent = '';
+        }
+        
+        async function testDirectLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            showResult('Testing direct API login...', 'loading');
+            
+            try {
+                // Get CSRF token first
+                showResult('Step 1: Getting CSRF token...', 'loading');
+                const csrfResponse = await fetch('http://localhost:8000/sanctum/csrf-cookie', {
+                    credentials: 'include'
+                });
+                
+                if (!csrfResponse.ok) {
+                    throw new Error(`CSRF request failed: ${csrfResponse.status}`);
+                }
+                
+                // Extract XSRF token from cookie
+                const xsrfToken = document.cookie
+                    .split(';')
+                    .find(row => row.trim().startsWith('XSRF-TOKEN='))
+                    ?.split('=')[1];
+                
+                if (!xsrfToken) {
+                    throw new Error('No XSRF token found in cookies');
+                }
+                
+                showResult('Step 2: Attempting login...', 'loading');
+                
+                // Login request
+                const loginResponse = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-XSRF-TOKEN': decodeURIComponent(xsrfToken)
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+                
+                const result = await loginResponse.json();
+                
+                if (loginResponse.ok) {
+                    showResult(`✅ SUCCESS!\n\nStatus: ${loginResponse.status}\nUser: ${result.user.name}\nEmail: ${result.user.email}\nToken: ${result.token.substring(0, 20)}...\n\nLogin working correctly!`, 'success');
+                } else {
+                    showResult(`❌ LOGIN FAILED\n\nStatus: ${loginResponse.status}\nError: ${result.message}\nDetails: ${JSON.stringify(result.errors || {}, null, 2)}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult(`❌ ERROR\n\n${error.message}\n\nCheck console for full details.`, 'error');
+                console.error('Login test error:', error);
+            }
+        }
+        
+        async function testFrontendLogin() {
+            showResult('Testing frontend login flow...', 'loading');
+            
+            try {
+                // This would test the actual frontend login
+                showResult('ℹ️  Frontend login test:\n\n1. Go to http://localhost:3000/login\n2. Use credentials:\n   - Email: admin@omnihealth.com\n   - Password: Admin@123\n3. Check if login succeeds\n\nIf it works, the 422 error is fixed!', 'loading');
+                
+            } catch (error) {
+                showResult(`❌ Frontend test error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testDirectLogin();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

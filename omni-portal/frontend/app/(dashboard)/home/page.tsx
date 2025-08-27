@@ -123,12 +123,20 @@ export default function DashboardPage() {
     setOnboardingStatus(calculateOnboardingStep());
   }, [user, progress]); // Update when user or progress changes
 
-  const getGreeting = () => {
+  // Use state to avoid hydration mismatch
+  const [greeting, setGreeting] = useState('Olá');
+  
+  useEffect(() => {
+    // Only set time-based greeting on client side after hydration
     const hour = new Date().getHours();
-    if (hour < 12) return 'Bom dia';
-    if (hour < 17) return 'Boa tarde';
-    return 'Boa noite';
-  };
+    if (hour < 12) {
+      setGreeting('Bom dia');
+    } else if (hour < 17) {
+      setGreeting('Boa tarde');
+    } else {
+      setGreeting('Boa noite');
+    }
+  }, []);
 
   const quickStats = dashboardSummary?.quick_stats;
   const recentBadges = Array.isArray(dashboardSummary?.recent_badges) 
@@ -144,7 +152,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="mb-10 animate-fade-in">
           <h1 className="dashboard-title mb-3 text-2xl sm:text-3xl lg:text-4xl">
-            {getGreeting()}, {user?.name || 'Usuário'}!
+            {greeting}, {user?.name || 'Usuário'}!
           </h1>
           <p className="text-gray-600 text-base sm:text-lg">
             Bem-vindo ao seu painel de integração. Acompanhe seu progresso e conquistas.

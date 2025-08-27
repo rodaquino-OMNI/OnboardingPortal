@@ -64,14 +64,16 @@ class GamificationController extends Controller
             $beneficiary = $this->getBeneficiary($request);
             
             if (!$beneficiary) {
-                // Show all available badges when no user is authenticated (for testing/preview)
-                $availableBadges = GamificationBadge::where('is_active', true)
-                    ->where('is_secret', false)
-                    ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
-                    ->get()
-                    ->map(function ($badge) {
-                        return $this->formatBadge($badge);
-                    });
+                // Cache available badges for 1 hour - Technical Excellence
+                $availableBadges = Cache::remember('gamification_badges_available', 3600, function () {
+                    return GamificationBadge::where('is_active', true)
+                        ->where('is_secret', false)
+                        ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
+                        ->get()
+                        ->map(function ($badge) {
+                            return $this->formatBadge($badge);
+                        });
+                });
                     
                 return response()->json([
                     'success' => true,
@@ -82,13 +84,23 @@ class GamificationController extends Controller
                 ]);
             }
             
+            // Eager load badges with pivot data to avoid N+1 queries
             $earnedBadges = $beneficiary->badges()
                 ->select(['gamification_badges.id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria', 'beneficiary_badges.earned_at'])
                 ->get();
-            $availableBadges = GamificationBadge::where('is_active', true)
-                ->where('is_secret', false)
-                ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
-                ->get();
+            
+            // Get earned badge slugs for efficient filtering
+            $earnedBadgeSlugs = $earnedBadges->pluck('slug')->toArray();
+            
+            // Cache available badges query
+            $cacheKey = 'available_badges_for_' . $beneficiary->id;
+            $availableBadges = Cache::remember($cacheKey, 300, function () use ($earnedBadgeSlugs) {
+                return GamificationBadge::where('is_active', true)
+                    ->where('is_secret', false)
+                    ->whereNotIn('slug', $earnedBadgeSlugs)
+                    ->select(['id', 'name', 'slug', 'description', 'icon_name', 'icon_color', 'category', 'rarity', 'points_value', 'criteria'])
+                    ->get();
+            });
             
             return response()->json([
                 'success' => true,
@@ -99,9 +111,7 @@ class GamificationController extends Controller
                             ['earned_at' => $badge->pivot->earned_at]
                         );
                     }),
-                    'available' => $availableBadges->filter(function ($badge) use ($beneficiary) {
-                        return !$beneficiary->hasBadge($badge->slug);
-                    })->map(function ($badge) {
+                    'available' => $availableBadges->map(function ($badge) {
                         return $this->formatBadge($badge);
                     }),
                 ],
@@ -124,7 +134,10 @@ class GamificationController extends Controller
     public function getLevels(): JsonResponse
     {
         try {
-            $levels = GamificationLevel::orderBy('level_number')->get();
+            // Cache levels for 1 hour - they rarely change
+            $levels = Cache::remember('gamification_levels_all', 3600, function () {
+                return GamificationLevel::orderBy('level_number')->get();
+            });
             
             return response()->json([
                 'success' => true,
@@ -419,9 +432,8 @@ class GamificationController extends Controller
             }
             
             $progress = $beneficiary->getOrCreateGamificationProgress();
-            // Use loaded relationships to avoid N+1 queries
-            $beneficiary->loadCount('badges');
-            $earnedBadges = $beneficiary->badges_count;
+            // Use eager loading to avoid N+1 queries
+            $earnedBadges = $beneficiary->badges()->count();
             $totalBadges = Cache::remember('total_active_badges_count', 3600, function () {
                 return GamificationBadge::where('is_active', true)->where('is_secret', false)->count();
             });
@@ -441,11 +453,13 @@ class GamificationController extends Controller
                     'tasks_completed' => $progress->tasks_completed,
                     'engagement_score' => $progress->engagement_score,
                 ],
-                'recent_achievements' => $beneficiary->badges()
-                    ->select(['gamification_badges.id', 'name', 'icon_name', 'beneficiary_badges.earned_at'])
-                    ->orderBy('beneficiary_badges.earned_at', 'desc')
-                    ->limit(3)
-                    ->get()
+                'recent_achievements' => Cache::remember('recent_achievements_' . $beneficiary->id, 60, function () use ($beneficiary) {
+                    return $beneficiary->badges()
+                        ->select(['gamification_badges.id', 'name', 'icon_name', 'beneficiary_badges.earned_at'])
+                        ->orderBy('beneficiary_badges.earned_at', 'desc')
+                        ->limit(3)
+                        ->get();
+                })
                     ->map(function ($badge) {
                         return [
                             'id' => $badge->id,

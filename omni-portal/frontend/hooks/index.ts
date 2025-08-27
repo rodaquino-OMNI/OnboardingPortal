@@ -10,6 +10,7 @@ export { useAuthImplementation, useAuthMetrics } from './useAuthIntegration';
 
 // Gamification - use integrated version
 export { useGamificationIntegrated as useGamification } from './useGamificationIntegration';
+export { useGamificationIntegrated as useGamificationIntegration } from './useGamificationIntegration';
 
 // State Management - new unified hooks
 export {

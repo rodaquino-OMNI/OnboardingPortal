@@ -127,7 +127,7 @@ export const profileApi = {
         console.log('CSRF token fetch failed, continuing anyway:', csrfError);
       }
       
-      const response = await apiClient.get('/api/profile');
+      const response = await apiClient.get('/user');
       return response.data.data;
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -240,7 +240,7 @@ export const profileApi = {
    */
   async updateProfile(data: UpdateProfileData): Promise<void> {
     try {
-      await apiClient.put('/api/profile', data);
+      await apiClient.put('/user', data);
     } catch (error) {
       console.error('Error updating profile:', error);
       throw error;
@@ -252,7 +252,7 @@ export const profileApi = {
    */
   async updateEmergencyContacts(contacts: EmergencyContact[]): Promise<void> {
     try {
-      await apiClient.put('/api/profile/emergency-contacts', { contacts });
+      await apiClient.put('/user/emergency-contacts', { contacts });
     } catch (error) {
       console.error('Error updating emergency contacts:', error);
       throw error;
@@ -264,7 +264,7 @@ export const profileApi = {
    */
   async updatePrivacySettings(settings: PrivacySettings): Promise<void> {
     try {
-      await apiClient.put('/api/profile/privacy-settings', settings);
+      await apiClient.put('/user/privacy-settings', settings);
     } catch (error) {
       console.error('Error updating privacy settings:', error);
       throw error;

@@ -49,7 +49,7 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 // HEALTH QUESTIONNAIRE TYPES
 // =====================================
 
-export type QuestionType = 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'scale';
+export type QuestionType = 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'scale' | 'chronic_conditions' | 'medication_list' | 'allergy_list' | 'emergency_contact' | 'surgery_history';
 
 export interface QuestionOption {
   id: string;
@@ -66,7 +66,7 @@ export interface QuestionValidation {
   customValidator?: (value: QuestionValue) => boolean;
 }
 
-export type QuestionValue = string | number | boolean | string[] | number[] | Date | null;
+export type QuestionValue = string | number | boolean | string[] | number[] | Date | Record<string, unknown>[] | Record<string, unknown> | null;
 
 export interface HealthQuestion {
   id: string;
@@ -472,6 +472,20 @@ export interface FollowUpAction {
   timeframe: string;
   responsible: 'patient' | 'provider' | 'system';
   dependencies: string[];
+}
+
+// =====================================
+// AUDIT LOG TYPES
+// =====================================
+
+export interface AuditLogEntry {
+  timestamp: Date;
+  action: string;
+  userId?: string;
+  sessionId?: string;
+  details: Record<string, unknown>;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: 'authentication' | 'data_access' | 'modification' | 'security' | 'compliance';
 }
 
 // =====================================

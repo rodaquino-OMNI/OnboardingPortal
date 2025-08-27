@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('beneficiaries', function (Blueprint $table) {
             // Add notification preferences field
-            $table->json('notification_preferences')->nullable()->after('lgpd_consent_version');
+            $table->json('notification_preferences')->nullable()->after('custom_fields');
             
             // Add timezone field if not exists
             if (!Schema::hasColumn('beneficiaries', 'timezone')) {
