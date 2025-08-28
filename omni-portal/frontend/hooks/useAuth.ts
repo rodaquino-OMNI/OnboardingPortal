@@ -1,28 +1,26 @@
 'use client';
 
 /**
- * DEPRECATED: This file is being replaced by useUnifiedAuth
- * Import from useUnifiedAuth instead
+ * CONSOLIDATED: Main authentication hook
+ * This is now the single source of truth for all authentication
  */
 
-import { useUnifiedAuth } from './useUnifiedAuth';
-import { useAuthStore } from './stores/useAuthStore';
+import { useAuth as useConsolidatedAuth } from './auth/useAuth';
 import { logger } from '@/lib/logger';
 
 /**
- * Legacy useAuth hook - redirects to unified implementation
- * @deprecated Use useUnifiedAuth directly
+ * Main useAuth hook - now consolidated single implementation
  */
 export function useAuth() {
-  logger.warn('useAuth is deprecated, use useUnifiedAuth instead', null, 'DeprecationWarning');
-  return useUnifiedAuth();
+  logger.info('Using consolidated authentication implementation');
+  return useConsolidatedAuth();
 }
 
 /**
  * Legacy export for backward compatibility
  * @deprecated Use useAuth() instead
  */
-export const useAuthLegacy = useAuthStore;
+export const useAuthLegacy = useAuth;
 
 /**
  * Hook with automatic cleanup

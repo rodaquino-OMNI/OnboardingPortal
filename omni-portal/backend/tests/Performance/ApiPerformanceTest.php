@@ -11,7 +11,7 @@ use Tests\TestCase;
 
 class ApiPerformanceTest extends TestCase
 {
-    use DatabaseTransactions;
+    use RefreshDatabase;
 
     private $metrics = [];
 

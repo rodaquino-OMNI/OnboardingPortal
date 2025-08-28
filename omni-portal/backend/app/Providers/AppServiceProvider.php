@@ -11,6 +11,9 @@ use App\Services\TextractMonitoringService;
 use App\Services\CloudWatchService;
 use App\Services\AlertingService;
 use App\Services\OCRUsageTracker;
+use App\Services\OCRService;
+use App\Services\BrazilianDocumentService;
+use App\Services\ValidationUtilityService;
 use Illuminate\Support\Facades\Cache;
 
 class AppServiceProvider extends ServiceProvider
@@ -62,6 +65,33 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(DocumentPreprocessingService::class),
                 $app->make(TextractMonitoringService::class)
             );
+        });
+
+        // Register the OCR Service with proper dependency injection (lazy loading)
+        $this->app->singleton(OCRService::class, function ($app) {
+            try {
+                return new OCRService(
+                    $app->make(BrazilianDocumentService::class),
+                    $app->make(ValidationUtilityService::class)
+                );
+            } catch (\Exception $e) {
+                \Log::warning('OCR service initialization failed: ' . $e->getMessage());
+                // Return a mock service if initialization fails
+                return new class extends OCRService {
+                    public function __construct() {
+                        // Do nothing - mock constructor
+                    }
+                    public function processDocument(string $s3Path): array {
+                        return [
+                            'raw_text' => 'OCR service not available',
+                            'forms' => [],
+                            'tables' => [],
+                            'confidence_scores' => [],
+                            'status' => 'disabled'
+                        ];
+                    }
+                };
+            }
         });
 
         // Register the unified AuthService

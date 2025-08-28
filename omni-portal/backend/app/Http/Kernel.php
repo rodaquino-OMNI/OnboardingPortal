@@ -34,29 +34,23 @@ class Kernel extends HttpKernel
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-            \App\Http\Middleware\VerifyCsrfToken::class,
+            \App\Http\Middleware\UnifiedAuthMiddleware::class, // Unified authentication with CSRF
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Single security headers implementation
         ],
 
         'api' => [
-            // Optimized middleware order for API requests
+            // Optimized unified middleware stack for API requests
             \App\Http\Middleware\ApiPerformanceMiddleware::class, // Performance monitoring wrapper
-            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Security headers (single implementation)
-            \App\Http\Middleware\ApiRateLimiter::class, // Rate limiting before auth
-            \App\Http\Middleware\ApiSecurityMiddleware::class, // Request validation
-            \App\Http\Middleware\ForceJsonResponse::class, // JSON response formatting
+            \App\Http\Middleware\ForceJsonResponse::class, // JSON response formatting (early)
+            \App\Http\Middleware\UnifiedAuthMiddleware::class, // Unified auth/security/CSRF protection
             \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route model binding
         ],
 
         'sanctum' => [
-            // Authentication-enabled API middleware group
+            // Authentication-enabled API middleware group (simplified)
             \App\Http\Middleware\ApiPerformanceMiddleware::class, // Performance monitoring
-            \App\Http\Middleware\SecurityHeadersMiddleware::class, // Security headers
-            \App\Http\Middleware\ApiRateLimiter::class, // Rate limiting
-            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class, // Sanctum session
-            \App\Http\Middleware\ApiSecurityMiddleware::class, // Request validation
             \App\Http\Middleware\ForceJsonResponse::class, // JSON responses
+            \App\Http\Middleware\UnifiedAuthMiddleware::class, // All-in-one auth/security middleware
             \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route binding
         ],
     ];
@@ -69,7 +63,8 @@ class Kernel extends HttpKernel
      * @var array<string, class-string|string>
      */
     protected $middlewareAliases = [
-        'auth' => \App\Http\Middleware\Authenticate::class,
+        // Standard Laravel middleware
+        'auth' => \App\Http\Middleware\UnifiedAuthMiddleware::class, // Unified auth middleware
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
         'auth.session' => \Illuminate\Session\Middleware\AuthenticateSession::class,
         'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
@@ -79,15 +74,19 @@ class Kernel extends HttpKernel
         'precognitive' => \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-        'api.throttle' => \App\Http\Middleware\ApiRateLimiter::class,
-        'api.performance' => \App\Http\Middleware\ApiPerformanceMiddleware::class,
-        'api.security' => \App\Http\Middleware\ApiSecurityMiddleware::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+
+        // Sanctum middleware
         'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
         'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
-        'registration.completed' => \App\Http\Middleware\RegistrationStateValidator::class,
-        'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
+
+        // Application-specific middleware
+        'api.performance' => \App\Http\Middleware\ApiPerformanceMiddleware::class,
         'admin.access' => \App\Http\Middleware\AdminAccess::class,
-        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+
+        // Deprecated aliases (for backward compatibility - will be removed in future)
+        'auth.legacy' => \App\Http\Middleware\Authenticate::class,
+        'api.throttle' => \App\Http\Middleware\ApiRateLimiter::class, // Now handled by UnifiedAuthMiddleware
+        'api.security' => \App\Http\Middleware\ApiSecurityMiddleware::class, // Now handled by UnifiedAuthMiddleware
     ];
 }

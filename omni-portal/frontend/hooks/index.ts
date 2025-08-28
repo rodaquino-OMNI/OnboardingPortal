@@ -3,9 +3,12 @@
  * Provides the integrated versions that work with new architecture
  */
 
-// Auth - MAIN EXPORT (router that decides implementation)
-// The router in useAuth.ts will check feature flags and use the right implementation
-export { useAuth, useAuthWithCleanup, useAuthWithVerification } from './useAuth';
+// Auth - CONSOLIDATED IMPLEMENTATION
+// Single source of truth for all authentication
+export { useAuth } from './auth/useAuth';
+export { useAuthWithCleanup, useAuthWithVerification } from './useAuth';
+
+// Legacy auth exports (deprecated)
 export { useAuthImplementation, useAuthMetrics } from './useAuthIntegration';
 
 // Gamification - use integrated version

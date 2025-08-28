@@ -38,23 +38,32 @@ class ApiSecurityMiddleware
 
         // Validate JSON for POST/PUT/PATCH requests
         if (in_array($request->method(), ['POST', 'PUT', 'PATCH'])) {
-            $contentType = $request->header('Content-Type');
+            $contentType = $request->header('Content-Type', '');
             
             if (str_contains($contentType, 'application/json') && $request->getContent()) {
                 $content = $request->getContent();
                 json_decode($content);
                 
                 if (json_last_error() !== JSON_ERROR_NONE) {
+                    $jsonError = json_last_error_msg();
+                    
                     Log::warning('Invalid JSON request', [
-                        'json_error' => json_last_error_msg(),
+                        'json_error' => $jsonError,
+                        'content_preview' => substr($content, 0, 200),
+                        'content_type' => $contentType,
                         'ip' => $request->ip(),
                         'url' => $request->url(),
+                        'user_agent' => $request->userAgent(),
                     ]);
 
                     return response()->json([
                         'message' => 'Invalid JSON format',
                         'error' => 'Bad Request',
                         'code' => 'INVALID_JSON',
+                        'details' => config('app.debug') ? [
+                            'json_error' => $jsonError,
+                            'content_preview' => substr($content, 0, 100) . '...'
+                        ] : null
                     ], 400);
                 }
             }

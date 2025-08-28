@@ -1,23 +1,23 @@
 /**
  * DEPRECATED: useAuthWithMigration
- * This file is being replaced by unified authentication
- * Use useUnifiedAuth instead
+ * This file has been replaced by consolidated authentication
+ * Use useAuth from hooks/auth/useAuth instead
  */
 
 'use client';
 
-import { useUnifiedAuth } from './useUnifiedAuth';
+import { useAuth } from './auth/useAuth';
 import { logger } from '@/lib/logger';
 
 /**
- * @deprecated Use useUnifiedAuth instead
+ * @deprecated Use useAuth from hooks/auth/useAuth instead
  */
 export function useAuthWithMigration() {
-  logger.warn('useAuthWithMigration is deprecated, use useUnifiedAuth instead', null, 'DeprecationWarning');
-  return useUnifiedAuth();
+  logger.warn('useAuthWithMigration is deprecated, use useAuth from hooks/auth/useAuth instead', null, 'DeprecationWarning');
+  return useAuth();
 }
 
 /**
- * @deprecated Use useUnifiedAuth instead
+ * @deprecated Use useAuth from hooks/auth/useAuth instead
  */
-export const useAuth = useAuthWithMigration;
+export const useAuthMigration = useAuthWithMigration;

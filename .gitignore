@@ -34,6 +34,8 @@ vendor/
 **/.env.testing
 **/.env.backup
 **/.env.bak
+.env.cache.test
+**/.env.cache.test
 
 # SSL certificates and keys (NEVER commit these)
 *.pem
@@ -106,6 +108,8 @@ bootstrap/cache/*.php
 !bootstrap/cache/.gitkeep
 omni-portal/backend/bootstrap/cache/*.php
 !omni-portal/backend/bootstrap/cache/.gitkeep
+omni-portal/backend/storage/framework/cache/auth/
+**/storage/framework/cache/auth/
 
 # Configuration files that might contain sensitive data
 .pa11yci

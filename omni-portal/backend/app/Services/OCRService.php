@@ -18,14 +18,25 @@ class OCRService
         BrazilianDocumentService $documentService,
         ValidationUtilityService $validationService
     ) {
-        $this->textractClient = new TextractClient([
-            'version' => 'latest',
-            'region' => config('services.aws.region', 'us-east-1'),
-            'credentials' => [
-                'key' => config('services.aws.key'),
-                'secret' => config('services.aws.secret'),
-            ]
-        ]);
+        // Only initialize AWS Textract if credentials are available
+        if (config('services.aws.key') && config('services.aws.secret')) {
+            try {
+                $this->textractClient = new TextractClient([
+                    'version' => 'latest',
+                    'region' => config('services.aws.region', 'us-east-1'),
+                    'credentials' => [
+                        'key' => config('services.aws.key'),
+                        'secret' => config('services.aws.secret'),
+                    ]
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to initialize AWS Textract client: ' . $e->getMessage());
+                $this->textractClient = null;
+            }
+        } else {
+            Log::info('AWS credentials not configured, Textract features disabled');
+            $this->textractClient = null;
+        }
         
         $this->documentService = $documentService;
         $this->validationService = $validationService;
@@ -36,6 +47,17 @@ class OCRService
      */
     public function processDocument(string $s3Path): array
     {
+        if (!$this->textractClient) {
+            Log::warning('AWS Textract not available - returning mock OCR data');
+            return [
+                'raw_text' => 'OCR processing not available - AWS credentials not configured',
+                'forms' => [],
+                'tables' => [],
+                'confidence_scores' => [],
+                'status' => 'disabled'
+            ];
+        }
+
         try {
             $bucket = config('filesystems.disks.s3.bucket');
             

@@ -1,12 +1,12 @@
 /**
  * DEPRECATED: Authentication Integration Layer
- * This file is being replaced by unified authentication
- * Use useUnifiedAuth instead
+ * This file has been replaced by the consolidated authentication
+ * Use useAuth from hooks/auth/useAuth instead
  */
 
 'use client';
 
-import { useUnifiedAuth } from './useUnifiedAuth';
+import { useAuth } from './auth/useAuth';
 import { logger } from '@/lib/logger';
 
 // Monitor implementation differences
@@ -37,29 +37,29 @@ const monitorImplementations = (legacy: any, modular: any, operation: string) =>
 };
 
 /**
- * @deprecated Use useUnifiedAuth instead
+ * @deprecated Use useAuth from hooks/auth/useAuth instead
  */
 export function useAuthIntegration() {
-  logger.warn('useAuthIntegration is deprecated, use useUnifiedAuth instead', null, 'DeprecationWarning');
-  return useUnifiedAuth();
+  logger.warn('useAuthIntegration is deprecated, use useAuth from hooks/auth/useAuth instead', null, 'DeprecationWarning');
+  return useAuth();
 }
 
 /**
- * @deprecated Use useUnifiedAuth instead
+ * @deprecated Use useAuth from hooks/auth/useAuth instead
  */
 export function useAuthMetrics() {
   logger.warn('useAuthMetrics is deprecated', null, 'DeprecationWarning');
   return {
-    implementation: 'unified',
+    implementation: 'consolidated-v1',
     performanceBudget: 200,
     monitoring: true
   };
 }
 
 /**
- * @deprecated Use useUnifiedAuth instead
+ * @deprecated Use useAuth from hooks/auth/useAuth instead
  */
 export function useAuthImplementation() {
   logger.warn('useAuthImplementation is deprecated', null, 'DeprecationWarning');
-  return 'unified';
+  return 'consolidated-v1';
 }
