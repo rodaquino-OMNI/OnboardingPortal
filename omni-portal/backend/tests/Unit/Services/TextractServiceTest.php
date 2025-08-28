@@ -258,8 +258,8 @@ class TextractServiceTest extends TestCase
     public function it_validates_brazilian_document_patterns()
     {
         $testCases = [
-            ['cpf' => '123.456.789-00', 'valid' => true],
-            ['cpf' => '12345678900', 'valid' => true],
+            ['cpf' => '111.444.777-35', 'valid' => true], // Valid CPF
+            ['cpf' => '11144477735', 'valid' => true], // Valid CPF without formatting
             ['cpf' => '123.456.789-99', 'valid' => false], // Invalid CPF
             ['rg' => '12.345.678-9', 'valid' => true],
             ['rg' => '1.234.567-8', 'valid' => true],
@@ -419,17 +419,49 @@ class TextractServiceTest extends TestCase
      */
     protected function validateBrazilianPattern(string $type, string $value): bool
     {
-        $patterns = [
-            'cpf' => '/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/',
-            'rg' => '/^\d{1,2}\.?\d{3}\.?\d{3}-?\d{1}$/',
-            'cep' => '/^\d{5}-?\d{3}$/',
-            'cnh' => '/^\d{11}$/'
-        ];
+        switch ($type) {
+            case 'cpf':
+                return $this->validateCPF($value);
+            case 'rg':
+                return preg_match('/^\d{1,2}\.?\d{3}\.?\d{3}-?\d{1}$/', $value) === 1;
+            case 'cep':
+                return preg_match('/^\d{5}-?\d{3}$/', $value) === 1;
+            case 'cnh':
+                return preg_match('/^\d{11}$/', $value) === 1;
+            default:
+                return false;
+        }
+    }
 
-        if (!isset($patterns[$type])) {
+    /**
+     * Validate CPF using Brazilian algorithm
+     */
+    protected function validateCPF(string $cpf): bool
+    {
+        // Remove formatting
+        $cpf = preg_replace('/[^0-9]/', '', $cpf);
+        
+        // Must have 11 digits
+        if (strlen($cpf) !== 11) {
             return false;
         }
-
-        return preg_match($patterns[$type], $value) === 1;
+        
+        // Check for known invalid CPFs (all same digits)
+        if (preg_match('/(\d)\1{10}/', $cpf)) {
+            return false;
+        }
+        
+        // Validate check digits
+        for ($t = 9; $t < 11; $t++) {
+            for ($d = 0, $c = 0; $c < $t; $c++) {
+                $d += $cpf[$c] * (($t + 1) - $c);
+            }
+            $d = ((10 * $d) % 11) % 10;
+            if ($cpf[$c] != $d) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 }

@@ -304,7 +304,7 @@ class OCRService
         
         // Extract address patterns
         if (preg_match('/rua|av|avenida|alameda[:\s]*([^,\n]+)/i', $text, $matches)) {
-            $data['street'] = trim($matches[1]);
+            $data['street'] = isset($matches[1]) ? trim($matches[1]) : '';
         }
 
         // Extract CEP
