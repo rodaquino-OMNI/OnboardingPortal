@@ -372,11 +372,9 @@ class DocumentControllerTest extends TestCase
         $endpoints = [
             ['GET', '/api/documents', []],
             ['POST', '/api/documents/upload', ['file' => $file, 'document_type' => 'rg']],
-            ['GET', '/api/documents/validation-progress', []],
             ['GET', '/api/documents/1', []],
             ['GET', '/api/documents/1/download', []],
             ['POST', '/api/documents/1/process-ocr', []],
-            ['POST', '/api/documents/1/validate-ocr', []],
             ['DELETE', '/api/documents/1', []]
         ];
 

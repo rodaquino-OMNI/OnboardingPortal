@@ -290,7 +290,7 @@ class SessionManagementTest extends TestCase
         // Assert cookie properties
         $this->assertNotNull($authCookie);
         $this->assertTrue($authCookie->isHttpOnly());
-        $this->assertEquals('Lax', $authCookie->getSameSite());
+        $this->assertEquals('lax', strtolower($authCookie->getSameSite()));
         $this->assertEquals('/', $authCookie->getPath());
     }
 

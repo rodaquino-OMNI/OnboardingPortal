@@ -26,7 +26,7 @@ class LGPDComplianceTest extends TestCase
             'name' => 'Test User',
             'email' => 'lgpd@example.com',
             'cpf' => '12345678901',
-            'registration_completed' => true,
+            'registration_step' => 'completed',
             'status' => 'active',
             'email_verified_at' => now()
         ]);
