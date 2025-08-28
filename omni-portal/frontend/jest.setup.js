@@ -255,23 +255,32 @@ if (!global.Headers) {
 require('@testing-library/jest-dom')
 require('jest-axe/extend-expect')
 
-// Setup MSW for API mocking (after polyfills)
-const { startServer, stopServer, resetHandlers } = require('./__tests__/setup/api-mocks')
+// Setup MSW v2 for API mocking (after polyfills)
+const { setupServer } = require('msw/node');
+const { handlers } = require('./__mocks__/handlers');
+
+// Create MSW server with handlers
+const server = setupServer(...handlers);
 
 // Start server before all tests
 beforeAll(() => {
-  startServer()
-})
+  server.listen({ 
+    onUnhandledRequest: 'warn' 
+  });
+});
 
-// Reset handlers after each test
+// Reset handlers after each test to ensure clean state
 afterEach(() => {
-  resetHandlers()
-})
+  server.resetHandlers();
+});
 
 // Stop server after all tests
 afterAll(() => {
-  stopServer()
-})
+  server.close();
+});
+
+// Export server for advanced test usage
+global.mswServer = server;
 // Polyfills already installed above
 
 // Stream polyfills already installed above

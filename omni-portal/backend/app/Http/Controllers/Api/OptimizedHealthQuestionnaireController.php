@@ -31,6 +31,14 @@ class OptimizedHealthQuestionnaireController extends Controller
     }
 
     /**
+     * Get available questionnaire templates (alias for getTemplates)
+     */
+    public function getQuestionnaire(): JsonResponse
+    {
+        return $this->getTemplates();
+    }
+
+    /**
      * Get available questionnaire templates with caching
      */
     public function getTemplates(): JsonResponse
@@ -111,7 +119,7 @@ class OptimizedHealthQuestionnaireController extends Controller
                 'template_id' => $template->id,
                 'status' => 'in_progress',
                 'responses' => [],
-                'current_section' => array_key_first($template->sections ?? []),
+                'current_section' => $this->getSafeFirstKey($template->sections),
                 'started_at' => now(),
                 'metadata' => [
                     'user_agent' => $request->userAgent(),
@@ -500,5 +508,16 @@ class OptimizedHealthQuestionnaireController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * Safely get the first key of an array
+     */
+    private function getSafeFirstKey($array): ?string
+    {
+        if (!is_array($array) || empty($array)) {
+            return null;
+        }
+        return array_key_first($array);
     }
 }

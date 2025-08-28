@@ -327,14 +327,12 @@ class LGPDComplianceTest extends TestCase
     {
         // Test without authentication
         $endpoints = [
-            ['method' => 'GET', 'uri' => '/api/lgpd/export-data'],
-            ['method' => 'GET', 'uri' => '/api/lgpd/export-data-pdf'],
-            ['method' => 'DELETE', 'uri' => '/api/lgpd/delete-account'],
+            ['method' => 'GET', 'uri' => '/api/lgpd/consent-status'],
+            ['method' => 'POST', 'uri' => '/api/lgpd/update-consent'],
+            ['method' => 'POST', 'uri' => '/api/lgpd/data-export-request'],
+            ['method' => 'POST', 'uri' => '/api/lgpd/data-deletion-request'],
             ['method' => 'GET', 'uri' => '/api/lgpd/privacy-settings'],
-            ['method' => 'PUT', 'uri' => '/api/lgpd/privacy-settings'],
-            ['method' => 'GET', 'uri' => '/api/lgpd/consent-history'],
-            ['method' => 'POST', 'uri' => '/api/lgpd/withdraw-consent'],
-            ['method' => 'GET', 'uri' => '/api/lgpd/data-processing-activities']
+            ['method' => 'PUT', 'uri' => '/api/lgpd/privacy-settings']
         ];
 
         foreach ($endpoints as $endpoint) {

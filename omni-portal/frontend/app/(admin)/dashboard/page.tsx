@@ -2,7 +2,7 @@
 
 import React, { Suspense } from 'react';
 import { Card } from '@/components/ui/card';
-import { RoleBasedAccess, useRoleBasedAccess } from '@/components/admin/RoleBasedAccess';
+import RoleBasedAccess, { usePermissions } from '@/components/admin/RoleBasedAccess';
 import { RealTimeAlertsProvider, NotificationBadge, RealTimeStatus } from '@/components/admin/health-risks/RealTimeAlertsProvider';
 import { EnhancedDashboardMetrics } from '@/components/admin/health-risks/EnhancedDashboardMetrics';
 import { DataExportManager } from '@/components/admin/health-risks/DataExportManager';
@@ -42,9 +42,9 @@ const QuickActionCard = ({
   permission?: string;
   badge?: React.ReactNode;
 }) => {
-  const { hasPermission } = useRoleBasedAccess();
+  const { checkPermission } = usePermissions();
   
-  if (permission && !hasPermission(permission)) {
+  if (permission && !checkPermission(permission)) {
     return null;
   }
 

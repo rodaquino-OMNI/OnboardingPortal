@@ -90,6 +90,8 @@ archive/
 *.sqlite
 *.sqlite3
 *.db
+dump.rdb
+*.rdb
 
 # Testing artifacts
 test-results/

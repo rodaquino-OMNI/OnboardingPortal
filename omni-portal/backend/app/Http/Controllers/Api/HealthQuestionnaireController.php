@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use App\Helpers\RequestHelper;
 
 class HealthQuestionnaireController extends Controller
@@ -99,7 +100,7 @@ class HealthQuestionnaireController extends Controller
                 'questionnaire_type' => $template->type ?? 'initial',
                 'status' => 'draft', // Use valid status until enum is fixed
                 'responses' => [],
-                'current_section' => array_key_first($template->sections),
+                'current_section' => $this->getSafeFirstKey(json_decode($template->sections, true)),
                 'started_at' => now(),
                 'metadata' => [
                     'user_agent' => $request->userAgent(),
@@ -1309,21 +1310,70 @@ class HealthQuestionnaireController extends Controller
     }
 
     /**
+     * Safely get the first key of an array
+     */
+    private function getSafeFirstKey($array): ?string
+    {
+        if (!is_array($array) || empty($array)) {
+            return null;
+        }
+        return array_key_first($array);
+    }
+
+    /**
+     * Calculate risk level based on total score
+     */
+    private function calculateRiskLevel(float $score): string
+    {
+        if ($score >= 80) return 'critical';
+        if ($score >= 60) return 'high';
+        if ($score >= 40) return 'moderate';
+        return 'low';
+    }
+
+    /**
      * Submit unified health assessment results
      */
     public function submitUnified(Request $request): JsonResponse
     {
+        // Enhanced validation with proper data structure checks
         $validator = Validator::make($request->all(), [
-            'responses' => 'required|array',
+            'responses' => 'required|array|min:1',
             'risk_scores' => 'nullable|array',
             'completed_domains' => 'nullable|array',
-            'total_risk_score' => 'nullable|numeric',
+            'total_risk_score' => 'nullable|numeric|min:0|max:100',
             'risk_level' => 'nullable|string|in:low,moderate,high,critical',
             'recommendations' => 'nullable|array',
             'next_steps' => 'nullable|array',
-            'fraud_detection_score' => 'nullable|numeric',
+            'fraud_detection_score' => 'nullable|numeric|min:0|max:1',
             'timestamp' => 'nullable|string'
         ]);
+
+        // Additional validation for data integrity
+        $validator->after(function ($validator) use ($request) {
+            // Validate responses structure
+            if (!is_array($request->responses) || empty($request->responses)) {
+                $validator->errors()->add('responses', 'Responses must be a non-empty array.');
+            }
+
+            // Validate completed_domains if provided
+            if ($request->has('completed_domains') && !is_null($request->completed_domains) && !is_array($request->completed_domains)) {
+                $validator->errors()->add('completed_domains', 'Completed domains must be an array.');
+            }
+
+            // Validate risk_level consistency
+            if ($request->has('total_risk_score') && $request->has('risk_level')) {
+                $score = $request->total_risk_score;
+                $level = $request->risk_level;
+                
+                if ($score !== null && $level !== null) {
+                    $expectedLevel = $this->calculateRiskLevel($score);
+                    if ($expectedLevel !== $level) {
+                        $validator->errors()->add('risk_level', 'Risk level does not match the total risk score.');
+                    }
+                }
+            }
+        });
 
         if ($validator->fails()) {
             return response()->json([
@@ -1400,8 +1450,10 @@ class HealthQuestionnaireController extends Controller
 
             // Award points based on domains completed and risk level
             $basePoints = 150;
-            $domainBonus = count($request->completed_domains) * 25;
-            $honestyBonus = $request->risk_level !== 'low' ? 50 : 0;
+            $completedDomains = $request->completed_domains ?? [];
+            $domainBonus = is_array($completedDomains) ? count($completedDomains) * 25 : 0;
+            $riskLevel = $request->risk_level ?? 'low';
+            $honestyBonus = $riskLevel !== 'low' ? 50 : 0;
             
             $totalPoints = $basePoints + $domainBonus + $honestyBonus;
 
@@ -1412,20 +1464,22 @@ class HealthQuestionnaireController extends Controller
             ));
 
             // Award badges based on risk assessment and domains
-            if ($request->risk_level === 'low') {
+            if ($riskLevel === 'low') {
                 event(new \App\Events\BadgeEarned($beneficiary, 'wellness_champion'));
-            } elseif ($request->risk_level === 'moderate') {
+            } elseif ($riskLevel === 'moderate') {
                 event(new \App\Events\BadgeEarned($beneficiary, 'health_awareness'));
             } else {
                 event(new \App\Events\BadgeEarned($beneficiary, 'health_advocate'));
             }
 
             // Domain-specific badges
-            if (in_array('mental_health', $request->completed_domains)) {
-                event(new \App\Events\BadgeEarned($beneficiary, 'mental_wellness_champion'));
-            }
-            if (in_array('lifestyle', $request->completed_domains)) {
-                event(new \App\Events\BadgeEarned($beneficiary, 'lifestyle_conscious'));
+            if (is_array($completedDomains)) {
+                if (in_array('mental_health', $completedDomains)) {
+                    event(new \App\Events\BadgeEarned($beneficiary, 'mental_wellness_champion'));
+                }
+                if (in_array('lifestyle', $completedDomains)) {
+                    event(new \App\Events\BadgeEarned($beneficiary, 'lifestyle_conscious'));
+                }
             }
 
             DB::commit();
@@ -1441,12 +1495,42 @@ class HealthQuestionnaireController extends Controller
                 ]
             ]);
 
+        } catch (\InvalidArgumentException $e) {
+            DB::rollback();
+            Log::error('Invalid data in health questionnaire submission', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid data provided',
+                'error' => 'Please check your input data and try again'
+            ], 400);
+        } catch (\TypeError $e) {
+            DB::rollback();
+            Log::error('Type error in health questionnaire submission', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Data type error occurred',
+                'error' => 'Invalid data format provided'
+            ], 400);
         } catch (\Exception $e) {
             DB::rollback();
+            Log::error('Failed to submit unified health assessment', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to submit unified health assessment',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }

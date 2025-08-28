@@ -27,7 +27,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import Link from 'next/link';
 import { RealTimeAlertsProvider, NotificationBadge } from '@/components/admin/health-risks/RealTimeAlertsProvider';
-import { RoleBasedAccess } from '@/components/admin/RoleBasedAccess';
+import RoleBasedAccess, { PERMISSIONS } from '@/components/admin/RoleBasedAccess';
 
 interface DashboardData {
   overview: {
