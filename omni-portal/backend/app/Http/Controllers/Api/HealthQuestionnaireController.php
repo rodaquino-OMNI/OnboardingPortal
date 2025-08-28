@@ -1393,29 +1393,29 @@ class HealthQuestionnaireController extends Controller
                 // Create beneficiary record if it doesn't exist
                 $beneficiary = \App\Models\Beneficiary::create([
                     'user_id' => $user->id,
-                    'name' => $user->name,
+                    'full_name' => $user->name,
                     'email' => $user->email,
                     'cpf' => $user->cpf,
-                    'date_of_birth' => $user->birth_date,
+                    'birth_date' => $user->birth_date ?? now()->subYears(30),
                     'gender' => $user->gender ?? 'not_specified',
-                    'phone' => $user->phone,
+                    'phone' => $user->phone ?? '',
                     'address' => $user->address ?? '',
                     'city' => $user->city ?? '',
                     'state' => $user->state ?? '',
                     'zip_code' => $user->zip_code ?? '',
                     'marital_status' => 'single',
                     'dependents' => 0,
-                    'monthly_income' => 0,
+                    'monthly_income' => 0.00,
                     'has_health_insurance' => false,
                     'employment_status' => 'employed',
                     'occupation' => '',
                     'emergency_contact_name' => '',
                     'emergency_contact_phone' => '',
                     'emergency_contact_relationship' => '',
-                    'medical_history' => [],
-                    'current_medications' => [],
-                    'allergies' => [],
-                    'family_medical_history' => []
+                    'medical_history' => json_encode([]),
+                    'current_medications' => json_encode([]),
+                    'allergies' => json_encode([]),
+                    'family_medical_history' => json_encode([])
                 ]);
             }
 
