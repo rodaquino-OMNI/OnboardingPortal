@@ -17,13 +17,15 @@ class TextractCostOptimizationServiceTest extends TestCase
 
     protected TextractCostOptimizationService $service;
     protected $mockUsageTracker;
+    protected $mockCache;
 
     protected function setUp(): void
     {
         parent::setUp();
         
+        $this->mockCache = Mockery::mock(\Illuminate\Contracts\Cache\Repository::class);
         $this->mockUsageTracker = Mockery::mock(OCRUsageTracker::class);
-        $this->service = new TextractCostOptimizationService($this->mockUsageTracker);
+        $this->service = new TextractCostOptimizationService($this->mockCache, $this->mockUsageTracker);
         
         // Set up test configuration
         Config::set('ocr.cost_limits.daily', 100.00);
@@ -64,6 +66,7 @@ class TextractCostOptimizationServiceTest extends TestCase
         $canProcess = $this->service->canProcessDocument($testFile);
         
         // Assert
+        // With usage at 99.95 and estimated cost ~0.055 (FORMS), total would be 100.005, exceeding 100 limit
         $this->assertFalse($canProcess);
     }
 
@@ -133,7 +136,8 @@ class TextractCostOptimizationServiceTest extends TestCase
         $this->mockUsageTracker->shouldReceive('getMonthlyUsage')->andReturn(1700.00);
         
         // Mock weekly usage calculation
-        Cache::shouldReceive('get')->andReturn(0);
+        $this->mockUsageTracker->shouldReceive('getWeeklyUsage')->andReturn(50.00);
+        $this->mockCache->shouldReceive('get')->andReturn(0);
         
         // Act
         $report = $this->service->monitorCosts();
@@ -157,10 +161,10 @@ class TextractCostOptimizationServiceTest extends TestCase
         
         $this->mockUsageTracker->shouldReceive('recordUsage')
             ->once()
-            ->with('textract', 2, 0.1265);
+            ->with('textract', 2);
         
-        Cache::shouldReceive('get')->andReturn([]);
-        Cache::shouldReceive('put')->andReturn(true);
+        $this->mockCache->shouldReceive('get')->andReturn([]);
+        $this->mockCache->shouldReceive('put')->andReturn(true);
         
         // Act
         $this->service->recordActualCost($estimatedCost, $processingResult);
@@ -175,8 +179,8 @@ class TextractCostOptimizationServiceTest extends TestCase
         $this->mockUsageTracker->shouldReceive('getDailyUsage')->andReturn(25.00);
         $this->mockUsageTracker->shouldReceive('getMonthlyUsage')->andReturn(500.00);
         
-        Cache::shouldReceive('get')->andReturn([]);
-        Cache::shouldReceive('put')->andReturn(true);
+        $this->mockCache->shouldReceive('get')->andReturn([]);
+        $this->mockCache->shouldReceive('put')->andReturn(true);
         
         // Act
         $summary = $this->service->getCostOptimizationSummary();

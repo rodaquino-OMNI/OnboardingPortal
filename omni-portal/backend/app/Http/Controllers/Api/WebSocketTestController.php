@@ -138,6 +138,62 @@ class WebSocketTestController extends Controller
     }
 
     /**
+     * Trigger test alert from frontend
+     */
+    public function triggerTestAlert(Request $request): JsonResponse
+    {
+        try {
+            $type = $request->input('type', 'info');
+            $message = $request->input('message', 'Test alert from frontend');
+            
+            $alertData = [
+                'id' => 'frontend_test_' . time(),
+                'type' => $type,
+                'category' => 'health',
+                'title' => 'Frontend Test Alert',
+                'message' => $message,
+                'timestamp' => now()->toISOString(),
+                'priority' => 'medium',
+                'resolved' => false,
+                'source' => 'frontend_test',
+                'actionRequired' => false,
+                'autoResolve' => true,
+                'escalationLevel' => 0,
+                'metadata' => [
+                    'test' => true,
+                    'frontend_triggered' => true
+                ]
+            ];
+
+            // Broadcast based on type
+            if ($type === 'health_risk') {
+                broadcast(new HealthRiskAlert($alertData));
+            } else {
+                broadcast(new SystemAlert($alertData));
+            }
+
+            Log::info('Frontend test alert broadcasted', ['alert_id' => $alertData['id']]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Test alert triggered successfully',
+                'alert_id' => $alertData['id']
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Frontend test alert failed', [
+                'error' => $e->getMessage(),
+                'request' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to trigger test alert',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get WebSocket server status and configuration
      */
     public function status(): JsonResponse

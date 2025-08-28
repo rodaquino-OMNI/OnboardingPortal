@@ -25,6 +25,9 @@ Route::group(['prefix' => 'websocket'], function () {
     Route::get('status', [WebSocketTestController::class, 'status']);
 });
 
+// Frontend WebSocket Test Routes (no auth needed for testing)
+Route::post('test/trigger-alert', [WebSocketTestController::class, 'triggerTestAlert']);
+
 // ===== PUBLIC ALERT TESTING ROUTES (NO AUTH) =====
 Route::group(['prefix' => 'alerts'], function () {
     Route::post('broadcast', [AlertController::class, 'broadcastHealthAlert']);

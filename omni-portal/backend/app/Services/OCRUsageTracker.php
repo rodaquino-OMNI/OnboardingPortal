@@ -129,6 +129,22 @@ class OCRUsageTracker
     }
 
     /**
+     * Get current weekly usage
+     */
+    public function getWeeklyUsage(string $service = 'all'): float
+    {
+        $weeklyUsage = 0.0;
+        
+        // Sum up daily usage for the current week
+        for ($date = now()->startOfWeek(); $date->lte(now()->endOfWeek()); $date->addDay()) {
+            $dailyKey = $this->cachePrefix . '_' . $service . '_daily_' . $date->format('Y-m-d');
+            $weeklyUsage += Cache::get($dailyKey, 0);
+        }
+        
+        return $weeklyUsage;
+    }
+
+    /**
      * Check if document can be processed within budget limits
      */
     public function canProcessDocument(): bool

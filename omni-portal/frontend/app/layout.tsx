@@ -6,7 +6,7 @@ import { ClearDemoData } from '@/components/ClearDemoData';
 import { ServiceWorkerCleanup } from '@/components/ServiceWorkerCleanup';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Providers } from './providers';
-import { ServiceWorkerProvider } from '@/components/ServiceWorkerProvider';
+// import { ServiceWorkerProvider } from '@/components/ServiceWorkerProvider'; // Temporarily disabled
 import { initializeChunkRecovery } from '@/lib/chunk-error-recovery';
 
 // Configure Inter font
@@ -75,12 +75,12 @@ export default function RootLayout({
       <body className="font-sans antialiased" suppressHydrationWarning={true}>
         <ErrorBoundary>
           <Providers>
-            <ServiceWorkerProvider>
+            {/* <ServiceWorkerProvider> - Temporarily disabled */}
               <ServiceWorkerCleanup />
               <ClearDemoData />
               {/* <SkipLinks /> - Commented out - missing component */}
               <main id="main-content">{children}</main>
-            </ServiceWorkerProvider>
+            {/* </ServiceWorkerProvider> */}
           </Providers>
         </ErrorBoundary>
       </body>
