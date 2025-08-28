@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "System Diagnostic Configuration",
+  "description": "Configuration for comprehensive system diagnostics and logging",
+  "version": "1.0.0",
+  "diagnostics": {
+    "enabled": true,
+    "level": "detailed",
+    "real_time_monitoring": true,
+    "collection_interval_ms": 10000,
+    "retention_days": 30,
+    "max_log_size_mb": 100,
+    "auto_cleanup": true
+  },
+  "logging": {
+    "console": {
+      "enabled": true,
+      "level": "INFO",
+      "format": "structured",
+      "colors": true
+    },
+    "file": {
+      "enabled": true,
+      "path": "./logs/system-diagnostics.log",
+      "level": "DEBUG",
+      "rotation": {
+        "enabled": true,
+        "max_size_mb": 50,
+        "max_files": 10,
+        "compress": true
+      }
+    },
+    "remote": {
+      "enabled": false,
+      "endpoint": "https://logs.example.com/api/v1/logs",
+      "api_key": "${LOG_API_KEY}",
+      "batch_size": 100,
+      "flush_interval_ms": 5000
+    }
+  },
+  "metrics": {
+    "system": {
+      "enabled": true,
+      "collect_cpu": true,
+      "collect_memory": true,
+      "collect_disk": true,
+      "collect_network": true,
+      "collect_processes": true
+    },
+    "application": {
+      "enabled": true,
+      "track_extensions": true,
+      "track_mcp_servers": true,
+      "track_shell_connections": true,
+      "track_performance": true,
+      "custom_metrics": []
+    },
+    "performance": {
+      "enabled": true,
+      "track_response_times": true,
+      "track_error_rates": true,
+      "track_throughput": true,
+      "percentiles": [50, 90, 95, 99]
+    }
+  },
+  "alerts": {
+    "enabled": true,
+    "thresholds": {
+      "cpu_usage_percent": 80,
+      "memory_usage_percent": 85,
+      "disk_usage_percent": 90,
+      "error_rate_percent": 5,
+      "response_time_ms": 5000
+    },
+    "notifications": {
+      "console": true,
+      "file": true,
+      "email": {
+        "enabled": false,
+        "smtp_host": "smtp.example.com",
+        "smtp_port": 587,
+        "username": "alerts@example.com",
+        "recipients": []
+      },
+      "webhook": {
+        "enabled": false,
+        "url": "https://hooks.slack.com/services/...",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      }
+    }
+  },
+  "health_checks": {
+    "enabled": true,
+    "interval_ms": 30000,
+    "timeout_ms": 5000,
+    "checks": {
+      "extension_health": {
+        "enabled": true,
+        "command": "code --list-extensions",
+        "expected_output_pattern": "ms-vscode",
+        "timeout_ms": 10000
+      },
+      "mcp_servers": {
+        "enabled": true,
+        "check_ports": true,
+        "check_processes": true,
+        "expected_servers": ["claude-flow", "flow-nexus"]
+      },
+      "shell_connections": {
+        "enabled": true,
+        "test_command": "echo 'health_check'",
+        "expected_response": "health_check",
+        "max_response_time_ms": 1000
+      },
+      "file_system": {
+        "enabled": true,
+        "check_paths": [
+          "./logs",
+          "./config",
+          "./scripts"
+        ],
+        "check_permissions": true,
+        "check_disk_space": true
+      }
+    }
+  },
+  "recovery": {
+    "enabled": true,
+    "auto_recovery": true,
+    "strategies": {
+      "extension_issues": {
+        "restart_vscode": false,
+        "reinstall_extension": false,
+        "reset_extension_settings": true,
+        "backup_and_restore": true
+      },
+      "mcp_server_issues": {
+        "restart_server": true,
+        "reset_configuration": false,
+        "port_reallocation": true,
+        "process_cleanup": true
+      },
+      "shell_connection_issues": {
+        "reconnect": true,
+        "session_cleanup": true,
+        "process_restart": false,
+        "fallback_shell": true
+      },
+      "system_resource_issues": {
+        "garbage_collection": true,
+        "process_prioritization": true,
+        "resource_limiting": true,
+        "cleanup_temp_files": true
+      }
+    }
+  },
+  "reporting": {
+    "enabled": true,
+    "daily_reports": {
+      "enabled": true,
+      "time": "09:00",
+      "include_summary": true,
+      "include_metrics": true,
+      "include_alerts": true,
+      "include_recommendations": true
+    },
+    "incident_reports": {
+      "enabled": true,
+      "auto_generate": true,
+      "include_timeline": true,
+      "include_root_cause": true,
+      "include_resolution_steps": true
+    },
+    "performance_reports": {
+      "enabled": true,
+      "weekly_summary": true,
+      "trend_analysis": true,
+      "benchmark_comparison": true
+    }
+  },
+  "data_collection": {
+    "privacy_mode": true,
+    "anonymize_paths": true,
+    "exclude_sensitive_data": true,
+    "data_retention_policy": {
+      "logs": "30d",
+      "metrics": "90d",
+      "reports": "1y"
+    },
+    "compression": {
+      "enabled": true,
+      "algorithm": "gzip",
+      "level": 6
+    }
+  },
+  "integration": {
+    "prometheus": {
+      "enabled": false,
+      "endpoint": "/metrics",
+      "port": 9090,
+      "push_gateway": null
+    },
+    "grafana": {
+      "enabled": false,
+      "dashboard_config": null,
+      "data_source": null
+    },
+    "elasticsearch": {
+      "enabled": false,
+      "host": "localhost:9200",
+      "index_pattern": "system-diagnostics-*",
+      "auth": null
+    }
+  },
+  "debugging": {
+    "enabled": true,
+    "capture_stack_traces": true,
+    "capture_environment": true,
+    "capture_process_info": true,
+    "capture_network_info": false,
+    "debug_mode_triggers": {
+      "high_error_rate": true,
+      "performance_degradation": true,
+      "manual_trigger": true
+    }
+  },
+  "experimental": {
+    "enabled": false,
+    "machine_learning": {
+      "anomaly_detection": false,
+      "predictive_alerts": false,
+      "auto_tuning": false
+    },
+    "advanced_profiling": {
+      "cpu_profiling": false,
+      "memory_profiling": false,
+      "io_profiling": false
+    }
+  }
+}

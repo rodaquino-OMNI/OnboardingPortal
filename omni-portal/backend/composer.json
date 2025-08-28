@@ -17,6 +17,7 @@
         "open-telemetry/sdk": "^1.0",
         "php-http/httplug": "^2.4",
         "predis/predis": "^3.2",
+        "pusher/pusher-php-server": "^7.2",
         "spatie/laravel-permission": "^6.21"
     },
     "require-dev": {

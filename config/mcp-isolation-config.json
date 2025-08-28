@@ -1,0 +1,154 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/schema/main/mcp.schema.json",
+  "description": "MCP Server Isolation Configuration - Prevents conflicts and ensures stable operation",
+  "version": "1.0.0",
+  "isolation": {
+    "enabled": true,
+    "strategy": "port_isolation",
+    "startup_delay": 2000,
+    "health_check_interval": 30000,
+    "max_retry_attempts": 3,
+    "graceful_shutdown_timeout": 10000
+  },
+  "port_management": {
+    "base_port": 3000,
+    "port_range": {
+      "start": 3000,
+      "end": 3100
+    },
+    "reserved_ports": [3000, 8000, 9000, 5432, 27017],
+    "auto_increment": true,
+    "collision_detection": true,
+    "port_allocation_timeout": 5000
+  },
+  "resource_limits": {
+    "max_memory_mb": 512,
+    "max_cpu_percent": 25,
+    "max_open_files": 1024,
+    "max_connections_per_server": 100,
+    "request_timeout_ms": 30000,
+    "idle_timeout_ms": 300000
+  },
+  "server_priorities": {
+    "high_priority": [
+      "claude-flow",
+      "flow-nexus",
+      "ruv-swarm"
+    ],
+    "medium_priority": [
+      "github-integration",
+      "database-tools"
+    ],
+    "low_priority": [
+      "experimental-servers",
+      "test-servers"
+    ]
+  },
+  "startup_sequence": {
+    "sequential_startup": true,
+    "phase_delay_ms": 3000,
+    "phases": [
+      {
+        "name": "core",
+        "servers": ["claude-flow"],
+        "wait_for_health": true,
+        "timeout_ms": 15000
+      },
+      {
+        "name": "orchestration",
+        "servers": ["flow-nexus", "ruv-swarm"],
+        "wait_for_health": true,
+        "timeout_ms": 20000
+      },
+      {
+        "name": "integration",
+        "servers": ["github-integration"],
+        "wait_for_health": false,
+        "timeout_ms": 10000
+      }
+    ]
+  },
+  "health_monitoring": {
+    "enabled": true,
+    "check_interval_ms": 30000,
+    "failure_threshold": 3,
+    "recovery_attempts": 2,
+    "metrics_collection": true,
+    "endpoints": {
+      "health_check": "/health",
+      "metrics": "/metrics",
+      "status": "/status"
+    }
+  },
+  "conflict_resolution": {
+    "port_conflicts": {
+      "strategy": "auto_increment",
+      "max_attempts": 10,
+      "fallback_range": {
+        "start": 4000,
+        "end": 4100
+      }
+    },
+    "resource_conflicts": {
+      "strategy": "priority_based",
+      "enforcement": "strict",
+      "throttling_enabled": true
+    },
+    "duplicate_servers": {
+      "strategy": "terminate_duplicate",
+      "detection_method": "name_and_port"
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "./logs/mcp-isolation.log",
+    "max_size_mb": 50,
+    "max_files": 5,
+    "include_server_logs": true,
+    "isolation_events": true
+  },
+  "security": {
+    "sandbox_servers": true,
+    "network_isolation": false,
+    "file_system_isolation": true,
+    "environment_isolation": true,
+    "allowed_system_calls": [
+      "read",
+      "write",
+      "connect",
+      "bind",
+      "listen",
+      "accept"
+    ]
+  },
+  "recovery": {
+    "auto_restart": true,
+    "restart_delay_ms": 5000,
+    "exponential_backoff": true,
+    "max_restart_attempts": 5,
+    "circuit_breaker": {
+      "enabled": true,
+      "failure_threshold": 5,
+      "timeout_ms": 60000,
+      "half_open_max_calls": 3
+    }
+  },
+  "performance_tuning": {
+    "connection_pooling": true,
+    "request_batching": true,
+    "compression": true,
+    "keep_alive": true,
+    "buffer_sizes": {
+      "read_buffer_kb": 64,
+      "write_buffer_kb": 64,
+      "message_buffer_kb": 256
+    }
+  },
+  "development": {
+    "debug_mode": false,
+    "verbose_logging": false,
+    "mock_servers": [],
+    "test_isolation": true,
+    "hot_reload": false
+  }
+}
