@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import RoleBasedAccess, { PERMISSIONS, usePermissions } from '@/components/admin/RoleBasedAccess';
+import { RealWebSocketClient, createWebSocketConnection } from '@/lib/websocket';
 
 // ===== TYPES =====
 export interface RealTimeAlert {
@@ -76,127 +77,18 @@ interface AlertProviderProps {
   autoConnect?: boolean;
 }
 
-// ===== MOCK WEBSOCKET IMPLEMENTATION =====
-class MockWebSocket {
-  private listeners: { [key: string]: Function[] } = {};
-  private interval: NodeJS.Timeout | null = null;
-  public readyState: number = 0; // CONNECTING
+// ===== WEBSOCKET CHANNELS =====
+const WEBSOCKET_CHANNELS = {
+  HEALTH_ALERTS: 'private-health.alerts',
+  ADMIN_ALERTS: 'private-admin.alerts', 
+  SYSTEM_ALERTS: 'private-admin.system',
+  PUBLIC_DEMO: 'health.alerts' // For demonstration - public channel
+} as const;
 
-  constructor(private url: string) {
-    // Simulate connection delay
-    setTimeout(() => {
-      this.readyState = 1; // OPEN
-      this.emit('open', {});
-      this.startMockData();
-    }, 1000);
-  }
-
-  private startMockData() {
-    this.interval = setInterval(() => {
-      if (Math.random() < 0.3) { // 30% chance of new alert every 10 seconds
-        const mockAlert = this.generateMockAlert();
-        this.emit('message', { data: JSON.stringify(mockAlert) });
-      }
-    }, 10000);
-  }
-
-  private generateMockAlert(): RealTimeAlert {
-    const categories = ['health', 'security', 'system', 'compliance', 'performance'];
-    const types = ['critical', 'warning', 'info'] as const;
-    const priorities = ['low', 'medium', 'high', 'critical'] as const;
-    
-    const category = categories[Math.floor(Math.random() * categories.length)] as RealTimeAlert['category'];
-    const type = types[Math.floor(Math.random() * types.length)];
-    const priority = priorities[Math.floor(Math.random() * priorities.length)];
-    
-    const messages = {
-      health: [
-        'High-risk patient detected in questionnaire responses',
-        'Unusual health pattern identified requiring review',
-        'Mental health screening flagged for immediate attention',
-        'Chronic condition progression detected in patient data'
-      ],
-      security: [
-        'Multiple failed login attempts detected',
-        'Suspicious activity from unusual IP address',
-        'Potential data breach attempt blocked',
-        'Unauthorized access attempt to admin panel'
-      ],
-      system: [
-        'Database performance degradation detected',
-        'High memory usage on application server',
-        'API response times exceeding threshold',
-        'Backup process completed with warnings'
-      ],
-      compliance: [
-        'LGPD consent expiration approaching for users',
-        'Audit trail discrepancy detected',
-        'Data retention policy violation flagged',
-        'Privacy policy acceptance required for users'
-      ],
-      performance: [
-        'System response time exceeding SLA thresholds',
-        'High CPU utilization on web servers',
-        'Database connection pool nearly exhausted',
-        'CDN performance degradation detected'
-      ]
-    };
-
-    const categoryMessages = messages[category];
-    const message = categoryMessages[Math.floor(Math.random() * categoryMessages.length)];
-    
-    return {
-      id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type,
-      category,
-      title: `${category.charAt(0).toUpperCase() + category.slice(1)} Alert`,
-      message,
-      timestamp: new Date().toISOString(),
-      priority,
-      resolved: false,
-      source: 'monitoring_system',
-      actionRequired: type === 'critical' || priority === 'critical',
-      autoResolve: type === 'info',
-      escalationLevel: 0,
-      metadata: {
-        generatedBy: 'mock_system',
-        environment: 'production'
-      }
-    };
-  }
-
-  addEventListener(event: string, callback: Function) {
-    if (!this.listeners[event]) {
-      this.listeners[event] = [];
-    }
-    this.listeners[event].push(callback);
-  }
-
-  removeEventListener(event: string, callback: Function) {
-    if (this.listeners[event]) {
-      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-    }
-  }
-
-  private emit(event: string, data: any) {
-    if (this.listeners[event]) {
-      this.listeners[event].forEach(callback => callback(data));
-    }
-  }
-
-  close() {
-    this.readyState = 3; // CLOSED
-    if (this.interval) {
-      clearInterval(this.interval);
-    }
-    this.emit('close', {});
-  }
-
-  send(data: string) {
-    // Mock send implementation
-    console.log('MockWebSocket send:', data);
-  }
-}
+const WEBSOCKET_EVENTS = {
+  HEALTH_RISK_ALERT: 'HealthRiskAlert', // Laravel event class names
+  SYSTEM_ALERT: 'SystemAlert'
+} as const;
 
 // ===== CONTEXT =====
 const AlertContext = createContext<AlertContextType | null>(null);
@@ -214,8 +106,9 @@ export function RealTimeAlertsProvider({
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<AlertContextType['connectionStatus']>('disconnected');
   const [currentFilter, setCurrentFilter] = useState<AlertFilter>({});
-  const wsRef = useRef<MockWebSocket | null>(null);
+  const wsRef = useRef<RealWebSocketClient | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const channelSubscriptions = useRef<any[]>([]);
   const { checkPermission } = usePermissions();
 
   // Filter alerts based on current filter
@@ -253,41 +146,36 @@ export function RealTimeAlertsProvider({
       return;
     }
 
-    if (wsRef.current?.readyState === 1) return; // Already connected
+    if (wsRef.current?.isConnected()) return; // Already connected
 
     setConnectionStatus('connecting');
     
     try {
-      // In a real implementation, this would be a proper WebSocket URL
-      wsRef.current = new MockWebSocket('wss://api.example.com/alerts');
+      // Create real WebSocket connection with Laravel Echo
+      wsRef.current = createWebSocketConnection({
+        enableReconnect: true,
+        maxReconnectAttempts: 5,
+        reconnectDelay: 3000,
+        enableLogging: true, // Always enable logging to see connection status
+        authToken: localStorage.getItem('auth_token') || undefined
+      });
       
       wsRef.current.addEventListener('open', () => {
         setIsConnected(true);
         setConnectionStatus('connected');
         console.log('Alert WebSocket connected');
         
-        // Send subscription preferences
-        subscriptions.forEach(subscription => {
-          wsRef.current?.send(JSON.stringify({
-            type: 'subscribe',
-            subscription
-          }));
-        });
-      });
-      
-      wsRef.current.addEventListener('message', (event: any) => {
-        try {
-          const alertData = JSON.parse(event.data);
-          handleNewAlert(alertData);
-        } catch (error) {
-          console.error('Failed to parse alert message:', error);
-        }
+        // Subscribe to channels
+        subscribeToChannels();
       });
       
       wsRef.current.addEventListener('close', () => {
         setIsConnected(false);
         setConnectionStatus('disconnected');
         console.log('Alert WebSocket disconnected');
+        
+        // Clear channel subscriptions
+        channelSubscriptions.current = [];
         
         // Auto-reconnect after 5 seconds
         if (autoConnect) {
@@ -306,14 +194,116 @@ export function RealTimeAlertsProvider({
     }
   }, [subscriptions, checkPermission, autoConnect]);
 
+  // Subscribe to WebSocket channels
+  const subscribeToChannels = useCallback(() => {
+    if (!wsRef.current) return;
+
+    // Clear existing subscriptions
+    channelSubscriptions.current = [];
+
+    // Subscribe to public demo channel (no auth required)
+    const publicChannel = wsRef.current.subscribeToChannel(
+      WEBSOCKET_CHANNELS.PUBLIC_DEMO,
+      WEBSOCKET_EVENTS.HEALTH_RISK_ALERT,
+      (event: any) => {
+        try {
+          console.log('Received health risk alert event:', event);
+          const alertData = typeof event.data === 'string' ? JSON.parse(event.data) : event;
+          
+          // Handle different event data structures
+          if (alertData.alert) {
+            handleNewAlert(alertData.alert);
+          } else if (alertData.data && alertData.data.alert) {
+            handleNewAlert(alertData.data.alert);
+          } else if (alertData.id) {
+            // Direct alert object
+            handleNewAlert(alertData);
+          } else {
+            console.warn('Unknown alert data structure:', alertData);
+          }
+        } catch (error) {
+          console.error('Failed to parse health risk alert message:', error, event);
+        }
+      }
+    );
+
+    if (publicChannel) {
+      channelSubscriptions.current.push(publicChannel);
+    }
+
+    // Subscribe to system alerts on public demo channel
+    const systemChannel = wsRef.current.subscribeToChannel(
+      WEBSOCKET_CHANNELS.PUBLIC_DEMO,
+      WEBSOCKET_EVENTS.SYSTEM_ALERT,
+      (event: any) => {
+        try {
+          console.log('Received system alert event:', event);
+          const alertData = typeof event.data === 'string' ? JSON.parse(event.data) : event;
+          
+          // Handle different event data structures
+          if (alertData.alert) {
+            handleNewAlert(alertData.alert);
+          } else if (alertData.data && alertData.data.alert) {
+            handleNewAlert(alertData.data.alert);
+          } else if (alertData.id) {
+            // Direct alert object
+            handleNewAlert(alertData);
+          } else {
+            console.warn('Unknown system alert data structure:', alertData);
+          }
+        } catch (error) {
+          console.error('Failed to parse system alert message:', error, event);
+        }
+      }
+    );
+
+    if (systemChannel) {
+      channelSubscriptions.current.push(systemChannel);
+    }
+
+    // Try to subscribe to private channels if authenticated
+    try {
+      const healthChannel = wsRef.current.subscribeToChannel(
+        WEBSOCKET_CHANNELS.HEALTH_ALERTS,
+        WEBSOCKET_EVENTS.HEALTH_RISK_ALERT,
+        (event: any) => {
+          try {
+            const alertData = JSON.parse(event.data);
+            if (alertData.alert) {
+              handleNewAlert(alertData.alert);
+            }
+          } catch (error) {
+            console.error('Failed to parse health alert message:', error);
+          }
+        }
+      );
+
+      if (healthChannel) {
+        channelSubscriptions.current.push(healthChannel);
+      }
+    } catch (error) {
+      console.warn('Could not subscribe to private channels (authentication may be required)', error);
+    }
+
+    console.log(`Subscribed to ${channelSubscriptions.current.length} channels`);
+  }, [handleNewAlert]);
+
   // Disconnect WebSocket
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
     
+    // Unsubscribe from all channels
+    channelSubscriptions.current.forEach(channel => {
+      if (channel && typeof channel.unsubscribe === 'function') {
+        channel.unsubscribe();
+      }
+    });
+    channelSubscriptions.current = [];
+    
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.disconnect();
       wsRef.current = null;
     }
     
@@ -372,13 +362,20 @@ export function RealTimeAlertsProvider({
         : alert
     ));
     
-    // Send resolution to server
-    if (wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({
-        type: 'resolve_alert',
-        alertId
-      }));
-    }
+    // Send resolution to server via REST API
+    fetch('/api/alerts/resolve', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(localStorage.getItem('auth_token') && {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        })
+      },
+      body: JSON.stringify({ alertId })
+    }).catch(error => {
+      console.error('Failed to resolve alert on server:', error);
+    });
   }, [checkPermission]);
 
   const dismissAlert = useCallback((alertId: string) => {
@@ -407,26 +404,40 @@ export function RealTimeAlertsProvider({
     
     setSubscriptions(prev => [...prev, newSubscription]);
     
-    // Send subscription to server
-    if (wsRef.current?.readyState === 1) {
-      wsRef.current.send(JSON.stringify({
-        type: 'subscribe',
-        subscription: newSubscription
-      }));
-    }
+    // Send subscription to server via REST API
+    fetch('/api/alerts/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(localStorage.getItem('auth_token') && {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        })
+      },
+      body: JSON.stringify(newSubscription)
+    }).catch(error => {
+      console.error('Failed to save subscription on server:', error);
+    });
   }, []);
 
   const unsubscribe = useCallback((subscriptionId: string) => {
     setSubscriptions(prev => {
       const updated = prev.filter(sub => sub.id !== subscriptionId);
       
-      // Send unsubscription to server
-      if (wsRef.current?.readyState === 1) {
-        wsRef.current.send(JSON.stringify({
-          type: 'unsubscribe',
-          subscriptionId
-        }));
-      }
+      // Send unsubscription to server via REST API
+      fetch('/api/alerts/unsubscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(localStorage.getItem('auth_token') && {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+          })
+        },
+        body: JSON.stringify({ subscriptionId })
+      }).catch(error => {
+        console.error('Failed to remove subscription on server:', error);
+      });
       
       return updated;
     });

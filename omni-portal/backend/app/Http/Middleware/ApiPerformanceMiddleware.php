@@ -92,7 +92,7 @@ class ApiPerformanceMiddleware
     private function isCacheableEndpoint(Request $request): bool
     {
         $cacheableEndpoints = [
-            'api/health',
+            // 'api/health', // Removed to allow rate limiting to work properly
             'api/gamification/badges',
             'api/gamification/progress',
             'api/auth/user',

@@ -1,8 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
-use App\Http\Middleware\WebSocketAuthMiddleware;
-use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,203 +15,70 @@ use App\Models\User;
 */
 
 // Public channels (no authentication required)
-Broadcast::channel('public.announcements', function () {
+Broadcast::channel('public.alerts', function () {
     return true;
 });
 
-Broadcast::channel('public.system-status', function () {
+Broadcast::channel('public.system', function () {
     return true;
 });
 
-// Private user channels
-Broadcast::channel('private-user.{userId}', function (User $user, int $userId) {
-    return $user->id === $userId;
+// Private admin channels (require admin role)
+Broadcast::channel('admin.alerts', function ($user) {
+    return $user && ($user->hasRole('admin') || $user->hasRole('super_admin'));
 });
 
-// Admin channels - require admin permissions
-Broadcast::channel('admin.notifications', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin']) || 
-           $user->hasPermissionTo('admin.access') ||
-           $user->user_type === 'admin';
+Broadcast::channel('admin.system', function ($user) {
+    return $user && ($user->hasRole('admin') || $user->hasRole('super_admin'));
 });
 
-Broadcast::channel('admin.notifications.{userId}', function (User $user, int $userId) {
-    // Admin can receive targeted notifications
-    return ($user->hasRole(['admin', 'super-admin']) || 
-            $user->hasPermissionTo('admin.access') ||
-            $user->user_type === 'admin') && 
-           $user->id === $userId;
+Broadcast::channel('admin.security', function ($user) {
+    return $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('security_admin'));
 });
 
-Broadcast::channel('admin.health-alerts', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'health-admin']) || 
-           $user->hasPermissionTo(['health.monitor', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'health_professional']);
+Broadcast::channel('admin.performance', function ($user) {
+    return $user && ($user->hasRole('admin') || $user->hasRole('super_admin'));
 });
 
-Broadcast::channel('admin.security', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'security-admin']) || 
-           $user->hasPermissionTo(['security.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
+Broadcast::channel('admin.compliance', function ($user) {
+    return $user && ($user->hasRole('admin') || $user->hasRole('super_admin') || $user->hasRole('compliance_admin'));
 });
 
-Broadcast::channel('admin.system', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'system-admin']) || 
-           $user->hasPermissionTo(['system.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
+// Health-specific channels
+Broadcast::channel('health.alerts', function ($user) {
+    return $user && (
+        $user->hasRole('admin') || 
+        $user->hasRole('super_admin') || 
+        $user->hasRole('health_admin') ||
+        $user->hasRole('medical_professional')
+    );
 });
 
-Broadcast::channel('admin.performance', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'system-admin']) || 
-           $user->hasPermissionTo(['system.monitor', 'performance.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
+// User-specific presence channels
+Broadcast::channel('user.{id}', function ($user, $id) {
+    return (int) $user->id === (int) $id;
 });
 
-Broadcast::channel('admin.compliance', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'compliance-admin']) || 
-           $user->hasPermissionTo(['compliance.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
-});
-
-Broadcast::channel('admin.user_activity', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin']) || 
-           $user->hasPermissionTo(['users.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
-});
-
-// Health channels - for health professionals and users
-Broadcast::channel('health.alerts.{userId}', function (User $user, int $userId) {
-    // Users can access their own health alerts
-    if ($user->id === $userId) {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "health.alerts.{$userId}");
-    }
-    
-    // Health professionals can monitor patient alerts
-    if ($user->hasRole(['health-professional', 'doctor', 'nurse']) ||
-        $user->hasPermissionTo('health.monitor') ||
-        $user->user_type === 'health_professional') {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "health.alerts.{$userId}");
-    }
-    
-    // Admins can access all health alerts
-    if ($user->hasRole(['admin', 'super-admin', 'health-admin']) ||
-        $user->hasPermissionTo('admin.access')) {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "health.alerts.{$userId}");
-    }
-    
-    return false;
-});
-
-Broadcast::channel('health.monitoring', function (User $user) {
-    return $user->hasRole(['health-professional', 'doctor', 'nurse', 'admin', 'super-admin']) ||
-           $user->hasPermissionTo(['health.monitor', 'admin.access']) ||
-           in_array($user->user_type, ['health_professional', 'admin']);
-});
-
-// Interview and appointment channels
-Broadcast::channel('interviews.{userId}', function (User $user, int $userId) {
-    // Users can access their own interview notifications
-    if ($user->id === $userId) {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "interviews.{$userId}");
-    }
-    
-    // Staff can access interview notifications for coordination
-    return $user->hasRole(['admin', 'staff', 'health-professional']) ||
-           $user->hasPermissionTo(['interviews.manage', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'staff', 'health_professional']);
-});
-
-Broadcast::channel('appointments.{userId}', function (User $user, int $userId) {
-    // Users can access their own appointment notifications
-    if ($user->id === $userId) {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "appointments.{$userId}");
-    }
-    
-    // Medical staff can access appointment notifications
-    return $user->hasRole(['doctor', 'nurse', 'admin', 'health-professional']) ||
-           $user->hasPermissionTo(['appointments.manage', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'health_professional']);
-});
-
-// Gamification channels
-Broadcast::channel('gamification.{userId}', function (User $user, int $userId) {
-    return $user->id === $userId;
-});
-
-Broadcast::channel('gamification.leaderboard', function (User $user) {
-    return true; // All authenticated users can see leaderboard updates
-});
-
-// Document processing channels
-Broadcast::channel('documents.{userId}', function (User $user, int $userId) {
-    // Users can access their own document processing updates
-    if ($user->id === $userId) {
-        return WebSocketAuthMiddleware::getChannelAuthData($user, "documents.{$userId}");
-    }
-    
-    // Staff can monitor document processing for administrative purposes
-    return $user->hasRole(['admin', 'staff']) ||
-           $user->hasPermissionTo(['documents.manage', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'staff']);
-});
-
-// System monitoring channels
-Broadcast::channel('system.monitoring', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'system-admin']) ||
-           $user->hasPermissionTo(['system.monitor', 'admin.access']) ||
-           $user->user_type === 'admin';
-});
-
-Broadcast::channel('system.alerts', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'system-admin']) ||
-           $user->hasPermissionTo(['system.monitor', 'alerts.receive', 'admin.access']) ||
-           $user->user_type === 'admin';
-});
-
-// Presence channels for collaborative features
-Broadcast::channel('presence.admin-dashboard', function (User $user) {
-    if ($user->hasRole(['admin', 'super-admin']) ||
-        $user->hasPermissionTo('admin.access') ||
-        $user->user_type === 'admin') {
+// Online users presence channel (for admins)
+Broadcast::channel('online', function ($user) {
+    if ($user && ($user->hasRole('admin') || $user->hasRole('super_admin'))) {
         return [
             'id' => $user->id,
             'name' => $user->name,
-            'role' => $user->getRoleNames()->first() ?? $user->user_type,
+            'role' => $user->getRoleNames()->first(),
             'avatar' => $user->avatar_url ?? null,
-            'status' => 'online',
-            'last_seen' => now()->toISOString()
         ];
     }
-    
     return false;
 });
 
-Broadcast::channel('presence.health-monitoring', function (User $user) {
-    if ($user->hasRole(['health-professional', 'doctor', 'nurse', 'admin']) ||
-        $user->hasPermissionTo('health.monitor') ||
-        in_array($user->user_type, ['health_professional', 'admin'])) {
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'role' => $user->getRoleNames()->first() ?? $user->user_type,
-            'specialization' => $user->specialization ?? null,
-            'status' => 'monitoring',
-            'active_patients' => $user->active_patients_count ?? 0
-        ];
-    }
+// Development/Testing channels
+if (config('app.env') === 'local' || config('app.env') === 'testing') {
+    Broadcast::channel('test.public', function () {
+        return true;
+    });
     
-    return false;
-});
-
-// Emergency channels - highest priority
-Broadcast::channel('emergency.alerts', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'health-professional', 'emergency-contact']) ||
-           $user->hasPermissionTo(['emergency.respond', 'health.monitor', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'health_professional', 'emergency_contact']);
-});
-
-Broadcast::channel('emergency.coordination', function (User $user) {
-    return $user->hasRole(['admin', 'super-admin', 'health-professional', 'emergency-coordinator']) ||
-           $user->hasPermissionTo(['emergency.coordinate', 'admin.access']) ||
-           in_array($user->user_type, ['admin', 'health_professional']);
-});
+    Broadcast::channel('test.private', function ($user) {
+        return $user !== null;
+    });
+}

@@ -2,6 +2,8 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AlertController;
+use App\Http\Controllers\Api\WebSocketTestController;
 use App\Http\Controllers\MetricsController;
 use App\Http\Requests\Auth\LoginRequest;
 
@@ -16,6 +18,20 @@ use App\Http\Requests\Auth\LoginRequest;
 |
 */
 
+// ===== PUBLIC WEBSOCKET TESTING ROUTES (NO AUTH) =====
+Route::group(['prefix' => 'websocket'], function () {
+    Route::get('test', [WebSocketTestController::class, 'testConnection']);
+    Route::post('load-test', [WebSocketTestController::class, 'loadTest']);
+    Route::get('status', [WebSocketTestController::class, 'status']);
+});
+
+// ===== PUBLIC ALERT TESTING ROUTES (NO AUTH) =====
+Route::group(['prefix' => 'alerts'], function () {
+    Route::post('broadcast', [AlertController::class, 'broadcastHealthAlert']);
+    Route::post('sample', [AlertController::class, 'generateSampleAlert']);
+    Route::get('connection-info', [AlertController::class, 'connectionInfo']);
+});
+
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return response()->json([
         'user' => $request->user(),
@@ -29,8 +45,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::get('/metrics', [MetricsController::class, 'index'])->name('metrics');
 
 
-// Health check endpoints
-Route::prefix('health')->middleware('throttle:30,1')->group(function () {
+// Health check endpoints - Apply UnifiedAuth middleware explicitly for rate limiting
+Route::prefix('health')->middleware([App\Http\Middleware\UnifiedAuthMiddleware::class])->group(function () {
     // Comprehensive health check
     Route::get('/', [App\Http\Controllers\Api\HealthController::class, 'health'])->name('health');
     
@@ -185,11 +201,16 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     
     // User management
     Route::get('/users', [App\Http\Controllers\Api\AdminController::class, 'users'])->name('admin.users');
-    Route::get('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'getUser'])->name('admin.users.show');
+    Route::get('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'userDetails'])->name('admin.users.show');
     Route::put('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateUser'])->name('admin.users.update');
     Route::delete('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteUser'])->name('admin.users.delete');
     Route::post('/users/{id}/activate', [App\Http\Controllers\Api\AdminController::class, 'activateUser'])->name('admin.users.activate');
     Route::post('/users/{id}/deactivate', [App\Http\Controllers\Api\AdminController::class, 'deactivateUser'])->name('admin.users.deactivate');
+    Route::post('/users/{id}/lock', [App\Http\Controllers\Api\AdminController::class, 'lockUser'])->name('admin.users.lock');
+    Route::post('/users/{id}/unlock', [App\Http\Controllers\Api\AdminController::class, 'unlockUser'])->name('admin.users.unlock');
+    Route::post('/users/{id}/reset-password', [App\Http\Controllers\Api\AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
+    Route::get('/users/{id}/activity', [App\Http\Controllers\Api\AdminController::class, 'getUserActivity'])->name('admin.users.activity');
+    Route::get('/users/{id}/audit-trail', [App\Http\Controllers\Api\AdminController::class, 'getUserAuditTrail'])->name('admin.users.audit-trail');
     
     // Health risk management
     Route::get('/health-risks', [App\Http\Controllers\Api\AdminController::class, 'healthRisks'])->name('admin.health-risks');
@@ -217,13 +238,51 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/interviews/{id}', [App\Http\Controllers\Api\AdminController::class, 'getInterview'])->name('admin.interviews.show');
     Route::put('/interviews/{id}/reschedule', [App\Http\Controllers\Api\AdminController::class, 'rescheduleInterview'])->name('admin.interviews.reschedule');
     
-    // System settings
-    Route::get('/settings', [App\Http\Controllers\Api\AdminController::class, 'settings'])->name('admin.settings');
-    Route::put('/settings', [App\Http\Controllers\Api\AdminController::class, 'updateSettings'])->name('admin.settings.update');
+    // Role & Permission Management
+    Route::get('/roles', [App\Http\Controllers\Api\AdminController::class, 'roles'])->name('admin.roles');
+    Route::post('/roles', [App\Http\Controllers\Api\AdminController::class, 'createRole'])->name('admin.roles.create');
+    Route::put('/roles/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateRole'])->name('admin.roles.update');
+    Route::delete('/roles/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteRole'])->name('admin.roles.delete');
+    Route::post('/roles/assign', [App\Http\Controllers\Api\AdminController::class, 'assignRole'])->name('admin.roles.assign');
+    Route::post('/roles/revoke', [App\Http\Controllers\Api\AdminController::class, 'revokeRole'])->name('admin.roles.revoke');
+    Route::get('/permissions', [App\Http\Controllers\Api\AdminController::class, 'permissions'])->name('admin.permissions');
     
-    // Audit logs
+    // System settings
+    Route::get('/system-settings', [App\Http\Controllers\Api\AdminController::class, 'systemSettings'])->name('admin.system-settings');
+    Route::put('/system-settings', [App\Http\Controllers\Api\AdminController::class, 'updateSystemSetting'])->name('admin.system-settings.update');
+    
+    // Security & Audit
+    Route::get('/security-audit', [App\Http\Controllers\Api\AdminController::class, 'securityAudit'])->name('admin.security-audit');
+    Route::get('/security/threats', [App\Http\Controllers\Api\AdminController::class, 'getThreatAlerts'])->name('admin.security.threats');
+    Route::get('/security/compliance', [App\Http\Controllers\Api\AdminController::class, 'getComplianceReport'])->name('admin.security.compliance');
     Route::get('/audit-logs', [App\Http\Controllers\Api\AdminController::class, 'auditLogs'])->name('admin.audit-logs');
     Route::get('/security-logs', [App\Http\Controllers\Api\AdminController::class, 'securityLogs'])->name('admin.security-logs');
+    
+    // Data Export
+    Route::post('/export', [App\Http\Controllers\Api\AdminController::class, 'exportData'])->name('admin.export');
+    
+    // Document Management
+    Route::get('/documents/{id}', [App\Http\Controllers\Api\AdminController::class, 'getDocument'])->name('admin.documents.show');
+    Route::post('/documents/{id}/approve', [App\Http\Controllers\Api\AdminController::class, 'approveDocument'])->name('admin.documents.approve');
+    Route::post('/documents/{id}/reject', [App\Http\Controllers\Api\AdminController::class, 'rejectDocument'])->name('admin.documents.reject');
+    
+    // Health Questionnaires Management
+    Route::get('/health-questionnaires', [App\Http\Controllers\Api\AdminController::class, 'healthQuestionnaires'])->name('admin.health-questionnaires');
+    Route::post('/health-questionnaires/{id}/review', [App\Http\Controllers\Api\AdminController::class, 'reviewHealthQuestionnaire'])->name('admin.health-questionnaires.review');
+    
+    // System Monitoring
+    Route::get('/system/health', [App\Http\Controllers\Api\AdminController::class, 'getSystemHealth'])->name('admin.system.health');
+    Route::get('/system/metrics', [App\Http\Controllers\Api\AdminController::class, 'getSystemMetrics'])->name('admin.system.metrics');
+    Route::get('/analytics/real-time', [App\Http\Controllers\Api\AdminController::class, 'getRealTimeAnalytics'])->name('admin.analytics.real-time');
+    
+    // Alert Management
+    Route::get('/alerts', [App\Http\Controllers\Api\AdminController::class, 'getAlerts'])->name('admin.alerts');
+    Route::post('/alerts/{id}/acknowledge', [App\Http\Controllers\Api\AdminController::class, 'acknowledgeAlert'])->name('admin.alerts.acknowledge');
+    Route::post('/alerts/{id}/resolve', [App\Http\Controllers\Api\AdminController::class, 'resolveAlert'])->name('admin.alerts.resolve');
+    
+    // Bulk Operations
+    Route::post('/bulk/users', [App\Http\Controllers\Api\AdminController::class, 'bulkUserAction'])->name('admin.bulk.users');
+    Route::post('/bulk/documents', [App\Http\Controllers\Api\AdminController::class, 'bulkDocumentAction'])->name('admin.bulk.documents');
 });
 
 // Document Upload Routes - Protected with authentication
@@ -367,10 +426,18 @@ Route::prefix('public')->group(function () {
 });
 
 // Testing and Development Routes (should be disabled in production)
-Route::prefix('test')->group(function () {
+// Apply UnifiedAuthMiddleware explicitly to ensure rate limiting works
+Route::prefix('test')->middleware([App\Http\Middleware\UnifiedAuthMiddleware::class])->group(function () {
     Route::get('/auth', [App\Http\Controllers\Api\TestController::class, 'testAuth'])->name('test.auth');
     Route::get('/database', [App\Http\Controllers\Api\TestController::class, 'testDatabase'])->name('test.database');
     Route::get('/redis', [App\Http\Controllers\Api\TestController::class, 'testRedis'])->name('test.redis');
     Route::post('/email', [App\Http\Controllers\Api\TestController::class, 'testEmail'])->name('test.email');
     Route::get('/storage', [App\Http\Controllers\Api\TestController::class, 'testStorage'])->name('test.storage');
+    
+    // Rate limiting test route for submission endpoints
+    Route::post('/submit', function () {
+        return response()->json(['message' => 'Test submission successful']);
+    })->name('test.submit');
 });
+
+// Routes moved to top of file (outside auth middleware)

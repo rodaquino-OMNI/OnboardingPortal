@@ -4,6 +4,8 @@ namespace Tests\Unit\Services;
 
 use Tests\TestCase;
 use App\Services\OCRService;
+use App\Services\BrazilianDocumentService;
+use App\Services\ValidationUtilityService;
 use App\Models\Beneficiary;
 use App\Models\User;
 use Aws\Textract\TextractClient;
@@ -26,8 +28,12 @@ class TextractServiceTest extends TestCase
         // Create mock Textract client
         $this->mockTextractClient = Mockery::mock(TextractClient::class);
         
-        // Create OCR service instance and inject mock
-        $this->ocrService = new OCRService();
+        // Mock the required services for OCRService constructor
+        $mockDocumentService = Mockery::mock(BrazilianDocumentService::class);
+        $mockValidationService = Mockery::mock(ValidationUtilityService::class);
+        
+        // Create OCR service instance with required dependencies
+        $this->ocrService = new OCRService($mockDocumentService, $mockValidationService);
         $reflection = new \ReflectionClass($this->ocrService);
         $property = $reflection->getProperty('textractClient');
         $property->setAccessible(true);

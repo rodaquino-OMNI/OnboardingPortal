@@ -109,6 +109,27 @@ const authHandlers = [
     });
   }),
 
+  // Check email endpoint
+  http.post('http://localhost:8000/api/auth/check-email', async ({ request }) => {
+    try {
+      const body = await request.json();
+      
+      // Simulate checking if email exists
+      const existingEmails = ['existing@example.com', 'user@test.com'];
+      
+      return HttpResponse.json({
+        exists: existingEmails.includes(body.email),
+        available: !existingEmails.includes(body.email),
+        email: body.email
+      });
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request format' },
+        { status: 400 }
+      );
+    }
+  }),
+
   // Logout endpoint
   http.post('http://localhost:8000/api/auth/logout', () => {
     return HttpResponse.json({ success: true, message: 'Logged out successfully' });
@@ -128,7 +149,26 @@ const healthHandlers = [
     });
   }),
 
+  http.get('http://localhost:8000/api/status', () => {
+    return HttpResponse.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      services: {
+        database: 'connected',
+        cache: 'connected'
+      }
+    });
+  }),
+
   http.get('http://localhost:3000/api/health', () => {
+    return HttpResponse.json({
+      status: 'healthy',
+      frontend: true,
+      timestamp: new Date().toISOString()
+    });
+  }),
+
+  http.get('http://localhost:3000/api/status', () => {
     return HttpResponse.json({
       status: 'healthy',
       frontend: true,

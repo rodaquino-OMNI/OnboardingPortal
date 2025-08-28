@@ -110,6 +110,9 @@ bootstrap/cache/*.php
 !bootstrap/cache/.gitkeep
 omni-portal/backend/bootstrap/cache/*.php
 !omni-portal/backend/bootstrap/cache/.gitkeep
+omni-portal/backend/storage/framework/cache/
+**/storage/framework/cache/
+!**/storage/framework/cache/.gitkeep
 omni-portal/backend/storage/framework/cache/auth/
 **/storage/framework/cache/auth/
 
@@ -443,6 +446,7 @@ CLAUDE.md
 
 # Performance test reports (auto-generated)
 **/performance/reports/performance-report-*.json
+
 
 
 

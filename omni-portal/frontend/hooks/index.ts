@@ -8,8 +8,7 @@
 export { useAuth } from './auth/useAuth';
 export { useAuthWithCleanup, useAuthWithVerification } from './useAuth';
 
-// Legacy auth exports (deprecated)
-export { useAuthImplementation, useAuthMetrics } from './useAuthIntegration';
+// No legacy auth exports - all consolidated into useAuth
 
 // Gamification - use integrated version
 export { useGamificationIntegrated as useGamification } from './useGamificationIntegration';

@@ -7,6 +7,7 @@
 
 import { useAuth as useConsolidatedAuth } from './auth/useAuth';
 import { logger } from '@/lib/logger';
+import { useRef, useEffect, useState } from 'react';
 
 /**
  * Main useAuth hook - now consolidated single implementation

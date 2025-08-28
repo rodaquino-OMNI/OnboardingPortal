@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useUnifiedAuth } from '@/hooks/useUnifiedAuth';
+import { useAuth } from '@/hooks/auth/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -18,7 +18,7 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
-  const { login, socialLogin, error, clearError, isLoading } = useUnifiedAuth();
+  const { login, socialLogin, error, clearError, isLoading } = useAuth();
   const router = useRouter();
 
   const validateForm = (): boolean => {

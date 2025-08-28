@@ -1,57 +1,57 @@
 
 # Detailed API Endpoint Test Report
-**Generated:** 2025-08-28T01:42:10.410Z
+**Generated:** 2025-08-28T13:58:23.571Z
 **Total Tests:** 16
-**Successful:** 2
-**Failed:** 14
-**Success Rate:** 12.50%
-**Average Response Time:** 25.56ms
+**Successful:** 3
+**Failed:** 13
+**Success Rate:** 18.75%
+**Average Response Time:** 44.75ms
 
 ## Test Results by Category
 
 ### Health and Monitoring Endpoints
 
-- **Health Check**: ✅ (200) - 2ms
+- **Health Check**: ✅ (200) - 15ms
 
-- **Status Check**: ❌ (0) - 18ms
+- **Status Check**: ✅ (200) - 8ms
 
-- **Metrics Endpoint**: ❌ (0) - 20ms
+- **Metrics Endpoint**: ❌ (0) - 190ms
 
-- **Public Configuration**: ❌ (0) - 21ms
+- **Public Configuration**: ❌ (0) - 66ms
 
 ### Authentication Endpoints
 
-- **Login Endpoint**: ✅ (401) - 1ms
+- **Login Endpoint**: ✅ (401) - 4ms
 
-- **Check Email Availability**: ❌ (0) - 30ms
+- **Check Email Availability**: ❌ (0) - 33ms
 
-- **Check CPF Availability**: ❌ (0) - 44ms
+- **Check CPF Availability**: ❌ (0) - 36ms
 
 ### Registration Endpoints
 
-- **Registration Step 1**: ❌ (0) - 26ms
+- **Registration Step 1**: ❌ (0) - 51ms
 
 ### Protected Endpoints (Authorization Tests)
 
-- **User Profile (Unauthorized)**: ❌ (0) - 25ms
+- **User Profile (Unauthorized)**: ❌ (0) - 33ms
 
-- **Gamification Progress (Unauthorized)**: ❌ (0) - 21ms
+- **Gamification Progress (Unauthorized)**: ❌ (0) - 36ms
 
-- **Documents List (Unauthorized)**: ❌ (0) - 28ms
+- **Documents List (Unauthorized)**: ❌ (0) - 40ms
 
 ### File Upload Endpoints
 
-- **Document Upload V1 (Unauthorized)**: ❌ (0) - 27ms
+- **Document Upload V1 (Unauthorized)**: ❌ (0) - 53ms
 
-- **Document Upload V2 (Unauthorized)**: ❌ (0) - 24ms
+- **Document Upload V2 (Unauthorized)**: ❌ (0) - 31ms
 
-- **Document Upload V3 (Unauthorized)**: ❌ (0) - 25ms
+- **Document Upload V3 (Unauthorized)**: ❌ (0) - 30ms
 
 ### CORS Preflight Tests
 
-- **CORS Preflight - Auth Login**: ❌ (0) - 60ms
+- **CORS Preflight - Auth Login**: ❌ (0) - 49ms
 
-- **CORS Preflight - Documents**: ❌ (0) - 37ms
+- **CORS Preflight - Documents**: ❌ (0) - 41ms
 
 ## CORS Analysis Summary
 
@@ -63,9 +63,9 @@
 
 ## Performance Analysis
 
-- **Average Response Time:** 25.56ms
-- **Maximum Response Time:** 60ms (CORS Preflight - Auth Login)
-- **Minimum Response Time:** 1ms (Login Endpoint)
+- **Average Response Time:** 44.75ms
+- **Maximum Response Time:** 190ms (Metrics Endpoint)
+- **Minimum Response Time:** 4ms (Login Endpoint)
 - **Slow Endpoints (>1s):** 0
 
 
@@ -82,12 +82,12 @@
 ### Health Check
 - **Endpoint:** GET /health
 - **Status:** 200 ✅
-- **Response Time:** 2ms
+- **Response Time:** 15ms
 - **CORS Headers Present:** No
 
 - **Response Sample:** {
   "status": "healthy",
-  "timestamp": "2025-08-28T01:42:08.363Z",
+  "timestamp": "2025-08-28T13:58:21.241Z",
   "services": {
     "database": "connected",
     "cache": "connected"
@@ -101,20 +101,28 @@
 
 ### Status Check
 - **Endpoint:** GET /status
-- **Status:** 0 ❌
-- **Response Time:** 18ms
+- **Status:** 200 ✅
+- **Response Time:** 8ms
 - **CORS Headers Present:** No
-- **Error:** Network request failed
 
+- **Response Sample:** {
+  "status": "healthy",
+  "timestamp": "2025-08-28T13:58:21.353Z",
+  "services": {
+    "database": "connected",
+    "cache": "connected"
+  }
+}...
 - **Response Headers:**
-
+  - content-type: application/json
+  - content-length: 115
 
 
 
 ### Metrics Endpoint
 - **Endpoint:** GET /metrics
 - **Status:** 0 ❌
-- **Response Time:** 20ms
+- **Response Time:** 190ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -126,7 +134,7 @@
 ### Public Configuration
 - **Endpoint:** GET /config/public
 - **Status:** 0 ❌
-- **Response Time:** 21ms
+- **Response Time:** 66ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -138,7 +146,7 @@
 ### Login Endpoint
 - **Endpoint:** POST /auth/login
 - **Status:** 401 ✅
-- **Response Time:** 1ms
+- **Response Time:** 4ms
 - **CORS Headers Present:** No
 
 - **Response Sample:** {
@@ -155,7 +163,7 @@
 ### Check Email Availability
 - **Endpoint:** POST /auth/check-email
 - **Status:** 0 ❌
-- **Response Time:** 30ms
+- **Response Time:** 33ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -167,7 +175,7 @@
 ### Check CPF Availability
 - **Endpoint:** POST /auth/check-cpf
 - **Status:** 0 ❌
-- **Response Time:** 44ms
+- **Response Time:** 36ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -179,7 +187,7 @@
 ### Registration Step 1
 - **Endpoint:** POST /register/step1
 - **Status:** 0 ❌
-- **Response Time:** 26ms
+- **Response Time:** 51ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -191,7 +199,7 @@
 ### User Profile (Unauthorized)
 - **Endpoint:** GET /user
 - **Status:** 0 ❌
-- **Response Time:** 25ms
+- **Response Time:** 33ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -203,7 +211,7 @@
 ### Gamification Progress (Unauthorized)
 - **Endpoint:** GET /gamification/progress
 - **Status:** 0 ❌
-- **Response Time:** 21ms
+- **Response Time:** 36ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -215,7 +223,7 @@
 ### Documents List (Unauthorized)
 - **Endpoint:** GET /documents
 - **Status:** 0 ❌
-- **Response Time:** 28ms
+- **Response Time:** 40ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -227,7 +235,7 @@
 ### Document Upload V1 (Unauthorized)
 - **Endpoint:** POST /documents/upload
 - **Status:** 0 ❌
-- **Response Time:** 27ms
+- **Response Time:** 53ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -239,7 +247,7 @@
 ### Document Upload V2 (Unauthorized)
 - **Endpoint:** POST /v2/documents/upload
 - **Status:** 0 ❌
-- **Response Time:** 24ms
+- **Response Time:** 31ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -251,7 +259,7 @@
 ### Document Upload V3 (Unauthorized)
 - **Endpoint:** POST /v3/documents/upload
 - **Status:** 0 ❌
-- **Response Time:** 25ms
+- **Response Time:** 30ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -263,7 +271,7 @@
 ### CORS Preflight - Auth Login
 - **Endpoint:** OPTIONS /auth/login
 - **Status:** 0 ❌
-- **Response Time:** 60ms
+- **Response Time:** 49ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 
@@ -275,7 +283,7 @@
 ### CORS Preflight - Documents
 - **Endpoint:** OPTIONS /documents
 - **Status:** 0 ❌
-- **Response Time:** 37ms
+- **Response Time:** 41ms
 - **CORS Headers Present:** No
 - **Error:** Network request failed
 

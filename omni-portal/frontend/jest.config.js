@@ -11,6 +11,9 @@ const customJestConfig = {
   testEnvironment: 'jest-environment-jsdom',
   testEnvironmentOptions: {
     customExportConditions: [''], // Fix MSW v2 node import issues
+    url: 'http://localhost:3000',
+    pretendToBeVisual: true,
+    resources: 'usable',
   },
   moduleDirectories: ['node_modules', '<rootDir>/'],
   
@@ -56,8 +59,8 @@ const customJestConfig = {
   ],
   
   testMatch: [
-    '**/__tests__/**/*.{js,jsx,ts,tsx}',
-    '**/*.{spec,test}.{js,jsx,ts,tsx}',
+    '<rootDir>/__tests__/**/*.{js,jsx,ts,tsx}',
+    '<rootDir>/**/*.{test}.{js,jsx,ts,tsx}',
   ],
   
   // Combined ignore patterns for better performance
@@ -66,6 +69,9 @@ const customJestConfig = {
     '<rootDir>/node_modules/', 
     '<rootDir>/e2e/', // Exclude Playwright e2e tests
     '<rootDir>/__tests__/setup/',
+    'helper\\.',
+    'utils\\.',
+    'config\\.',
   ],
   
   // Transform patterns for ES modules - let Next.js handle all transformations

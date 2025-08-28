@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { SkipLinks } from '@/components/ui/SkipLinks';
+// import { SkipLinks } from '@/components/ui/SkipLinks'; // Commented out - missing component
 import { ClearDemoData } from '@/components/ClearDemoData';
 import { ServiceWorkerCleanup } from '@/components/ServiceWorkerCleanup';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -78,7 +78,7 @@ export default function RootLayout({
             <ServiceWorkerProvider>
               <ServiceWorkerCleanup />
               <ClearDemoData />
-              <SkipLinks />
+              {/* <SkipLinks /> - Commented out - missing component */}
               <main id="main-content">{children}</main>
             </ServiceWorkerProvider>
           </Providers>
