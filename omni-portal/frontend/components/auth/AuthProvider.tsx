@@ -42,19 +42,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const auth = useAuth();
 
   useEffect(() => {
-    logger.info('AuthProvider initialized with consolidated auth hook');
+    // logger.info('AuthProvider initialized with consolidated auth hook'); // Commented to reduce console spam
     
     // Check authentication on mount
     auth.checkAuth();
-  }, [auth]);
-
-  // Handle cleanup on unmount
-  useEffect(() => {
+    
+    // Handle cleanup on unmount
     return () => {
-      logger.debug('AuthProvider unmounting, cancelling requests');
+      // logger.debug('AuthProvider unmounting, cancelling requests'); // Commented to reduce console spam
       auth.cancelAllRequests();
     };
-  }, [auth]);
+  }, []); // Empty dependency array - only run once on mount
 
   const contextValue: AuthContextType = {
     // State

@@ -13,7 +13,7 @@ import { useRef, useEffect, useState } from 'react';
  * Main useAuth hook - now consolidated single implementation
  */
 export function useAuth() {
-  logger.info('Using consolidated authentication implementation');
+  // logger.info('Using consolidated authentication implementation'); // Commented to reduce console spam
   return useConsolidatedAuth();
 }
 
@@ -84,11 +84,12 @@ export function useAuthWithVerification() {
     };
     
     if (prevStateRef.current && JSON.stringify(prevStateRef.current) !== JSON.stringify(currentState)) {
-      logger.debug('Auth state changed', {
-        from: prevStateRef.current,
-        to: currentState,
-        timestamp: new Date().toISOString()
-      }, 'AuthVerification');
+      // Only log significant changes - commented to reduce console spam
+      // logger.debug('Auth state changed', {
+      //   from: prevStateRef.current,
+      //   to: currentState,
+      //   timestamp: new Date().toISOString()
+      // }, 'AuthVerification');
       
       // Emit event for monitoring (client-side only)
       window.dispatchEvent(new CustomEvent('auth-state-change', {
@@ -117,8 +118,10 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     if (implementation) {
       logger.info('Authentication system initialized', implementation, 'AuthRuntimeCheck');
       
-      // Verify feature flags match implementation
-      if (implementation.featureFlags.USE_MODULAR_AUTH && implementation.version !== 'modular') {
+      // Verify feature flags match implementation - check if featureFlags exists first
+      if (implementation.featureFlags && 
+          implementation.featureFlags.USE_MODULAR_AUTH && 
+          implementation.version !== 'modular') {
         logger.error('Feature flag mismatch: USE_MODULAR_AUTH enabled but modular auth not running', 
           null, { featureFlags: implementation.featureFlags, version: implementation.version }, 'AuthRuntimeCheck');
       }

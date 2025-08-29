@@ -343,7 +343,7 @@ export const useAuthStore = create<AuthState>()(
           return;
         }
         
-        logger.debug('Auth check started');
+        // logger.debug('Auth check started'); // Commented to reduce console spam
         set({ isLoading: true, _lastAuthCheck: now });
         
         // SSR guard
@@ -359,7 +359,7 @@ export const useAuthStore = create<AuthState>()(
         
         // Check for auth cookies first
         if (!CookieManager.hasAuthCookie()) {
-          logger.debug('No auth cookies found, clearing state');
+          // logger.debug('No auth cookies found, clearing state'); // Commented to reduce console spam
           set({
             user: null,
             token: null,
@@ -382,7 +382,7 @@ export const useAuthStore = create<AuthState>()(
           const response = await request.promise;
           
           if (!request.isCancelled()) {
-            logger.debug('Auth check successful');
+            // logger.debug('Auth check successful'); // Commented to reduce console spam
             
             set({
               user: response,
