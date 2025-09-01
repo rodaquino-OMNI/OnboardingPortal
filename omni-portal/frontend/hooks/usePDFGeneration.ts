@@ -25,16 +25,12 @@ interface UsePDFGenerationOptions {
  * Prepares user profile data by combining health results with gamification achievements
  */
 export function usePDFGeneration(options: UsePDFGenerationOptions): PDFGenerationHookResult {
-  const gamificationState = useGamification();
-  
-  // Extract values for use in dependencies and callbacks
-  const userBadges = gamificationState.badges || [];
-  const currentLevel = typeof gamificationState.progress?.current_level === 'number' 
-    ? gamificationState.progress.current_level 
-    : 1;
-  const totalPoints = typeof gamificationState.progress?.total_points === 'number' 
-    ? gamificationState.progress.total_points 
-    : 0;
+  const { 
+    state: gamificationState, 
+    getUserBadges,
+    calculateLevel,
+    getTotalPoints
+  } = useGamification();
 
   const [error, setError] = useState<string | null>(null);
 
@@ -70,15 +66,17 @@ export function usePDFGeneration(options: UsePDFGenerationOptions): PDFGeneratio
       }
 
       // Get user badges from gamification system
-      // Values already extracted at hook level
+      const userBadges = getUserBadges();
+      const currentLevel = calculateLevel();
+      const totalPoints = getTotalPoints();
 
       const profile: UserProfile = {
         name: options.userName,
         age: options.userAge,
         completionDate: options.completionDate,
         sessionDuration: options.sessionDuration,
-        badges: convertBadges(Array.isArray(userBadges) ? userBadges : userBadges.earned || []),
-        achievements: convertAchievements(Array.isArray(userBadges) ? userBadges : userBadges.earned || []),
+        badges: convertBadges(userBadges),
+        achievements: convertAchievements(userBadges),
         level: currentLevel,
         totalPoints: totalPoints
       };
@@ -96,9 +94,9 @@ export function usePDFGeneration(options: UsePDFGenerationOptions): PDFGeneratio
     options.userAge,
     options.completionDate,
     options.sessionDuration,
-    userBadges,
-    currentLevel,
-    totalPoints,
+    getUserBadges,
+    calculateLevel,
+    getTotalPoints,
     convertBadges,
     convertAchievements
   ]);
@@ -133,13 +131,12 @@ export function usePDFGeneration(options: UsePDFGenerationOptions): PDFGeneratio
  * Provides additional utilities for badge display and PDF integration
  */
 export function useBadgeEnhancement() {
-  const gamificationData = useGamification();
-  const badgesData = gamificationData.badges || [];
+  const { badgesData } = useGamification();
 
   // Enhanced badge mapping with PDF-friendly data
   const enhancedBadges = useMemo(() => {
     // CRITICAL FIX 3: Fix gamification state structure access
-    const badges = (Array.isArray(badgesData) ? badgesData : badgesData?.earned || []).map(badge => ({
+    const badges = (badgesData?.earned || []).map(badge => ({
       ...badge,
       // Enhance with PDF-specific properties
       displayName: badge.name || 'Conquista',
@@ -158,7 +155,7 @@ export function useBadgeEnhancement() {
     }));
 
     return badges;
-  }, [badgesData]);
+  }, [badgesData.earned]);
 
   // Get badges by category for organized PDF display
   const getBadgesByCategory = useCallback(() => {
@@ -169,7 +166,7 @@ export function useBadgeEnhancement() {
       if (!categories[category]) {
         categories[category] = [];
       }
-      categories[category]!.push(badge);
+      categories[category].push(badge);
     });
 
     return categories;

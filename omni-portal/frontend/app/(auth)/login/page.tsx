@@ -1,4 +1,4 @@
-import OptimizedLoginForm from '@/components/auth/OptimizedLoginForm';
+import LoginForm from '@/components/auth/LoginForm';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <OptimizedLoginForm />;
+  return <LoginForm />;
 }

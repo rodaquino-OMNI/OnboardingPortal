@@ -27,21 +27,6 @@ yarn-error.log*
 
 # local env files
 .env*.local
-.env
-
-# Docker secrets and sensitive files
-.secrets/
-secrets-init.log
-docker-compose.override.yml
-*.key
-*.pem
-*.crt
-
-# Backup files that might contain secrets
-*.backup
-*.bak
-*_backup
-secrets_backup_*
 
 # vercel
 .vercel

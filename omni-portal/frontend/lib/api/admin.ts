@@ -20,7 +20,7 @@ export class AdminAPI {
   // Dashboard & Analytics
   static async getDashboard(): Promise<AdminDashboardData> {
     const response = await api.get(`${this.BASE_PATH}/dashboard`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async getAnalytics(params: {
@@ -28,12 +28,12 @@ export class AdminAPI {
     metrics?: string[];
   }) {
     const response = await api.get(`${this.BASE_PATH}/analytics`, { params });
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async getRealTimeAnalytics() {
     const response = await api.get(`${this.BASE_PATH}/analytics/real-time`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   // User Management
@@ -49,48 +49,48 @@ export class AdminAPI {
     sort_order?: 'asc' | 'desc';
   }): Promise<PaginatedResponse<AdminUser>> {
     const response = await api.get(`${this.BASE_PATH}/users`, { params });
-    return (response as any).data;
+    return response.data;
   }
 
   static async getUserDetails(userId: number): Promise<AdminUser> {
     const response = await api.get(`${this.BASE_PATH}/users/${userId}`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async updateUser(userId: number, data: Partial<AdminUser>) {
     const response = await api.put(`${this.BASE_PATH}/users/${userId}`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async lockUser(userId: number, reason: string) {
     const response = await api.post(`${this.BASE_PATH}/users/${userId}/lock`, { reason });
-    return (response as any).data;
+    return response.data;
   }
 
   static async unlockUser(userId: number) {
     const response = await api.post(`${this.BASE_PATH}/users/${userId}/unlock`);
-    return (response as any).data;
+    return response.data;
   }
 
   static async resetUserPassword(userId: number) {
     const response = await api.post(`${this.BASE_PATH}/users/${userId}/reset-password`);
-    return (response as any).data;
+    return response.data;
   }
 
   static async getUserActivity(userId: number) {
     const response = await api.get(`${this.BASE_PATH}/users/${userId}/activity`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async getUserAuditTrail(userId: number) {
     const response = await api.get(`${this.BASE_PATH}/users/${userId}/audit-trail`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   // Role & Permission Management
   static async getRoles(): Promise<AdminRole[]> {
     const response = await api.get(`${this.BASE_PATH}/roles`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async createRole(data: {
@@ -101,17 +101,17 @@ export class AdminAPI {
     permissions?: number[];
   }) {
     const response = await api.post(`${this.BASE_PATH}/roles`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async updateRole(roleId: number, data: Partial<AdminRole>) {
     const response = await api.put(`${this.BASE_PATH}/roles/${roleId}`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async deleteRole(roleId: number) {
     const response = await api.delete(`${this.BASE_PATH}/roles/${roleId}`);
-    return (response as any).data;
+    return response.data;
   }
 
   static async assignRole(data: {
@@ -121,7 +121,7 @@ export class AdminAPI {
     assignment_reason?: string;
   }) {
     const response = await api.post(`${this.BASE_PATH}/roles/assign`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async revokeRole(data: {
@@ -129,12 +129,12 @@ export class AdminAPI {
     role_id: number;
   }) {
     const response = await api.post(`${this.BASE_PATH}/roles/revoke`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async getPermissions(): Promise<AdminPermission[]> {
     const response = await api.get(`${this.BASE_PATH}/permissions`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   // Security Audit
@@ -148,28 +148,28 @@ export class AdminAPI {
     per_page?: number;
   }): Promise<PaginatedResponse<AdminSecurityLog>> {
     const response = await api.get(`${this.BASE_PATH}/security-audit`, { params });
-    return (response as any).data;
+    return response.data;
   }
 
   static async getThreatAlerts() {
     const response = await api.get(`${this.BASE_PATH}/security/threats`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async getComplianceReport() {
     const response = await api.get(`${this.BASE_PATH}/security/compliance`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   // System Settings
   static async getSystemSettings(): Promise<Record<string, AdminSystemSetting[]>> {
     const response = await api.get(`${this.BASE_PATH}/system-settings`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async updateSystemSetting(key: string, value: any) {
     const response = await api.put(`${this.BASE_PATH}/system-settings`, { key, value });
-    return (response as any).data;
+    return response.data;
   }
 
   // Data Export
@@ -181,7 +181,7 @@ export class AdminAPI {
     filters?: Record<string, any>;
   }) {
     const response = await api.post(`${this.BASE_PATH}/export`, params);
-    return (response as any).data;
+    return response.data;
   }
 
   // Document Management
@@ -192,17 +192,17 @@ export class AdminAPI {
     user_id?: number;
   }) {
     const response = await api.get(`${this.BASE_PATH}/documents`, { params });
-    return (response as any).data;
+    return response.data;
   }
 
   static async approveDocument(documentId: number) {
     const response = await api.post(`${this.BASE_PATH}/documents/${documentId}/approve`);
-    return (response as any).data;
+    return response.data;
   }
 
   static async rejectDocument(documentId: number, reason: string) {
     const response = await api.post(`${this.BASE_PATH}/documents/${documentId}/reject`, { reason });
-    return (response as any).data;
+    return response.data;
   }
 
   // Health Questionnaires
@@ -213,7 +213,7 @@ export class AdminAPI {
     risk_level?: string;
   }) {
     const response = await api.get(`${this.BASE_PATH}/health-questionnaires`, { params });
-    return (response as any).data;
+    return response.data;
   }
 
   static async reviewHealthQuestionnaire(id: number, data: {
@@ -222,18 +222,18 @@ export class AdminAPI {
     recommendations: string[];
   }) {
     const response = await api.post(`${this.BASE_PATH}/health-questionnaires/${id}/review`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   // System Monitoring
   static async getSystemHealth() {
     const response = await api.get(`${this.BASE_PATH}/system/health`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async getSystemMetrics() {
     const response = await api.get(`${this.BASE_PATH}/system/metrics`);
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   // Alert Management
@@ -242,17 +242,17 @@ export class AdminAPI {
     severity?: 'low' | 'medium' | 'high' | 'critical';
   }) {
     const response = await api.get(`${this.BASE_PATH}/alerts`, { params });
-    return (response as any).data.data;
+    return response.data.data;
   }
 
   static async acknowledgeAlert(alertId: number) {
     const response = await api.post(`${this.BASE_PATH}/alerts/${alertId}/acknowledge`);
-    return (response as any).data;
+    return response.data;
   }
 
   static async resolveAlert(alertId: number, resolution: string) {
     const response = await api.post(`${this.BASE_PATH}/alerts/${alertId}/resolve`, { resolution });
-    return (response as any).data;
+    return response.data;
   }
 
   // Bulk Operations
@@ -262,7 +262,7 @@ export class AdminAPI {
     reason?: string;
   }) {
     const response = await api.post(`${this.BASE_PATH}/bulk/users`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   static async bulkDocumentAction(data: {
@@ -271,7 +271,7 @@ export class AdminAPI {
     reason?: string;
   }) {
     const response = await api.post(`${this.BASE_PATH}/bulk/documents`, data);
-    return (response as any).data;
+    return response.data;
   }
 
   // WebSocket connection for real-time updates

@@ -1,19 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-// import { SkipLinks } from '@/components/ui/SkipLinks'; // Commented out - missing component
-import { ClearDemoData } from '@/components/ClearDemoData';
-import { ServiceWorkerCleanup } from '@/components/ServiceWorkerCleanup';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { Providers } from './providers';
-// import { ServiceWorkerProvider } from '@/components/ServiceWorkerProvider'; // Temporarily disabled
-import { initializeChunkRecovery } from '@/lib/chunk-error-recovery';
+import { SkipLinks } from '@/components/ui/SkipLinks';
 
-// Configure Inter font
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
-  display: 'swap',
-  variable: '--font-inter',
+  display: "swap",
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
@@ -25,9 +18,6 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "Omni Portal",
   },
-  formatDetection: {
-    telephone: false,
-  },
 };
 
 export const viewport: Viewport = {
@@ -35,7 +25,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-  themeColor: "#667eea",
+  themeColor: "#0080FF",
 };
 
 export default function RootLayout({
@@ -43,46 +33,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Initialize chunk error recovery
-  if (typeof window !== 'undefined') {
-    initializeChunkRecovery();
-  }
-
   return (
-    <html lang="en" className={inter.className}>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                // Initialize chunk recovery before any other scripts
-                if (typeof window !== 'undefined') {
-                  window.__CHUNK_RECOVERY_INITIALIZED__ = true;
-                  
-                  // Early chunk error detection
-                  window.addEventListener('error', function(e) {
-                    if (e.message && (e.message.includes('Loading chunk') || e.message.includes('ChunkLoadError'))) {
-                      console.warn('[ChunkRecovery] Early chunk error detected, preparing recovery...');
-                      sessionStorage.setItem('chunk_error_detected', Date.now().toString());
-                    }
-                  }, true);
-                }
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="font-sans antialiased" suppressHydrationWarning={true}>
-        <ErrorBoundary>
-          <Providers>
-            {/* <ServiceWorkerProvider> - Temporarily disabled */}
-              <ServiceWorkerCleanup />
-              <ClearDemoData />
-              {/* <SkipLinks /> - Commented out - missing component */}
-              <main id="main-content">{children}</main>
-            {/* </ServiceWorkerProvider> */}
-          </Providers>
-        </ErrorBoundary>
+    <html lang="en">
+      <body
+        className={`${inter.variable} font-sans antialiased`}
+      >
+        <SkipLinks />
+        <main id="main-content">{children}</main>
       </body>
     </html>
   );

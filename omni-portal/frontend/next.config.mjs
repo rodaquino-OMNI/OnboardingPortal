@@ -1,36 +1,10 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import withPWA from '@ducanh2912/next-pwa';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  output: 'standalone', // Required for Docker deployment
-  
-  // Build performance optimizations
-  productionBrowserSourceMaps: false,
-  
-  // Enhanced modular imports for better tree-shaking
-  modularizeImports: {
-    // OpenTelemetry lazy loading
-    '@opentelemetry/api': {
-      transform: '@opentelemetry/api/{{member}}',
-      preventFullImport: true
-    },
-    // Lucide React optimized imports
-    'lucide-react': {
-      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
-      preventFullImport: true,
-      skipDefaultConversion: true
-    },
-    // Lodash tree-shaking
-    'lodash-es': {
-      transform: 'lodash-es/{{member}}',
-      preventFullImport: true
-    }
-  },
+  // output: 'standalone', // Temporarily disabled for development
   images: {
     domains: ['localhost', 'api.omni-portal.com'],
     formats: ['image/webp', 'image/avif'],
@@ -38,32 +12,22 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
   experimental: {
-    serverComponentsExternalPackages: ['mysql2', 'tesseract.js'],
-    esmExternals: true, // Force ESM externals to fix exports error
-    optimizePackageImports: ['lucide-react', '@opentelemetry/api'],
-    webpackBuildWorker: true, // Enable webpack build worker for faster builds
-    turbo: {
-      rules: {
-        '*.svg': {
-          loaders: ['@svgr/webpack'],
-          as: '*.js'
-        }
-      }
-    }
+    // typedRoutes: true, // Temporarily disabled for build
+    // optimizeCss removed - fixing critters/util._extend issue
+    serverComponentsExternalPackages: ['mysql2'],
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  
-  // Optimize font loading
-  optimizeFonts: true,
   eslint: {
-    // Temporarily disable ESLint during builds to prevent timeout
-    ignoreDuringBuilds: true,
+    // Build-time linting is now enabled to catch errors early
+    // This ensures code quality standards are met before deployment
+    // ignoreDuringBuilds: true, // REMOVED: We want to fix all lint errors
   },
   typescript: {
-    // Temporarily disable TypeScript build errors to prevent timeout
-    ignoreBuildErrors: true,
+    // TypeScript type checking is now enforced during builds
+    // This prevents runtime errors and ensures type safety
+    // ignoreBuildErrors: true, // REMOVED: We want to fix all type errors
   },
   // Production optimizations
   poweredByHeader: false,
@@ -71,24 +35,20 @@ const nextConfig = {
   generateEtags: true,
   
   // Bundle analyzer and webpack optimizations
-  webpack: (config, { isServer, webpack, dev }) => {
-    // Performance optimizations for production builds
-    if (!dev) {
-      config.optimization = {
-        ...config.optimization,
-        moduleIds: 'deterministic',
-        chunkIds: 'deterministic',
-        nodeEnv: 'production',
-        mangleExports: 'deterministic',
-        usedExports: true,
-        sideEffects: false,
-        minimize: true,
-        concatenateModules: true,
-        providedExports: true
-      };
-    }
+  webpack: (config, { isServer }) => {
+    // Temporarily disable bundle analyzer for now
+    /* if (process.env.ANALYZE === 'true') {
+      const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
+      config.plugins.push(
+        new BundleAnalyzerPlugin({
+          analyzerMode: 'static',
+          reportFilename: isServer ? '../analyze/server.html' : './analyze/client.html',
+          openAnalyzer: false,
+        })
+      );
+    } */
 
-    // Fix webpack module resolution
+    // Fix webpack module resolution for @hookform packages
     config.resolve = {
       ...config.resolve,
       fallback: {
@@ -96,23 +56,8 @@ const nextConfig = {
         fs: false,
         path: false,
         crypto: false,
-      },
-      // Cache module resolution
-      cacheWithContext: false,
-      unsafeCache: !dev
+      }
     };
-
-    // Exclude test files and unnecessary files from bundle
-    config.module.rules.push({
-      test: /\.(test|spec)\.(js|jsx|ts|tsx)$/,
-      loader: 'ignore-loader'
-    });
-
-    // Ignore large unnecessary files
-    config.module.rules.push({
-      test: /\.(md|txt|log)$/,
-      loader: 'ignore-loader'
-    });
 
     // Configure Tesseract.js assets to be served properly
     config.module.rules.push({
@@ -123,102 +68,40 @@ const nextConfig = {
       }
     });
 
-    // Enhanced bundle splitting for better caching and smaller chunks
-    if (!isServer && !dev) {
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        minSize: 15000,
-        maxSize: 200000, // Smaller max size for better caching
-        maxAsyncRequests: 10,
-        maxInitialRequests: 6,
-        cacheGroups: {
-          // React and core framework
-          framework: {
-            test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
-            name: 'framework',
-            priority: 40,
-            chunks: 'all',
-            enforce: true,
-            reuseExistingChunk: true
-          },
-          
-          // Large libraries that change infrequently
-          lib: {
-            test: /[\\/]node_modules[\\/](@tanstack|framer-motion|chart\.js|tesseract\.js)[\\/]/,
-            name: 'lib',
-            priority: 30,
-            chunks: 'all',
-            enforce: true,
-            reuseExistingChunk: true
-          },
-          
-          // UI libraries
-          ui: {
-            test: /[\\/]node_modules[\\/](@radix-ui|lucide-react)[\\/]/,
-            name: 'ui',
-            priority: 20,
-            chunks: 'all',
-            reuseExistingChunk: true
-          },
-          
-          // OpenTelemetry (lazy loaded, so separate chunk)
-          telemetry: {
-            test: /[\\/]node_modules[\\/]@opentelemetry[\\/]/,
-            name: 'telemetry',
-            priority: 15,
-            chunks: 'async', // Only load when needed
-            reuseExistingChunk: true
-          },
-          
-          // Other vendor code
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendor',
-            priority: 10,
-            chunks: 'all',
-            reuseExistingChunk: true,
-            minChunks: 1,
-            maxSize: 150000
-          },
-          
-          // Common app code
-          common: {
-            name: 'common',
-            minChunks: 2,
-            priority: 5,
-            chunks: 'all',
-            reuseExistingChunk: true
+    // Optimize chunk splitting for form libraries
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          ...config.optimization.splitChunks,
+          chunks: 'all',
+          cacheGroups: {
+            ...config.optimization.splitChunks?.cacheGroups,
+            hookform: {
+              name: 'vendor-hookform',
+              test: /[\\/]node_modules[\\/]@hookform[\\/]/,
+              priority: 30,
+              chunks: 'all',
+              enforce: true,
+            },
+            reactHookForm: {
+              name: 'vendor-react-hook-form',
+              test: /[\\/]node_modules[\\/]react-hook-form[\\/]/,
+              priority: 25,
+              chunks: 'all',
+              enforce: true,
+            },
+            zod: {
+              name: 'vendor-zod',
+              test: /[\\/]node_modules[\\/]zod[\\/]/,
+              priority: 25,
+              chunks: 'all',
+              enforce: true,
+            },
           }
         }
       };
     }
-
-    // Enhanced caching for faster rebuilds
-    if (!dev) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [__dirname + '/next.config.mjs']
-        },
-        cacheDirectory: path.resolve(process.cwd(), '.next/cache/webpack')
-      };
-    }
-
-    // Memory optimization
-    if (!isServer) {
-      config.stats = 'errors-warnings';
-      config.performance = {
-        hints: false,
-        maxEntrypointSize: 512000,
-        maxAssetSize: 512000
-      };
-    }
-
-    // Bundle analyzer for development - removed to fix CommonJS/ESM conflict
-    // To use bundle analyzer, run: npx @next/bundle-analyzer
-    // if (process.env.ANALYZE === 'true') {
-    //   // This causes "exports is not defined" error in ES modules
-    // }
 
     return config;
   },
@@ -226,7 +109,7 @@ const nextConfig = {
   headers: async () => {
     return [
       {
-        source: '/((?!_next/static|favicon.ico|sw.js|offline.html).*)',
+        source: '/((?!_next/static|favicon.ico).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -246,19 +129,6 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: '/sw.js',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
-          },
-          {
-            key: 'Content-Type',
-            value: 'application/javascript',
-          },
-        ],
-      },
     ];
   },
   
@@ -269,13 +139,34 @@ const nextConfig = {
         source: '/api/:path*',
         destination: 'http://localhost:8000/api/:path*',
       },
-      {
-        source: '/sanctum/:path*',
-        destination: 'http://localhost:8000/sanctum/:path*',
-      },
     ];
   },
 };
 
-// PWA has been completely removed to fix service worker conflicts
-export default nextConfig;
+const withPWAConfig = withPWA({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        urlPattern: /^https?.*/,
+        handler: 'NetworkFirst',
+        options: {
+          cacheName: 'https-calls',
+          networkTimeoutSeconds: 15,
+          expiration: {
+            maxEntries: 150,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          },
+          cacheableResponse: {
+            statuses: [0, 200],
+          },
+        },
+      },
+    ],
+  },
+});
+
+export default withPWAConfig(nextConfig);

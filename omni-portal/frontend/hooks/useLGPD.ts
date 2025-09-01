@@ -89,7 +89,7 @@ export function useLGPD() {
       setError(null);
       
       const response = await api.get('/lgpd/privacy-settings');
-      setPrivacySettings(response.data as PrivacySettings);
+      setPrivacySettings(response.data);
     } catch (err) {
       const appError = err as AppError;
       console.error('Error fetching privacy settings:', appError);
@@ -136,7 +136,7 @@ export function useLGPD() {
       setError(null);
       
       const response = await api.get('/lgpd/consent-history');
-      setConsentHistory(response.data as ConsentHistory);
+      setConsentHistory(response.data);
     } catch (err) {
       const appError = err as AppError;
       console.error('Error fetching consent history:', appError);
@@ -152,7 +152,7 @@ export function useLGPD() {
       setError(null);
       
       const response = await api.get('/lgpd/data-processing-activities');
-      setDataProcessingActivities(response.data as DataProcessingActivities);
+      setDataProcessingActivities(response.data);
     } catch (err) {
       const appError = err as AppError;
       console.error('Error fetching data processing activities:', appError);
@@ -168,7 +168,7 @@ export function useLGPD() {
       setError(null);
       
       const response = await api.get('/lgpd/export-data');
-      return response.data as ExportResponse;
+      return response.data;
     } catch (err) {
       const appError = err as AppError;
       console.error('Error exporting user data:', appError);
@@ -186,7 +186,7 @@ export function useLGPD() {
       setError(null);
       
       const response = await api.get('/lgpd/export-data-pdf');
-      return response.data as ExportResponse;
+      return response.data;
     } catch (err) {
       const appError = err as AppError;
       console.error('Error exporting user data PDF:', appError);
@@ -240,7 +240,7 @@ export function useLGPD() {
         }
       });
       
-      return response.data as AccountDeletionResponse;
+      return response.data;
     } catch (err) {
       const appError = err as AppError;
       console.error('Error deleting account:', appError);

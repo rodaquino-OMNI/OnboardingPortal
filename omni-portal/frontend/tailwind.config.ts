@@ -8,10 +8,6 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      fontFamily: {
-        'inter': ['var(--font-inter)', 'system-ui', 'sans-serif'],
-        'sans': ['var(--font-inter)', 'system-ui', 'sans-serif'],
-      },
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
@@ -88,7 +84,10 @@ const config: Config = {
           900: '#1F2227',
         },
       },
-      // Removed duplicate fontFamily - merged into extend section
+      fontFamily: {
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },

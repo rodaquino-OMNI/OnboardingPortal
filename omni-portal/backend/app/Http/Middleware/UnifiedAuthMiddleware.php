@@ -666,6 +666,7 @@ class UnifiedAuthMiddleware
     protected function getRateLimitMaxAttempts(Request $request): int
     {
         $path = $request->path();
+        $method = $request->method();
         $isAuthenticated = Auth::check();
 
         // Health endpoints - balanced limits for testing

@@ -54,12 +54,12 @@ describe('User Registration Integration Flow', () => {
     
     // Mock social auth
     http.post('/api/auth/social/:provider', ({ request }) => {
-      const { provider } = params;
+      const { provider } = req.params;
       return HttpResponse.json({
           user: { id: '124', email: `user@${provider}.com` },
           token: 'social-auth-token'
         });
-    }),
+    })
   );
 
   // Test utilities

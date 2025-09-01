@@ -46,17 +46,38 @@ describe('Complete Health Questionnaire Integration', () => {
       await user.type(screen.getByRole('spinbutton'), '30');
       await user.keyboard('{Enter}');
 
-      // Continue with age input (no biological sex question in actual flow)
-      // The form only shows the age question initially
+      // Wait for biological sex question
+      await waitFor(() => {
+        expect(screen.getByText(/sexo biológico/)).toBeInTheDocument();
+      });
 
-      // The actual flow may not have emergency check as expected
-      // Skip this step as the real implementation differs
+      // Select biological sex
+      await user.click(screen.getByText('Masculino'));
 
-      // The actual flow may not have pain assessment as expected
-      // Skip this step as the real implementation differs
+      // Wait for emergency check
+      await waitFor(() => {
+        expect(screen.getByText(/condições que precisam de atenção imediata/)).toBeInTheDocument();
+      });
 
-      // The actual flow may not have mood assessment as expected
-      // Skip this step as the real implementation differs
+      // Select no emergency conditions
+      await user.click(screen.getByText('Nenhuma das acima'));
+
+      // Wait for pain assessment
+      await waitFor(() => {
+        expect(screen.getByText(/sua dor AGORA/)).toBeInTheDocument();
+      });
+
+      // Select no pain (0)
+      const painSlider = screen.getByRole('slider');
+      fireEvent.change(painSlider, { target: { value: '0' } });
+
+      // Wait for mood assessment
+      await waitFor(() => {
+        expect(screen.getByText(/pouco interesse ou prazer/)).toBeInTheDocument();
+      });
+
+      // Select no mood issues
+      await user.click(screen.getByText('Nunca'));
 
       // Wait for chronic conditions check
       await waitFor(() => {

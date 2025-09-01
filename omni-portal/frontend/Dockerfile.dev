@@ -1,35 +1,23 @@
 # Development Dockerfile for Next.js
-FROM node:lts-alpine
+ARG NODE_VERSION=18
+FROM node:${NODE_VERSION}-alpine
 
 # Install additional development tools
-RUN apk add --no-cache libc6-compat git python3 make g++
+RUN apk add --no-cache libc6-compat git
 
 WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-# Create scripts directory before npm install
-RUN mkdir -p scripts
-COPY scripts ./scripts
 RUN npm install
 
 # Copy application files
 COPY . .
 
-# Setup tesseract for development
-RUN mkdir -p public/tesseract && \
-    if [ -f scripts/setup-tesseract-lazy.js ]; then \
-      node scripts/setup-tesseract-lazy.js; \
-    else \
-      echo 'Tesseract will be loaded dynamically when needed' > public/tesseract/.needs-setup; \
-    fi
-
 EXPOSE 3000
 
 # Enable hot reload for Next.js
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV WATCHPACK_POLLING=true
-ENV NODE_ENV=development
-ENV CHOKIDAR_USEPOLLING=true
+ENV NEXT_TELEMETRY_DISABLED 1
+ENV WATCHPACK_POLLING true
 
 CMD ["npm", "run", "dev"]

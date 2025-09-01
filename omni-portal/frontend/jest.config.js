@@ -11,56 +11,37 @@ const customJestConfig = {
   testEnvironment: 'jest-environment-jsdom',
   testEnvironmentOptions: {
     customExportConditions: [''], // Fix MSW v2 node import issues
-    url: 'http://localhost:3000',
-    pretendToBeVisual: true,
-    resources: 'usable',
   },
   moduleDirectories: ['node_modules', '<rootDir>/'],
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   
   // Performance optimizations
-  testTimeout: 15000, // 15 seconds max per test
+  testTimeout: 15000, // 15 seconds max per test (was unlimited)
   maxWorkers: '50%', // Use half of available CPU cores for parallel execution
   
   // Cache optimization
   cacheDirectory: '<rootDir>/.jest-cache',
   clearMocks: true, // Clear mocks automatically between tests
-  
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^@/components/(.*)$': '<rootDir>/components/$1',
     '^@/lib/(.*)$': '<rootDir>/lib/$1',
     '^@/hooks/(.*)$': '<rootDir>/hooks/$1',
     '^@/styles/(.*)$': '<rootDir>/styles/$1',
-    '^@/services/(.*)$': '<rootDir>/services/$1',
-    '^@/types/(.*)$': '<rootDir>/types/$1',
-    // Mock lucide-react and individual icons for tests
-    '^lucide-react$': '<rootDir>/__mocks__/lucide-react.js',
-    '^lucide-react/dist/esm/icons/(.*)$': '<rootDir>/__mocks__/lucide-react.js',
-    '^lodash-es$': 'lodash',
-    '^lodash-es/(.*)$': 'lodash/$1',
-    // Mock missing dependencies
-    '^framer-motion$': '<rootDir>/__mocks__/framer-motion.js',
-    '^@radix-ui/(.*)$': '<rootDir>/__mocks__/@radix-ui.js',
-    '^react-router-dom$': '<rootDir>/__mocks__/react-router-dom.js',
-    // Handle CSS imports
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
-  
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'app/**/*.{js,jsx,ts,tsx}',
     'components/**/*.{js,jsx,ts,tsx}',
     'lib/**/*.{js,jsx,ts,tsx}',
     'hooks/**/*.{js,jsx,ts,tsx}',
-    'services/**/*.{js,jsx,ts,tsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/.next/**',
   ],
-  
   testMatch: [
-    '<rootDir>/__tests__/**/*.{js,jsx,ts,tsx}',
-    '<rootDir>/**/*.{test}.{js,jsx,ts,tsx}',
+    '**/__tests__/**/*.{js,jsx,ts,tsx}',
+    '**/*.{spec,test}.{js,jsx,ts,tsx}',
   ],
   
   // Combined ignore patterns for better performance
@@ -68,22 +49,12 @@ const customJestConfig = {
     '<rootDir>/.next/', 
     '<rootDir>/node_modules/', 
     '<rootDir>/e2e/', // Exclude Playwright e2e tests
+    '<rootDir>/__tests__/utils/', // Exclude utility files without tests
     '<rootDir>/__tests__/setup/',
-    'helper\\.',
-    'utils\\.',
-    'config\\.',
+    '<rootDir>/tests/', // Exclude separate tests folder
+    '<rootDir>/__tests__/performance/', // Exclude performance tests from regular runs
+    '\\.spec\\.(ts|tsx|js|jsx)$', // Exclude .spec files (Playwright convention)
   ],
-  
-  // Transform patterns for ES modules - let Next.js handle all transformations
-  transformIgnorePatterns: [
-    'node_modules/(?!(msw|@mswjs|react-error-boundary|@radix-ui|class-variance-authority|clsx|tailwind-merge|framer-motion|zustand|@tanstack|@hookform|lodash-es|sonner|date-fns|prom-client|tesseract\\.js|react-router-dom)/)',
-  ],
-  
-  // Additional MSW v2 configuration
-  resolver: undefined, // Use default Jest resolver
-  fakeTimers: {
-    enableGlobally: false // Prevent MSW timing conflicts
-  }
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

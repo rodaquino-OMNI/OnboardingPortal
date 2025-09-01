@@ -1,19 +1,7 @@
+import { createWorker, Worker, RecognizeResult, createScheduler, Scheduler } from 'tesseract.js';
+import { compressImage } from './image-optimizer';
 import type { OCRResult, OCRBlock, BoundingBox, ExtractedDocumentData, DocumentValidation } from '@/types/ocr';
-import type { OCRWorkerManager, RecognizeResult } from '@/types/ocr-worker';
 import { makeCancellable, type CancellableRequest } from './async-utils';
-import { loadTesseractSafely } from './tesseract-fix';
-
-// Dynamic imports for Tesseract.js
-const tesseractWorker: any = null;
-let tesseractUtils: any = null;
-
-const initializeTesseract = async () => {
-  if (!tesseractUtils) {
-    // Use the safe loader with proper configuration
-    tesseractUtils = await loadTesseractSafely();
-  }
-  return tesseractUtils;
-};
 
 // OCR interfaces are now imported from @/types/ocr
 
@@ -24,12 +12,10 @@ export interface OCRProgress {
 
 export class OCRService {
   private worker: Worker | null = null;
-  private workerManager: OCRWorkerManager | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private activeRequests = new Set<CancellableRequest<any>>();
-  private useWebWorker = typeof Worker !== 'undefined';
 
   async initialize(onProgress?: (progress: OCRProgress) => void, signal?: AbortSignal): Promise<void> {
     if (this.isInitialized) return;
@@ -65,11 +51,9 @@ export class OCRService {
     }
 
     try {
-      // Technical Excellence: Lazy loading implementation with runtime download
-      // Files are downloaded only when OCR is actually used, preventing build hangs
-      const tesseract = await initializeTesseract();
-      this.worker = await tesseract.createWorker({
-        langs: ['por', 'eng'],
+      // Technical Excellence: Pure local implementation without any CDN fallbacks
+      // All files are served locally from public/tesseract directory
+      this.worker = await createWorker('por+eng', 1, {
         logger: (m: { status: string; progress: number }) => {
           // Check cancellation before progress updates
           if (signal?.aborted) return;
@@ -80,7 +64,11 @@ export class OCRService {
               progress: m.progress,
             });
           }
-        }
+        },
+        // Explicit local paths - Next.js serves files from public/ directory
+        workerPath: `${window.location.origin}/tesseract/worker.min.js`,
+        langPath: `${window.location.origin}/tesseract/lang-data`,
+        corePath: `${window.location.origin}/tesseract/tesseract-core.wasm.js`,
       });
 
       // Check cancellation after worker creation
@@ -133,14 +121,8 @@ export class OCRService {
       }
 
       try {
-        // Validate and optimize image before processing
-        const qualityCheck = await this.validateImageQuality(file);
-        if (!qualityCheck.isValid) {
-          throw new Error(`Image quality issues: ${qualityCheck.issues.join(', ')}`);
-        }
-
         // Compress image before OCR with cancellation support
-        const compressedFile = await this.compressImage(file, {
+        const compressedFile = await compressImage(file, {
           maxWidth: 1920,
           maxHeight: 1920,
           quality: 0.9,
@@ -188,18 +170,7 @@ export class OCRService {
           throw new Error('OCR recognition was cancelled');
         }
         console.error('OCR recognition failed:', error);
-        if (error instanceof Error) {
-          if (error.message.includes('Could not process image')) {
-            throw new Error('Invalid image format or corrupted file. Please try a different image.');
-          }
-          if (error.message.includes('Image quality')) {
-            throw error; // Re-throw quality errors as-is
-          }
-          if (error.message.includes('network') || error.message.includes('fetch')) {
-            throw new Error('Network error while loading OCR resources. Please check your internet connection.');
-          }
-        }
-        throw new Error('Could not process image. Please try again with a clearer image.');
+        throw new Error('Failed to process document');
       }
     }, { timeout: 30000 }); // 30-second timeout
 
@@ -447,81 +418,6 @@ export class OCRService {
    */
   getActiveOperationCount(): number {
     return this.activeRequests.size;
-  }
-
-  /**
-   * Validate image quality before OCR processing
-   */
-  private async validateImageQuality(file: File): Promise<{ isValid: boolean; issues: string[] }> {
-    const issues: string[] = [];
-    let isValid = true;
-
-    // Check file size (should be reasonable)
-    if (file.size > 10 * 1024 * 1024) { // 10MB
-      issues.push('File too large (max 10MB)');
-      isValid = false;
-    }
-
-    if (file.size < 1000) { // 1KB
-      issues.push('File too small (likely corrupted)');
-      isValid = false;
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      issues.push('File is not an image');
-      isValid = false;
-    }
-
-    return { isValid, issues };
-  }
-
-  /**
-   * Compress image for OCR processing
-   */
-  private async compressImage(file: File, options: {
-    maxWidth: number;
-    maxHeight: number;
-    quality: number;
-  }): Promise<File> {
-    return new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-
-      img.onload = () => {
-        // Calculate new dimensions
-        let { width, height } = img;
-        if (width > options.maxWidth || height > options.maxHeight) {
-          const ratio = Math.min(options.maxWidth / width, options.maxHeight / height);
-          width *= ratio;
-          height *= ratio;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob(
-            (blob) => {
-              if (blob) {
-                resolve(new File([blob], file.name, { type: file.type }));
-              } else {
-                reject(new Error('Failed to compress image'));
-              }
-            },
-            file.type,
-            options.quality
-          );
-        } else {
-          reject(new Error('Failed to get canvas context'));
-        }
-      };
-
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = URL.createObjectURL(file);
-    });
   }
 }
 

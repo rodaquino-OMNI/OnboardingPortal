@@ -49,7 +49,7 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 // HEALTH QUESTIONNAIRE TYPES
 // =====================================
 
-export type QuestionType = 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'scale' | 'chronic_conditions' | 'medication_list' | 'allergy_list' | 'emergency_contact' | 'surgery_history';
+export type QuestionType = 'text' | 'number' | 'boolean' | 'select' | 'multiselect' | 'date' | 'scale';
 
 export interface QuestionOption {
   id: string;
@@ -66,22 +66,15 @@ export interface QuestionValidation {
   customValidator?: (value: QuestionValue) => boolean;
 }
 
-export type QuestionValue = string | number | boolean | string[] | number[] | Date | Record<string, unknown>[] | Record<string, unknown> | null;
+export type QuestionValue = string | number | boolean | string[] | number[] | Date | null;
 
 export interface HealthQuestion {
   id: string;
   type: QuestionType;
   title: string;
-  text?: string; // Alternative to title for compatibility
-  category?: string; // For categorization
   description?: string;
   options?: QuestionOption[];
   validation?: QuestionValidation;
-  required?: boolean;
-  conditionalOn?: {
-    questionId: string;
-    values: QuestionValue[];
-  };
   metadata?: Record<string, unknown>;
 }
 
@@ -472,20 +465,6 @@ export interface FollowUpAction {
   timeframe: string;
   responsible: 'patient' | 'provider' | 'system';
   dependencies: string[];
-}
-
-// =====================================
-// AUDIT LOG TYPES
-// =====================================
-
-export interface AuditLogEntry {
-  timestamp: Date;
-  action: string;
-  userId?: string;
-  sessionId?: string;
-  details: Record<string, unknown>;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  category: 'authentication' | 'data_access' | 'modification' | 'security' | 'compliance';
 }
 
 // =====================================

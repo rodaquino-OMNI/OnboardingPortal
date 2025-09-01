@@ -1,19 +1,10 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { UnifiedHealthAssessment } from '@/components/health/UnifiedHealthAssessment';
-/**
- * IMPORTANT: MobileHealthQuestionnaire component has been deleted.
- * These performance tests are preserved as requirements documentation.
- * The optimizations have been reimplemented in:
- * - SafeQuestionnaireCache (with memory limits)
- * - FeatureMonitor (with performance tracking)
- * - useSafeQuestionnaireOptimization hook
- */
-// import { MobileHealthQuestionnaire } from '@/components/health/MobileHealthQuestionnaire';
+import { MobileHealthQuestionnaire } from '@/components/health/MobileHealthQuestionnaire';
 import { TouchFriendlySlider } from '@/components/ui/TouchFriendlySlider';
 
 // Mobile Performance Testing
-// Skip all tests - MobileHealthQuestionnaire component deleted
-describe.skip('Mobile Performance Testing - COMPONENT DELETED', () => {
+describe('Mobile Performance Testing', () => {
   describe('3G/4G Network Simulation', () => {
     beforeEach(() => {
       // Mock slow network conditions

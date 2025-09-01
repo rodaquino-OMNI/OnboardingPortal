@@ -1,178 +1,192 @@
-"use client";
+'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { ChevronRight, Minus, Plus } from 'lucide-react';
+import type { HealthQuestion } from '@/lib/unified-health-flow';
 
 interface TouchFriendlySliderProps {
-  min: number;
-  max: number;
-  value: number;
-  onChange: (value: number) => void;
-  step?: number;
-  label?: string;
-  className?: string;
-  disabled?: boolean;
-  marks?: { value: number; label: string }[];
-  'aria-label'?: string;
-  'data-testid'?: string;
+  question: HealthQuestion;
+  onComplete: (value: number) => void;
+  isProcessing?: boolean;
 }
 
-export const TouchFriendlySlider: React.FC<TouchFriendlySliderProps> = ({
-  min,
-  max,
-  value,
-  onChange,
-  step = 1,
-  label,
-  className = '',
-  disabled = false,
-  marks = [],
-  'aria-label': ariaLabel,
-  'data-testid': dataTestId,
-}) => {
+export function TouchFriendlySlider({ question, onComplete, isProcessing }: TouchFriendlySliderProps) {
+  const min = question.options?.[0]?.value ?? 0;
+  const max = question.options?.[question.options?.length - 1]?.value ?? 10;
+  const [value, setValue] = useState<number>(Math.floor((min + max) / 2));
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const calculateValue = useCallback((clientX: number): number => {
-    if (!sliderRef.current) return value;
+  const handleValueChange = (newValue: number) => {
+    const clampedValue = Math.max(min, Math.min(max, newValue));
+    setValue(clampedValue);
+  };
 
+  const handleSliderInteraction = (clientX: number) => {
+    if (!sliderRef.current) return;
+    
     const rect = sliderRef.current.getBoundingClientRect();
-    const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const rawValue = min + percentage * (max - min);
-    
-    // Round to nearest step
-    const steppedValue = Math.round(rawValue / step) * step;
-    return Math.max(min, Math.min(max, steppedValue));
-  }, [min, max, step, value]);
+    const percentage = (clientX - rect.left) / rect.width;
+    const newValue = Math.round(min + (max - min) * percentage);
+    handleValueChange(newValue);
+  };
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (disabled) return;
-    
+  const handleTouchStart = (e: React.TouchEvent) => {
     setIsDragging(true);
-    const newValue = calculateValue(e.clientX);
-    onChange(newValue);
-  }, [disabled, calculateValue, onChange]);
+    handleSliderInteraction(e.touches[0].clientX);
+  };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || disabled) return;
-    
-    const newValue = calculateValue(e.clientX);
-    onChange(newValue);
-  }, [isDragging, disabled, calculateValue, onChange]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (disabled) return;
-    
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
     e.preventDefault();
+    handleSliderInteraction(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    const touch = e.touches[0];
-    const newValue = calculateValue(touch.clientX);
-    onChange(newValue);
-  }, [disabled, calculateValue, onChange]);
+    handleSliderInteraction(e.clientX);
+  };
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging || disabled) return;
-    
-    e.preventDefault();
-    const touch = e.touches[0];
-    const newValue = calculateValue(touch.clientX);
-    onChange(newValue);
-  }, [isDragging, disabled, calculateValue, onChange]);
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    handleSliderInteraction(e.clientX);
+  };
 
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    e.preventDefault();
+  const handleMouseUp = () => {
     setIsDragging(false);
-  }, []);
+  };
 
-  // Add event listeners
-  React.useEffect(() => {
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      handleSliderInteraction(e.clientX);
+    };
+
+    const handleGlobalMouseUp = () => {
+      setIsDragging(false);
+    };
+
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd, { passive: false });
-
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('touchend', handleTouchEnd);
-      };
+      document.addEventListener('mousemove', handleGlobalMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleGlobalMouseUp, { passive: true });
     }
-  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [isDragging]);
+
+  // Cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      setIsDragging(false);
+    };
+  }, []);
 
   const percentage = ((value - min) / (max - min)) * 100;
+  const currentOption = question.options?.find(opt => opt.value === value);
 
   return (
-    <div className={`touch-friendly-slider ${className}`} data-testid={dataTestId}>
-      {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {label}
-        </label>
-      )}
-      
-      <div className="relative">
-        {/* Slider track */}
+    <div className="space-y-6">
+      {/* Value Display */}
+      <div className="text-center">
+        <div className="text-5xl mb-2">
+          {currentOption?.emoji || '📊'}
+        </div>
+        <div className="text-3xl font-bold text-blue-600 mb-1">
+          {value}
+        </div>
+        <div className="text-lg text-gray-600">
+          {currentOption?.label || `Valor: ${value}`}
+        </div>
+      </div>
+
+      {/* Touch-Friendly Slider */}
+      <div className="px-4">
+        <div className="flex justify-between text-sm text-gray-600 mb-2">
+          <span>{min} - {question.options?.[0]?.label || 'Mínimo'}</span>
+          <span>{max} - {question.options?.[question.options?.length - 1]?.label || 'Máximo'}</span>
+        </div>
+        
+        {/* Custom Slider Track */}
         <div
           ref={sliderRef}
-          className={`relative h-6 bg-gray-200 rounded-full cursor-pointer touch-manipulation ${
-            disabled ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-          onMouseDown={handleMouseDown}
+          className="relative h-12 bg-gray-200 rounded-full cursor-pointer select-none touch-none"
           onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
           role="slider"
-          aria-label={ariaLabel || label}
-          aria-valuenow={value}
           aria-valuemin={min}
           aria-valuemax={max}
-          aria-disabled={disabled}
-          tabIndex={disabled ? -1 : 0}
+          aria-valuenow={value}
+          aria-label={question.text}
         >
-          {/* Progress track */}
+          {/* Filled Track */}
           <div
-            className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all duration-150"
+            className="absolute left-0 top-0 h-full bg-blue-500 rounded-full pointer-events-none"
             style={{ width: `${percentage}%` }}
           />
           
           {/* Thumb */}
           <div
-            className={`absolute top-1/2 w-6 h-6 bg-white border-2 border-blue-600 rounded-full shadow-md transform -translate-y-1/2 -translate-x-1/2 transition-all duration-150 ${
-              isDragging ? 'scale-110' : ''
-            } ${disabled ? 'bg-gray-300 border-gray-400' : ''}`}
-            style={{ left: `${percentage}%` }}
-          />
-        </div>
-
-        {/* Value display */}
-        <div className="flex justify-between items-center mt-2">
-          <span className="text-sm text-gray-500">{min}</span>
-          <span className="text-lg font-medium text-gray-900">{value}</span>
-          <span className="text-sm text-gray-500">{max}</span>
-        </div>
-
-        {/* Marks */}
-        {marks.length > 0 && (
-          <div className="relative mt-1">
-            {marks.map((mark) => {
-              const markPercentage = ((mark.value - min) / (max - min)) * 100;
-              return (
-                <div
-                  key={mark.value}
-                  className="absolute text-xs text-gray-500 transform -translate-x-1/2"
-                  style={{ left: `${markPercentage}%` }}
-                >
-                  {mark.label}
-                </div>
-              );
-            })}
+            className="absolute top-1/2 -translate-y-1/2 w-12 h-12 bg-white border-4 border-blue-500 rounded-full shadow-lg pointer-events-none"
+            style={{ left: `calc(${percentage}% - 24px)` }}
+          >
+            <div className="flex items-center justify-center h-full text-sm font-semibold text-blue-600">
+              {value}
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Increment/Decrement Buttons for Accessibility */}
+        <div className="flex justify-between mt-4 gap-4">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => handleValueChange(value - 1)}
+            disabled={value <= min}
+            className="min-h-[44px] min-w-[44px]"
+            aria-label="Diminuir valor"
+          >
+            <Minus className="w-5 h-5" />
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => handleValueChange(value + 1)}
+            disabled={value >= max}
+            className="min-h-[44px] min-w-[44px]"
+            aria-label="Aumentar valor"
+          >
+            <Plus className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
+
+      {/* Continue Button */}
+      <Button
+        onClick={() => onComplete(value)}
+        className="w-full min-h-[44px] text-lg"
+        disabled={isProcessing}
+      >
+        Continuar
+        <ChevronRight className="w-5 h-5 ml-2" />
+      </Button>
     </div>
   );
-};
-
-export default TouchFriendlySlider;
+}

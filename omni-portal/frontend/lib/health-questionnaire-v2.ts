@@ -19,7 +19,7 @@ import type { QuestionValue } from '@/types';
 export interface HealthQuestion {
   id: string;
   text: string;
-  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'scale' | 'date' | 'chronic_conditions' | 'medication_list' | 'allergy_list' | 'emergency_contact' | 'surgery_history';
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean' | 'scale' | 'date' | 'chronic_conditions' | 'medication_list' | 'emergency_contact' | 'surgery_history';
   category: 'screening' | 'medical_history' | 'lifestyle' | 'mental_health' | 'validation';
   required: boolean;
   options?: Array<{
@@ -424,7 +424,7 @@ export const ALLERGY_SCREENING_QUESTIONS: HealthQuestion[] = [
   {
     id: 'medication_allergies',
     text: 'Selecione todas as alergias a medicamentos que você tem:',
-    type: 'allergy_list',
+    type: 'multiselect',
     category: 'medical_history',
     required: true,
     riskWeight: 3,
@@ -471,7 +471,7 @@ export const ALLERGY_SCREENING_QUESTIONS: HealthQuestion[] = [
   {
     id: 'food_allergies',
     text: 'Você tem alergias alimentares?',
-    type: 'allergy_list',
+    type: 'multiselect',
     category: 'medical_history',
     required: true,
     riskWeight: 2,
@@ -496,7 +496,7 @@ export const ALLERGY_SCREENING_QUESTIONS: HealthQuestion[] = [
   {
     id: 'environmental_allergies',
     text: 'Você tem alergias ambientais?',
-    type: 'allergy_list',
+    type: 'multiselect',
     category: 'medical_history',
     required: true,
     riskWeight: 1,

@@ -154,7 +154,7 @@ export const useRegistration = create<RegistrationState>()(
             
             return response.data;
           } else {
-            throw new Error((response as any).error?.message || 'Erro ao finalizar registro');
+            throw new Error(response.error?.message || 'Erro ao finalizar registro');
           }
         } catch (error) {
           const appError = error as AppError;
@@ -179,7 +179,7 @@ export const useRegistration = create<RegistrationState>()(
             
             return response.data;
           } else {
-            throw new Error((response as any).error?.message || 'Erro ao obter progresso');
+            throw new Error(response.error?.message || 'Erro ao obter progresso');
           }
         } catch (error) {
           const appError = error as AppError;
@@ -200,7 +200,7 @@ export const useRegistration = create<RegistrationState>()(
             apiService.clearAuth();
             get().reset();
           } else {
-            throw new Error((response as any).error?.message || 'Erro ao cancelar registro');
+            throw new Error(response.error?.message || 'Erro ao cancelar registro');
           }
         } catch (error) {
           const appError = error as AppError;

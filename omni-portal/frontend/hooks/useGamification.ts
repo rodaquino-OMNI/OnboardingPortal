@@ -273,23 +273,6 @@ export const useGamification = create<GamificationState>()(
       },
       
       fetchAll: async () => {
-        const state = get();
-        
-        // Prevent duplicate fetches - check if already loading
-        if (state.isLoading) {
-          console.log('[fetchAll] Already loading, skipping duplicate request');
-          return;
-        }
-        
-        // Check cache freshness - skip if data was fetched recently
-        if (state.lastFetch) {
-          const cacheAge = Date.now() - state.lastFetch;
-          if (cacheAge < 5000) { // 5 seconds minimum between fetches
-            console.log('[fetchAll] Data is fresh (fetched', cacheAge, 'ms ago), skipping');
-            return;
-          }
-        }
-        
         set({ isLoading: true, error: null });
         try {
           const { 

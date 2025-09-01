@@ -6,10 +6,9 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { useRouter } from 'next/navigation';
 import HealthQuestionnairePage from '@/app/(onboarding)/health-questionnaire/page';
-// Unused components deleted for performance optimization
-// import { DualPathwayHealthAssessment } from '@/components/health/DualPathwayHealthAssessment';
-// import { IntelligentPathwayRouter } from '@/components/health/IntelligentPathwayRouter';
-// import { ImmersivePathwayExperience } from '@/components/health/ImmersivePathwayExperience';
+import { DualPathwayHealthAssessment } from '@/components/health/DualPathwayHealthAssessment';
+import { IntelligentPathwayRouter } from '@/components/health/IntelligentPathwayRouter';
+import { ImmersivePathwayExperience } from '@/components/health/ImmersivePathwayExperience';
 
 // Mock dependencies
 jest.mock('next/navigation', () => ({
@@ -67,8 +66,7 @@ describe('Health Questionnaire Routing Tests', () => {
     });
   });
 
-  // Component deleted - preserved for requirements documentation
-  describe.skip('DualPathwayHealthAssessment Component - DELETED', () => {
+  describe('DualPathwayHealthAssessment Component', () => {
     test('initializes with correct configuration', () => {
       const mockOnComplete = jest.fn();
       
@@ -251,8 +249,7 @@ describe('Health Questionnaire Routing Tests', () => {
 });
 
 describe('Pathway Components Integration', () => {
-  // Component deleted - preserved for requirements documentation
-  describe.skip('IntelligentPathwayRouter - DELETED', () => {
+  describe('IntelligentPathwayRouter', () => {
     test('renders without crashing', () => {
       const mockOnComplete = jest.fn();
       const mockUserProfile = {
@@ -278,8 +275,7 @@ describe('Pathway Components Integration', () => {
     });
   });
 
-  // Component deleted - preserved for requirements documentation
-  describe.skip('ImmersivePathwayExperience - DELETED', () => {
+  describe('ImmersivePathwayExperience', () => {
     test('renders without crashing', () => {
       const mockOnComplete = jest.fn();
       const mockUserProfile = {

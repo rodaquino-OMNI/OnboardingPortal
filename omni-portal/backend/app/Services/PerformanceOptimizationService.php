@@ -122,26 +122,48 @@ class PerformanceOptimizationService
     public function optimizeDatabaseConnection(): void
     {
         try {
-            // Set MySQL connection optimizations (MySQL 8.0+ compatible)
-            // Note: Query cache is deprecated and removed in MySQL 8.0
-            // Using only compatible session variables
+            $driverName = DB::connection()->getDriverName();
             
-            // Connection pooling and timeout settings
-            DB::statement('SET SESSION wait_timeout = 28800'); // 8 hours
-            DB::statement('SET SESSION interactive_timeout = 28800'); // 8 hours
-            
-            // Enable slow query logging for this session if needed
-            try {
-                DB::statement('SET SESSION slow_query_log = 1');
-                DB::statement('SET SESSION long_query_time = 2');
-            } catch (\Exception $slowLogException) {
-                Log::debug('Slow query log settings not available in this session: ' . $slowLogException->getMessage());
+            // Only apply MySQL-specific optimizations to MySQL connections
+            if ($driverName === 'mysql') {
+                // Set MySQL connection optimizations (MySQL 8.0+ compatible)
+                // Note: Query cache is deprecated and removed in MySQL 8.0
+                // Using only compatible session variables
+                
+                // Connection pooling and timeout settings
+                DB::statement('SET SESSION wait_timeout = 28800'); // 8 hours
+                DB::statement('SET SESSION interactive_timeout = 28800'); // 8 hours
+                
+                // Enable slow query logging for this session if needed
+                try {
+                    DB::statement('SET SESSION slow_query_log = 1');
+                    DB::statement('SET SESSION long_query_time = 2');
+                } catch (\Exception $slowLogException) {
+                    Log::debug('Slow query log settings not available in this session: ' . $slowLogException->getMessage());
+                }
+                
+                // Set SQL mode for strict compliance
+                DB::statement("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE'");
+                
+                Log::info("Database connection optimized (MySQL 8.0+ compatible)");
+            } else {
+                // For non-MySQL drivers (like SQLite), apply appropriate optimizations
+                Log::info("Database connection optimization skipped for {$driverName} driver - MySQL-specific optimizations not applicable");
+                
+                // SQLite-specific optimizations can be added here if needed
+                if ($driverName === 'sqlite') {
+                    // Enable WAL mode for better performance if not already set
+                    try {
+                        DB::statement('PRAGMA journal_mode=WAL');
+                        DB::statement('PRAGMA synchronous=NORMAL');
+                        DB::statement('PRAGMA cache_size=10000');
+                        DB::statement('PRAGMA temp_store=MEMORY');
+                        Log::info("SQLite performance optimizations applied");
+                    } catch (\Exception $sqliteException) {
+                        Log::debug('Some SQLite optimizations not available: ' . $sqliteException->getMessage());
+                    }
+                }
             }
-            
-            // Set SQL mode for strict compliance
-            DB::statement("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ZERO_DATE,NO_ZERO_IN_DATE'");
-            
-            Log::info("Database connection optimized (MySQL 8.0+ compatible)");
         } catch (\Exception $e) {
             Log::warning("Failed to optimize database connection", [
                 'error' => $e->getMessage()
@@ -310,8 +332,16 @@ class PerformanceOptimizationService
     private function getSlowQueryCount(): int
     {
         try {
-            $result = DB::select("SHOW GLOBAL STATUS LIKE 'Slow_queries'");
-            return $result[0]->Value ?? 0;
+            $driverName = DB::connection()->getDriverName();
+            
+            // Only get slow query count for MySQL
+            if ($driverName === 'mysql') {
+                $result = DB::select("SHOW GLOBAL STATUS LIKE 'Slow_queries'");
+                return $result[0]->Value ?? 0;
+            }
+            
+            // For other drivers, return 0 as we can't get this metric
+            return 0;
         } catch (\Exception $e) {
             return 0;
         }

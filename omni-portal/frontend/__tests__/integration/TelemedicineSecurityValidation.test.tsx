@@ -10,7 +10,6 @@ import '@testing-library/jest-dom';
 // Import components that handle telemedicine security
 import { VideoConferencing } from '@/components/video/VideoConferencing';
 import InterviewUnlockCard from '@/components/dashboard/InterviewUnlockCard';
-import { InterviewScheduler } from '@/components/interview/InterviewScheduler';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 // Mock security-related modules
@@ -88,7 +87,7 @@ const server = setupServer(
     // Check for XSS attempts
     if (body.notes && body.notes.includes('<script>')) {
       // Should sanitize, not reject completely
-      return HttpResponse.json(({
+      return res(ctx.json({
         success: true,
         data: {
           interview: {

@@ -93,7 +93,7 @@ describe('Complete User Journey Integration', () => {
         newTotal: 200,
         newBadges: ['health_champion']
       });
-    }),
+    })
   );
 
   // Test setup
@@ -543,9 +543,9 @@ describe('Complete User Journey Integration', () => {
       // Simulate export ready
       server.use(
         http.get('/api/users/data-export', ({ request }) => {
-          return HttpResponse.json(
-            headers.set('Content-Disposition', 'attachment; filename="user-data.json"')
-            ({
+          return res(
+            ctx.set('Content-Disposition', 'attachment; filename="user-data.json"'),
+            ctx.json({
               profile: { name: 'John Doe' },
               health: { assessments: [] },
               documents: { uploaded: [] }

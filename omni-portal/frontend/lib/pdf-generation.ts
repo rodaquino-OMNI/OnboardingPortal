@@ -1,19 +1,8 @@
 // PDF Generation Service - Health Assessment Summary & Certificate
 // Implements beautiful, professional PDF generation with zero disruption to existing code
 
+import { jsPDF } from 'jspdf';
 import { HealthAssessmentResults } from './unified-health-flow';
-import { loadJsPDF } from './dynamic-imports';
-
-// Dynamic jsPDF loading
-let jsPDFInstance: any = null;
-
-const initializeJsPDF = async () => {
-  if (!jsPDFInstance) {
-    const { jsPDF } = await loadJsPDF();
-    jsPDFInstance = jsPDF;
-  }
-  return jsPDFInstance;
-};
 
 // Enhanced interfaces for PDF generation
 export interface PDFGenerationOptions {
@@ -61,7 +50,7 @@ export interface PDFTemplate {
 }
 
 export interface PDFPage {
-  render: (doc: any, pageNumber: number, totalPages: number) => void;
+  render: (doc: jsPDF, pageNumber: number, totalPages: number) => void;
 }
 
 export interface PDFGenerationData {
@@ -112,7 +101,6 @@ export class PDFGenerationService {
       templateStyle: 'professional'
     }
   ): Promise<Uint8Array> {
-    const jsPDF = await initializeJsPDF();
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -158,7 +146,6 @@ export class PDFGenerationService {
       templateStyle: 'university'
     }
   ): Promise<Uint8Array> {
-    const jsPDF = await initializeJsPDF();
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
@@ -203,7 +190,7 @@ export class PDFGenerationService {
   /**
    * Utility: Add branded header to any page
    */
-  public static addBrandedHeader(doc: any, title: string, subtitle?: string): void {
+  public static addBrandedHeader(doc: jsPDF, title: string, subtitle?: string): void {
     const pageWidth = doc.internal.pageSize.getWidth();
     
     // Header background
@@ -234,7 +221,7 @@ export class PDFGenerationService {
   /**
    * Utility: Add branded footer with page numbers
    */
-  public static addBrandedFooter(doc: any, pageNumber: number, totalPages: number): void {
+  public static addBrandedFooter(doc: jsPDF, pageNumber: number, totalPages: number): void {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
@@ -258,7 +245,7 @@ export class PDFGenerationService {
   /**
    * Utility: Create risk level visualization
    */
-  public static addRiskLevelIndicator(doc: any, x: number, y: number, riskLevel: string): void {
+  public static addRiskLevelIndicator(doc: jsPDF, x: number, y: number, riskLevel: string): void {
     const colors = {
       low: this.BRAND_COLORS.success,
       moderate: this.BRAND_COLORS.accent,
@@ -290,7 +277,7 @@ export class PDFGenerationService {
   /**
    * Utility: Format recommendations as bulleted list
    */
-  public static addRecommendationsList(doc: any, x: number, y: number, recommendations: string[]): number {
+  public static addRecommendationsList(doc: jsPDF, x: number, y: number, recommendations: string[]): number {
     let currentY = y;
     
     doc.setTextColor(this.BRAND_COLORS.dark);
@@ -333,7 +320,7 @@ class ProfessionalSummaryTemplate implements PDFTemplate {
 
   private createCoverPage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -398,7 +385,7 @@ class ProfessionalSummaryTemplate implements PDFTemplate {
 
   private createHealthOverviewPage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         const pageWidth = doc.internal.pageSize.getWidth();
 
         // Header
@@ -458,7 +445,7 @@ class ProfessionalSummaryTemplate implements PDFTemplate {
 
   private createDetailedResultsPage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         // Header
         PDFGenerationService.addBrandedHeader(doc, 'Resultados Detalhados', 'Análise Completa das Respostas');
 
@@ -491,7 +478,7 @@ class ProfessionalSummaryTemplate implements PDFTemplate {
 
   private createRecommendationsPage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         // Header
         PDFGenerationService.addBrandedHeader(doc, 'Recomendações Personalizadas', 'Orientações para Melhorar sua Saúde');
 
@@ -523,7 +510,7 @@ class ProfessionalSummaryTemplate implements PDFTemplate {
 
   private createGamificationPage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         const pageWidth = doc.internal.pageSize.getWidth();
 
         // Header
@@ -629,7 +616,7 @@ class UniversityCertificateTemplate implements PDFTemplate {
 
   private createCertificatePage(data: PDFGenerationData): PDFPage {
     return {
-      render: (doc: any, pageNumber: number, totalPages: number) => {
+      render: (doc: jsPDF, pageNumber: number, totalPages: number) => {
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
 

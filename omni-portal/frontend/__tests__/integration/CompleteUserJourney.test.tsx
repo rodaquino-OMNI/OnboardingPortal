@@ -13,7 +13,6 @@ import ProfileSetup from '../../components/profile/ProfileSetup';
 import UnifiedHealthAssessment from '../../components/health/UnifiedHealthAssessment';
 import EnhancedDocumentUpload from '../../components/upload/EnhancedDocumentUpload';
 import InterviewUnlockCard from '../../components/dashboard/InterviewUnlockCard';
-import { InterviewScheduler } from '../../components/interview/InterviewScheduler';
 import UserDashboard from '../../app/(dashboard)/home/page';
 
 // Types
@@ -27,8 +26,8 @@ const server = setupServer(
   // Authentication endpoints
   http.post('/api/auth/register/step1', async ({ request }) => {
     const { email, cpf } = await request.json();
-    return HttpResponse.json(
-({
+    return res(
+      ctx.json<RegisterResponse>({
         success: true,
         user: {
           id: '123',
@@ -43,8 +42,8 @@ const server = setupServer(
 
   http.post('/api/auth/register/step2', async ({ request }) => {
     const { name, phone } = await request.json();
-    return HttpResponse.json(
-({
+    return res(
+      ctx.json<RegisterResponse>({
         success: true,
         user: {
           id: '123',
@@ -59,8 +58,8 @@ const server = setupServer(
 
   http.post('/api/auth/register/step3', async ({ request }) => {
     const { password } = await request.json();
-    return HttpResponse.json(
-({
+    return res(
+      ctx.json<RegisterResponse>({
         success: true,
         user: {
           id: '123',
@@ -75,8 +74,8 @@ const server = setupServer(
   }),
 
   http.post('/api/auth/login', async ({ request }) => {
-    return HttpResponse.json(
-({
+    return res(
+      ctx.json<LoginResponse>({
         success: true,
         user: {
           id: '123',
@@ -85,7 +84,7 @@ const server = setupServer(
           cpf: '12345678901',
           gamification_progress: { points: 0, level: 1 },
           lgpd_consent: true,
-          lgpd_consent_at: new Date().toISOString()
+          lgpd_consent_at: new Date().toISOString(),
         },
       })
     );
@@ -121,8 +120,8 @@ const server = setupServer(
 
   http.post('/api/health/assessment/submit', async ({ request }) => {
     const { responses } = await request.json();
-    return HttpResponse.json(
-({
+    return res(
+      ctx.json<HealthAssessmentResult>({
         id: 'result-123',
         userId: '123',
         assessmentType: 'progressive',
@@ -155,24 +154,24 @@ const server = setupServer(
 
   // Document upload endpoints
   http.post('/api/documents/upload', async ({ request }) => {
-    return HttpResponse.json(
-      ({
+    return res(
+      ctx.json({
         success: true,
         document: {
           id: 'doc-123',
           name: 'ID Document',
           type: 'identification',
           status: 'processing',
-          uploaded_at: new Date().toISOString()
+          uploaded_at: new Date().toISOString(),
         },
       })
     );
   }),
 
   http.post('/api/documents/ocr/process', async ({ request }) => {
-    return HttpResponse.json(
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      ({
+    return res(
+      ctx.delay(1000),
+      ctx.json({
         success: true,
         extracted_data: {
           name: 'Test User',
@@ -263,9 +262,9 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),
-    pathname: '/'
+    pathname: '/',
   }),
-  usePathname: () => '/'
+  usePathname: () => '/',
 }));
 
 describe('Complete User Journey Integration', () => {
@@ -488,8 +487,8 @@ describe('Complete User Journey Integration', () => {
     server.use(
       http.post('/api/auth/register/step3', async ({ request }) => {
         capturedData.registration = await request.json();
-        return HttpResponse.json(
-    ({
+        return res(
+          ctx.json<RegisterResponse>({
             success: true,
             user: {
               id: '456',
@@ -510,8 +509,8 @@ describe('Complete User Journey Integration', () => {
 
       http.post('/api/health/assessment/submit', async ({ request }) => {
         capturedData.health = await request.json();
-        return HttpResponse.json(
-    ({
+        return res(
+          ctx.json<HealthAssessmentResult>({
             id: 'result-456',
             userId: '456',
             assessmentType: 'progressive',

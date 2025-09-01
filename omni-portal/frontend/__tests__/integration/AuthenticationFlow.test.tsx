@@ -30,15 +30,17 @@ const server = setupServer(
         });
     }
     
-    return HttpResponse.json({
-      success: true,
-      user: {
-        id: '123',
-        name: 'Test User',
-        email,
-        cpf: '12345678901',
-      },
-    });
+    return res(
+      ctx.json<LoginResponse>({
+        success: true,
+        user: {
+          id: '123',
+          name: 'Test User',
+          email,
+          cpf: '12345678901',
+        },
+      })
+    );
   }),
 
   // 2FA verification
@@ -62,8 +64,8 @@ const server = setupServer(
   }),
 
   // OAuth endpoints
-  http.get('/api/auth/oauth/:provider', ({ params }) => {
-    const { provider } = params;
+  http.get('/api/auth/oauth/:provider', ({ request }) => {
+    const { provider } = req.params;
     return HttpResponse.json({
         auth_url: `https://oauth.${provider}.com/authorize?client_id=test&redirect_uri=http://localhost:3000/auth/callback`,
       });
@@ -90,11 +92,11 @@ const server = setupServer(
   http.post('/api/auth/password/reset-request', async ({ request }) => {
     const { email } = await request.json();
     
-    return HttpResponse.json(
-      ({
+    return res(
+      ctx.json({
         success: true,
         message: 'Reset email sent',
-        expires_at: new Date(Date.now() + 3600000).toISOString()
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
       })
     );
   }),
@@ -114,8 +116,8 @@ const server = setupServer(
 
   // Session management
   http.get('/api/auth/sessions', ({ request }) => {
-    return HttpResponse.json(
-      ({
+    return res(
+      ctx.json({
         sessions: [
           {
             id: 'session-1',
@@ -479,8 +481,8 @@ describe('Enhanced Authentication Flow Integration', () => {
     it('should detect suspicious sessions', async () => {
       server.use(
         http.get('/api/auth/sessions', ({ request }) => {
-          return HttpResponse.json(
-            ({
+          return res(
+            ctx.json({
               sessions: [
                 {
                   id: 'session-1',

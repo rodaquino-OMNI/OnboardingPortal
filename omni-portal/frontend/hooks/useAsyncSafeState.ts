@@ -20,7 +20,7 @@ export function useAsyncSafeState() {
     };
   }, [cancelAll]);
   
-  const isMounted = useCallback(() => mountedRef.current, [mountedRef]);
+  const isMounted = useCallback(() => mountedRef.current, []);
   
   const safeSetState = useCallback(<T>(
     setter: React.Dispatch<React.SetStateAction<T>>,
@@ -47,9 +47,9 @@ export function useAsyncSafeState() {
     }
     
     const request = makeRequest(operation, {
-      ...(options?.timeout !== undefined && { timeout: options.timeout }),
-      ...(options?.retries !== undefined && { retries: options.retries }),
-      ...(options?.retryDelay !== undefined && { retryDelay: options.retryDelay }),
+      timeout: options?.timeout,
+      retries: options?.retries,
+      retryDelay: options?.retryDelay,
     });
     
     try {
@@ -103,23 +103,23 @@ export function useAsyncLoadingState<T = any>(initialValue?: T) {
     }
   ): Promise<T | undefined> => {
     if (options?.resetError !== false) {
-      safeSetState<string | null>(setError, null);
+      safeSetState(setError, null);
     }
-    safeSetState<boolean>(setLoading, true);
+    safeSetState(setLoading, true);
     
     try {
       const result = await safeAsyncOperation(operation, {
-        ...(options?.timeout !== undefined && { timeout: options.timeout }),
-        ...(options?.retries !== undefined && { retries: options.retries }),
-        ...(options?.retryDelay !== undefined && { retryDelay: options.retryDelay }),
+        timeout: options?.timeout,
+        retries: options?.retries,
+        retryDelay: options?.retryDelay,
         onSuccess: (result) => {
-          safeSetState<T | undefined>(setData, result);
+          safeSetState(setData, result);
         },
         onError: (error) => {
-          safeSetState<string | null>(setError, error.message);
+          safeSetState(setError, error.message);
         },
         onFinally: () => {
-          safeSetState<boolean>(setLoading, false);
+          safeSetState(setLoading, false);
         },
       });
       
@@ -131,9 +131,9 @@ export function useAsyncLoadingState<T = any>(initialValue?: T) {
   }, [safeAsyncOperation, safeSetState]);
   
   const reset = useCallback(() => {
-    safeSetState<T | undefined>(setData, initialValue);
-    safeSetState<boolean>(setLoading, false);
-    safeSetState<string | null>(setError, null);
+    safeSetState(setData, initialValue);
+    safeSetState(setLoading, false);
+    safeSetState(setError, null);
   }, [initialValue, safeSetState]);
   
   return {

@@ -5,7 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useRouter } from 'next/navigation';
 import { Calendar, Clock, ChevronLeft, ChevronRight, Video, Award, Star, CheckCircle, AlertCircle, Users, Shield } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface AppointmentType {
@@ -68,10 +69,7 @@ interface EligibilityData {
 
 export default function TelemedicineSchedulePage() {
   const router = useRouter();
-  
-  // Simplified auth state without circular dependencies
-  const [user, setUser] = useState<any>(null);
-  const [isAuthLoaded, setIsAuthLoaded] = useState(false);
+  const { user } = useAuth();
   
   const [eligibilityData, setEligibilityData] = useState<EligibilityData | null>(null);
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
@@ -82,39 +80,11 @@ export default function TelemedicineSchedulePage() {
   const [isBooking, setIsBooking] = useState(false);
   const [step, setStep] = useState<'eligibility' | 'types' | 'slots' | 'confirmation'>('eligibility');
 
-  // Initialize auth without circular dependencies
   useEffect(() => {
-    // Simple auth check without importing problematic modules
-    const checkSimpleAuth = async () => {
-      try {
-        // Direct API call to avoid circular dependencies
-        const response = await fetch('/api/auth/profile', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData);
-        }
-      } catch (error) {
-        console.log('Auth check failed:', error);
-        // Redirect to login if not authenticated
-        router.push('/login?redirect=/telemedicine-schedule');
-        return;
-      } finally {
-        setIsAuthLoaded(true);
-      }
-    };
-    
-    checkSimpleAuth();
-  }, [router]);
+    checkEligibility();
+  }, []);
 
-  const checkEligibility = useCallback(async () => {
+  const checkEligibility = async () => {
     try {
       const response = await fetch('/api/telemedicine/eligibility', {
         method: 'GET',
@@ -138,7 +108,7 @@ export default function TelemedicineSchedulePage() {
       
       if (data.success) {
         setEligibilityData(data.data);
-        if (data.data.eligible) {
+        if (data.eligible) {
           loadAppointmentTypes();
         }
       } else {
@@ -150,9 +120,9 @@ export default function TelemedicineSchedulePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  };
 
-  const loadAppointmentTypes = useCallback(async () => {
+  const loadAppointmentTypes = async () => {
     try {
       const response = await fetch('/api/telemedicine/appointment-types', {
         method: 'GET',
@@ -184,13 +154,7 @@ export default function TelemedicineSchedulePage() {
       console.error('Error loading appointment types:', error);
       toast.error('Erro ao carregar tipos de consulta');
     }
-  }, [router]);
-
-  useEffect(() => {
-    if (isAuthLoaded) {
-      checkEligibility();
-    }
-  }, [isAuthLoaded, checkEligibility]);
+  };
 
   const loadAvailableSlots = async (appointmentTypeId: number) => {
     try {
@@ -281,7 +245,7 @@ export default function TelemedicineSchedulePage() {
     }
   };
 
-  if (!isAuthLoaded || isLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 flex items-center justify-center">
         <div className="text-center">
@@ -477,7 +441,7 @@ export default function TelemedicineSchedulePage() {
     const slotsByDate = availableSlots.reduce((acc, slot) => {
       const date = slot.display_date;
       if (!acc[date]) acc[date] = [];
-      acc[date]!.push(slot);
+      acc[date].push(slot);
       return acc;
     }, {} as Record<string, TimeSlot[]>);
 

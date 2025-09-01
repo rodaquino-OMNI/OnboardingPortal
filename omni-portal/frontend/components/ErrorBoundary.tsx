@@ -1,174 +1,85 @@
 'use client';
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
-interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
-}
-
-interface State {
+interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
-  errorInfo?: ErrorInfo;
-  retryCount: number;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  private retryTimeoutId: NodeJS.Timeout | null = null;
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: React.ComponentType<{ error: Error; resetError: () => void }>;
+}
 
-  constructor(props: Props) {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-
-    this.state = {
-      hasError: false,
-      retryCount: 0,
-    };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI
-    return {
-      hasError: true,
-      error,
-      retryCount: 0,
-    };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log the error to console and any error reporting service
-    console.error('[ErrorBoundary] Caught an error:', error, errorInfo);
-    
-    this.setState({
-      error,
-      errorInfo,
-    });
-
-    // Report to error tracking service if available
-    if (typeof window !== 'undefined' && (window as any).gtag) {
-      (window as any).gtag('event', 'exception', {
-        description: error.toString(),
-        fatal: false,
-      });
-    }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Error Boundary caught an error:', error, errorInfo);
   }
 
-  componentWillUnmount() {
-    if (this.retryTimeoutId) {
-      clearTimeout(this.retryTimeoutId);
-    }
-  }
-
-  handleRetry = () => {
-    const { retryCount } = this.state;
-    
-    if (retryCount < 3) {
-      this.setState({
-        hasError: false,
-        error: undefined,
-        errorInfo: undefined,
-        retryCount: retryCount + 1,
-      });
-
-      // Auto-retry with exponential backoff if it fails again
-      this.retryTimeoutId = setTimeout(() => {
-        if (this.state.hasError && retryCount < 2) {
-          this.handleRetry();
-        }
-      }, Math.pow(2, retryCount) * 1000);
-    }
-  };
-
-  handleReload = () => {
-    window.location.reload();
-  };
-
-  handleGoHome = () => {
-    window.location.href = '/';
+  resetError = () => {
+    this.setState({ hasError: false });
   };
 
   render() {
     if (this.state.hasError) {
-      // Render custom fallback UI or use provided fallback
       if (this.props.fallback) {
-        return this.props.fallback;
+        const FallbackComponent = this.props.fallback;
+        return <FallbackComponent error={this.state.error!} resetError={this.resetError} />;
       }
 
-      const { error, errorInfo, retryCount } = this.state;
-      const canRetry = retryCount < 3;
-
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-            <div className="flex justify-center mb-4">
-              <AlertTriangle className="h-12 w-12 text-red-500" />
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <Card className="p-8 max-w-lg w-full text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-600" />
             </div>
-            
             <h1 className="text-xl font-semibold text-gray-900 mb-2">
-              Something went wrong
+              Algo deu errado
             </h1>
-            
             <p className="text-gray-600 mb-6">
-              We encountered an unexpected error. This has been logged and we'll look into it.
+              Ocorreu um erro inesperado. Você pode tentar recarregar a página ou voltar ao início.
             </p>
+            
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                <h3 className="text-sm font-medium text-red-800 mb-2">Detalhes do Erro:</h3>
+                <code className="text-xs text-red-700 break-all">
+                  {this.state.error.message}
+                </code>
+              </div>
+            )}
 
-            <div className="space-y-3 mb-6">
-              {canRetry && (
-                <Button
-                  onClick={this.handleRetry}
-                  className="w-full"
-                  variant="default"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again {retryCount > 0 && `(${retryCount}/3)`}
-                </Button>
-              )}
-              
-              <Button
-                onClick={this.handleReload}
-                className="w-full"
+            <div className="flex gap-3 justify-center">
+              <Button 
+                onClick={this.resetError} 
                 variant="outline"
+                className="flex items-center gap-2"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reload Page
+                <RefreshCw className="w-4 h-4" />
+                Tentar Novamente
               </Button>
-              
-              <Button
-                onClick={this.handleGoHome}
-                className="w-full"
-                variant="outline"
+              <Button 
+                onClick={() => window.location.href = '/'}
+                className="flex items-center gap-2"
               >
-                <Home className="h-4 w-4 mr-2" />
-                Go Home
+                <Home className="w-4 h-4" />
+                Voltar ao Início
               </Button>
             </div>
-
-            {process.env.NODE_ENV === 'development' && error && (
-              <details className="text-left bg-gray-100 rounded p-3 text-xs">
-                <summary className="font-medium cursor-pointer mb-2">
-                  Error Details (Development)
-                </summary>
-                <div className="space-y-2">
-                  <div>
-                    <strong>Error:</strong>
-                    <pre className="whitespace-pre-wrap break-all text-red-600">
-                      {error.toString()}
-                    </pre>
-                  </div>
-                  {errorInfo && (
-                    <div>
-                      <strong>Component Stack:</strong>
-                      <pre className="whitespace-pre-wrap break-all text-gray-600">
-                        {errorInfo.componentStack}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              </details>
-            )}
-          </div>
+          </Card>
         </div>
       );
     }
@@ -176,3 +87,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;

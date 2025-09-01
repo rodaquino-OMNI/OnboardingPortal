@@ -11,11 +11,6 @@ function CallbackContent() {
 
   useEffect(() => {
     // Handle OAuth callback
-    if (!searchParams) {
-      router.push('/login');
-      return;
-    }
-    
     const token = searchParams.get('token');
     const error = searchParams.get('error');
 

@@ -352,8 +352,8 @@ test.describe('Admin Dashboard Workflows', () => {
       await page.click('[data-testid="search-logs-button"]');
 
       // Results should contain admin user actions
-      const adminLogCount = await page.locator('[data-testid="audit-log-entry"]:has-text("admin@example.com")').count();
-      expect(adminLogCount).toBeGreaterThanOrEqual(1);
+      const count = await page.locator('[data-testid="audit-log-entry"]:has-text("admin@example.com")').count();
+      expect(count).toBeGreaterThanOrEqual(1);
     });
 
     test('should allow detailed log entry inspection', async ({ page }) => {

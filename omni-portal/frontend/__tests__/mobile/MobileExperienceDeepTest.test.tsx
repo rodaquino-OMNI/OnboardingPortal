@@ -1,20 +1,6 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-/**
- * IMPORTANT: MobileHealthQuestionnaire component has been deleted as part of performance optimization.
- * 
- * These tests are preserved as documentation of the mobile features that were extracted
- * and will be reimplemented using the safe optimization approach:
- * - SafeTouchButton with 48px targets (no gestures to avoid conflicts)
- * - SafeQuestionnaireCache (no critical questions cached)
- * - FeatureMonitor with automatic rollback
- * 
- * The valuable strategies from MobileHealthQuestionnaire have been extracted to:
- * - /lib/health-questionnaire-extracted-strategies.ts
- * - /lib/services/safe-questionnaire-cache.ts
- * - /components/health/touch/SafeTouchButton.tsx
- */
-// import { MobileHealthQuestionnaire } from '@/components/health/MobileHealthQuestionnaire'; // Component deleted
+import { MobileHealthQuestionnaire } from '@/components/health/MobileHealthQuestionnaire';
 import { UnifiedHealthAssessment } from '@/components/health/UnifiedHealthAssessment';
 import { TouchFriendlySlider } from '@/components/ui/TouchFriendlySlider';
 import { MobileNavigation, MobileTabBar } from '@/components/ui/mobile-navigation';
@@ -62,8 +48,7 @@ beforeAll(() => {
   });
 });
 
-// Skip all tests - MobileHealthQuestionnaire component deleted
-describe.skip('Mobile Experience Deep Testing - COMPONENT DELETED', () => {
+describe('Mobile Experience Deep Testing', () => {
   describe('Touch Target Compliance (44px minimum)', () => {
     it('should ensure all buttons meet WCAG touch target requirements', async () => {
       const mockComplete = jest.fn();

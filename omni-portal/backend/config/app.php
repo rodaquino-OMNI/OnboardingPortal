@@ -100,7 +100,7 @@ return [
         App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-        App\Providers\OCRServiceProvider::class,
+        // App\Providers\OCRServiceProvider::class,
         App\Providers\SecurityServiceProvider::class,
         App\Providers\RewardServiceProvider::class,
         // App\Providers\TracingServiceProvider::class, // Temporarily disabled due to OTLP transport issue

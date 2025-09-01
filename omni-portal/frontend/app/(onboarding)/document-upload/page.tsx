@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, CheckCircle, Loader2, Shield, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
 import apiService from '@/services/api';
 import { EnhancedDocumentUpload } from '@/components/upload/EnhancedDocumentUpload';
 import type { OCRData, DocumentValidation } from '@/types';
@@ -33,13 +34,13 @@ interface UploadResult {
 
 export default function DocumentUploadPage() {
   const router = useRouter();
-  // Points are awarded by backend only - removed client-side awarding for security
+  const { addPoints } = useAuth();
   
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const documents = useMemo(() => [
+  const documents = [
     { 
       id: 'rg_cnh', 
       name: 'RG ou CNH', 
@@ -75,8 +76,8 @@ export default function DocumentUploadPage() {
       description: 'Foto recente tipo documento',
       examples: ['Foto 3x4 impressa', 'Foto digital em boa qualidade'],
       tips: 'Fundo claro, rosto descoberto, sem óculos escuros. Use a câmera para melhor qualidade'
-    }
-  ], []);
+    },
+  ];
 
   const getProgressPercentage = () => {
     const uploadedCount = Object.values(uploads).filter(u => u.uploaded).length;
@@ -98,8 +99,8 @@ export default function DocumentUploadPage() {
           uploaded: false,
           error: null,
           progress: 80,
-          ...(result.ocrData && { ocrData: result.ocrData }),
-          ...(result.validation && { validation: result.validation })
+          ocrData: result.ocrData,
+          validation: result.validation
         }
       }));
 
@@ -114,7 +115,7 @@ export default function DocumentUploadPage() {
           formData.append('ocr_data', JSON.stringify({
             text: result.ocrData.text,
             confidence: result.ocrData.confidence,
-            extractedFields: result.ocrData.extractedFields
+            extractedData: result.ocrData.extractedData
           }));
         }
         
@@ -134,36 +135,33 @@ export default function DocumentUploadPage() {
           setUploads(prev => ({
             ...prev,
             [docId]: {
-              file: prev[docId]?.file || null,
-              error: prev[docId]?.error || null,
+              ...prev[docId],
               uploading: false,
               uploaded: true,
               progress: 100,
-              status: 'approved' as const,
-              ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
-              ...(prev[docId]?.validation && { validation: prev[docId]?.validation })
-            } as UploadState
+              status: 'approved'
+            }
           }));
           
-          // Points are automatically awarded by the backend:
-          // - 25 points for document upload
-          // - 50 bonus points for successful OCR validation
-          // The backend handles all gamification logic for security
-          
-          const pointsAwarded = result.ocrData && result.validation?.isValid ? 75 : 25;
-          console.log(`✨ Backend awarded ${pointsAwarded} points for document upload`);
+          // Award points immediately for each document upload (partial achievements)
+          // Backend V2 awards 25 for upload + 50 for validation = 75 total with OCR
+          // Without OCR, just 25 for upload
+          const points = result.ocrData && result.validation?.isValid ? 75 : 25;
+          addPoints(points);
 
-          // Check for milestone achievements (display only - backend handles rewards)
+          // Check for milestone achievements
           const currentUploads = Object.values(uploads).filter(u => u.uploaded).length + 1; // +1 for current upload
           const totalRequired = documents.filter(d => d.required).length;
           
-          // Display milestone notifications (backend handles the actual rewards)
+          // Award milestone bonuses
           if (currentUploads === Math.ceil(totalRequired / 2)) {
             // Halfway milestone
-            console.log('🎉 Halfway milestone reached! Backend will award bonus points.');
+            addPoints(50);
+            console.log('🎉 Halfway milestone reached!');
           } else if (currentUploads === totalRequired) {
             // Completion milestone
-            console.log('🏆 All documents completed! Backend will award completion bonus.');
+            addPoints(100);
+            console.log('🏆 All documents completed!');
           }
         } else {
           throw new Error(response.error?.message || 'Erro no upload');
@@ -172,16 +170,11 @@ export default function DocumentUploadPage() {
         setUploads(prev => ({
           ...prev,
           [docId]: {
-            file: prev[docId]?.file || null,
-            uploaded: prev[docId]?.uploaded || false,
+            ...prev[docId],
             uploading: false,
             error: error instanceof Error ? error.message : 'Erro ao fazer upload',
-            progress: 0,
-            ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
-            ...(prev[docId]?.validation && { validation: prev[docId]?.validation }),
-            ...(prev[docId]?.status && { status: prev[docId]?.status }),
-            ...(prev[docId]?.rejectionReason && { rejectionReason: prev[docId]?.rejectionReason })
-          } as UploadState
+            progress: 0
+          }
         }));
       }
     } else {
@@ -194,27 +187,21 @@ export default function DocumentUploadPage() {
           uploaded: false,
           error: result.message || 'Erro no processamento',
           progress: 0,
-          ...(result.ocrData && { ocrData: result.ocrData }),
-          ...(result.validation && { validation: result.validation })
-        } as UploadState
+          ocrData: result.ocrData,
+          validation: result.validation
+        }
       }));
     }
-  }, [documents, uploads]);
+  }, [addPoints]);
 
   const handleEnhancedUploadProgress = useCallback((docId: string, progress: number) => {
     setUploads(prev => ({
       ...prev,
       [docId]: {
-        file: prev[docId]?.file || null,
-        uploaded: prev[docId]?.uploaded || false,
-        error: prev[docId]?.error || null,
+        ...prev[docId],
         progress: Math.min(progress * 0.8, 80), // Reserve 20% for backend upload
-        uploading: progress > 0 && progress < 100,
-        ...(prev[docId]?.ocrData && { ocrData: prev[docId]?.ocrData }),
-        ...(prev[docId]?.validation && { validation: prev[docId]?.validation }),
-        ...(prev[docId]?.status && { status: prev[docId]?.status }),
-        ...(prev[docId]?.rejectionReason && { rejectionReason: prev[docId]?.rejectionReason })
-      } as UploadState
+        uploading: progress > 0 && progress < 100
+      }
     }));
   }, []);
 
@@ -358,11 +345,11 @@ export default function DocumentUploadPage() {
           
           {/* Enhanced Tips Section */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-            <h4 className="font-semibold text-blue-900 flex items-center gap-2 mb-4">
+            <h4 className="font-semibold text-blue-900 font-['Inter'] flex items-center gap-2 mb-4">
               <Shield className="w-5 h-5" />
               Recursos avançados de upload
             </h4>
-            <ul className="text-sm text-blue-800 space-y-2">
+            <ul className="text-sm text-blue-800 space-y-2 font-['Inter']">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
                 <strong>OCR automático:</strong> Extração de texto dos documentos
@@ -383,7 +370,7 @@ export default function DocumentUploadPage() {
           </div>
           
           {error && (
-            <Alert variant="error">
+            <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -411,12 +398,12 @@ export default function DocumentUploadPage() {
                 </div>
                 <div className="flex-1">
                   {getCompletionStats().isComplete ? (
-                    <p className="text-base font-semibold text-green-800">
+                    <p className="text-base font-semibold text-green-800 font-['Inter']">
                       ✅ Todos os documentos foram enviados!
                     </p>
                   ) : (
                     <div>
-                      <p className="text-base font-semibold text-blue-800">
+                      <p className="text-base font-semibold text-blue-800 font-['Inter']">
                         📄 {getCompletionStats().completed} de {getCompletionStats().total} documentos enviados
                       </p>
                       <p className="text-sm text-blue-600 mt-1">
@@ -454,29 +441,23 @@ export default function DocumentUploadPage() {
         <Button
           variant="outline"
           onClick={handleBack}
-          className="flex flex-col items-center gap-1 px-6 py-3 min-h-[56px] rounded-xl border-2 hover:bg-gray-50 transition-all group"
+          className="flex items-center gap-2 px-6 py-3 min-h-[44px] rounded-xl border-2 hover:bg-gray-50 transition-all font-['Inter'] group"
           disabled={isLoading}
         >
-          <div className="flex items-center gap-2">
-            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span>Voltar</span>
-          </div>
-          <span className="text-xs text-gray-500">Questionário de Saúde</span>
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          Voltar
         </Button>
         <Button
           onClick={handleNext}
-          className="flex flex-col items-center gap-1 px-6 py-3 min-h-[56px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 group"
+          className="flex items-center gap-2 px-6 py-3 min-h-[44px] bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 font-['Inter'] group"
           disabled={isLoading}
         >
           {isLoading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <span>{getCompletionStats().isComplete ? 'Continuar' : 'Prosseguir'}</span>
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <span className="text-xs text-white/90">Agendar Entrevista</span>
+              {getCompletionStats().isComplete ? 'Continuar' : 'Prosseguir'}
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </>
           )}
         </Button>

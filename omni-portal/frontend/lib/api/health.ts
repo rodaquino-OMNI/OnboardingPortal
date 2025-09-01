@@ -1,6 +1,5 @@
 import apiService from '@/services/api';
 import type { HealthAssessmentResults } from '@/lib/unified-health-flow';
-import { logger } from '@/lib/logger';
 
 export interface HealthQuestionnaireSubmitRequest {
   questionnaire_type: 'unified' | 'smart' | 'progressive' | 'dual-pathway';
@@ -57,38 +56,17 @@ class HealthAPI {
         data
       );
       
-      // FIX: Add defensive check for response.data existence
-      if (!response || !response.data) {
-        logger.error('Invalid response from server: No data received', null, null, 'HealthAPI');
-        throw new Error('Invalid response from server');
-      }
-      
       // Update gamification state if rewards are returned
-      if (response.data && typeof response.data === 'object' && 'gamification_rewards' in response.data && (response.data as any).gamification_rewards) {
+      if (response.data.gamification_rewards) {
         // Trigger gamification update event
         window.dispatchEvent(new CustomEvent('gamification:update', {
-          detail: (response.data as any).gamification_rewards
+          detail: response.data.gamification_rewards
         }));
       }
       
-      return response.data as HealthQuestionnaireSubmitResponse;
+      return response.data;
     } catch (error) {
-      logger.error('Error submitting health questionnaire', error, null, 'HealthAPI');
-      // FIX: Return a default response structure on error to prevent undefined access
-      if (error instanceof Error && error.message.includes('500')) {
-        logger.warn('Server error detected, returning fallback response', null, 'HealthAPI');
-        return {
-          success: false,
-          questionnaire_id: `error-${Date.now()}`,
-          risk_assessment: {
-            overall_risk: 'low',
-            domain_risks: {},
-            recommendations: [],
-            requires_immediate_attention: false,
-          },
-          next_steps: []
-        } as HealthQuestionnaireSubmitResponse;
-      }
+      console.error('Error submitting health questionnaire:', error);
       throw error;
     }
   }
@@ -101,7 +79,7 @@ class HealthAPI {
       const response = await apiService.get('/health-questionnaires/templates');
       return response.data;
     } catch (error) {
-      logger.error('Error fetching questionnaire templates', error, null, 'HealthAPI');
+      console.error('Error fetching questionnaire templates:', error);
       throw error;
     }
   }
@@ -116,7 +94,7 @@ class HealthAPI {
       });
       return response.data;
     } catch (error) {
-      logger.error('Error starting questionnaire', error, null, 'HealthAPI');
+      console.error('Error starting questionnaire:', error);
       throw error;
     }
   }
@@ -132,7 +110,7 @@ class HealthAPI {
       );
       return response.data;
     } catch (error) {
-      logger.error('Error saving questionnaire progress', error, null, 'HealthAPI');
+      console.error('Error saving questionnaire progress:', error);
       throw error;
     }
   }
@@ -148,7 +126,7 @@ class HealthAPI {
       );
       return response.data;
     } catch (error) {
-      logger.error('Error getting AI insights', error, null, 'HealthAPI');
+      console.error('Error getting AI insights:', error);
       throw error;
     }
   }
@@ -173,8 +151,11 @@ class HealthAPI {
         time_taken_seconds: timeTakenSeconds,
         domains_completed: results.completedDomains,
         risk_scores: results.riskScores,
-        fraud_score: results.fraudDetectionScore
-      }
+        validation_pairs: results.validationPairs,
+        fraud_score: results.fraudScore
+      },
+      session_id: results.sessionId,
+      user_id: results.userId
     };
   }
 }

@@ -12,7 +12,6 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "tsBuildInfoFile": ".next/cache/tsbuildinfo",
     "baseUrl": ".",
     "downlevelIteration": true,
     "plugins": [
@@ -34,20 +33,9 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "allowUnreachableCode": false
+    "allowUnreachableCode": false,
+    "exactOptionalPropertyTypes": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": [
-    "node_modules", 
-    "../../docs/**/*", 
-    "e2e/**/*", 
-    "**/*.test.*", 
-    "**/*.spec.*", 
-    "**/__tests__/**/*", 
-    "**/__mocks__/**/*",
-    ".next",
-    "dist",
-    "build",
-    "coverage"
-  ]
+  "exclude": ["node_modules"]
 }

@@ -4,33 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { axe, toHaveNoViolations } from 'jest-axe';
 
 // Import the clinical decision engine
-// Mock ClinicalDecisionEngine
-class ClinicalDecisionEngine {
-  generatePHQ9Decision(score: number, suicidalIdeation: number) {
-    const severity = score <= 4 ? 'minimal' : score <= 9 ? 'mild' : score <= 14 ? 'moderate' : score <= 19 ? 'moderately severe' : 'severe';
-    const emergency_protocol = suicidalIdeation > 0;
-    
-    return {
-      condition: 'Depressive Symptoms',
-      severity,
-      score,
-      emergency_protocol,
-      recommendations: emergency_protocol ? [
-        { name: 'CVV - Centro de Valorização da Vida', number: '188' }
-      ] : []
-    };
-  }
-  
-  generateGAD7Decision(score: number) {
-    const severity = score <= 4 ? 'minimal' : score <= 9 ? 'mild' : score <= 14 ? 'moderate' : 'severe';
-    
-    return {
-      condition: 'Anxiety Disorder',
-      severity,
-      score
-    };
-  }
-}
+import { ClinicalDecisionEngine } from '@/lib/clinical-decision-engine';
 
 // Extend Jest matchers
 expect.extend(toHaveNoViolations);
@@ -75,23 +49,23 @@ const MentalHealthScoringTest: React.FC<{
       id: 'phq9_5',
       text: 'Nas últimas 2 semanas, com que frequência você teve falta de apetite ou comeu demais?',
       instrument: 'PHQ-9',
-      domain: 'appetite'
+      domain: 'appetite_changes'
     },
     {
       id: 'phq9_6',
-      text: 'Nas últimas 2 semanas, com que frequência você se sentiu mal consigo mesmo ou achou que é um fracasso ou decepcionou sua família ou a si mesmo?',
+      text: 'Nas últimas 2 semanas, com que frequência você se sentiu mal consigo mesmo, ou sentiu que é um fracasso ou que decepcionou sua família ou a si mesmo?',
       instrument: 'PHQ-9',
       domain: 'self_worth'
     },
     {
       id: 'phq9_7',
-      text: 'Nas últimas 2 semanas, com que frequência você teve problemas para se concentrar em atividades como ler jornal ou assistir televisão?',
+      text: 'Nas últimas 2 semanas, com que frequência você teve dificuldade para se concentrar em coisas como ler jornal ou assistir televisão?',
       instrument: 'PHQ-9',
       domain: 'concentration'
     },
     {
       id: 'phq9_8',
-      text: 'Nas últimas 2 semanas, com que frequência você se movimentou ou falou tão devagar que outras pessoas poderiam notar? Ou o oposto - ficou tão inquieto ou agitado que se movimentou muito mais que o normal?',
+      text: 'Nas últimas 2 semanas, com que frequência você se moveu ou falou tão devagar que outras pessoas notaram? Ou o oposto - você esteve tão agitado ou inquieto que se moveu muito mais que o normal?',
       instrument: 'PHQ-9',
       domain: 'psychomotor'
     },
@@ -100,7 +74,7 @@ const MentalHealthScoringTest: React.FC<{
       text: 'Nas últimas 2 semanas, teve pensamentos de que seria melhor estar morto ou de se machucar?',
       instrument: 'PHQ-9',
       domain: 'suicidal_ideation',
-      isSuicidalQuestion: true
+      isHighRisk: true
     }
   ];
 
@@ -108,15 +82,15 @@ const MentalHealthScoringTest: React.FC<{
   const gad7Questions = [
     {
       id: 'gad7_1',
-      text: 'Nas últimas 2 semanas, com que frequência você se sentiu nervoso, ansioso ou muito tenso?',
+      text: 'Nas últimas 2 semanas, com que frequência você se sentiu nervoso, ansioso ou no limite?',
       instrument: 'GAD-7',
       domain: 'nervousness'
     },
     {
       id: 'gad7_2',
-      text: 'Nas últimas 2 semanas, com que frequência você não conseguiu parar ou controlar as preocupações?',
+      text: 'Nas últimas 2 semanas, com que frequência você não conseguiu parar ou controlar preocupações?',
       instrument: 'GAD-7',
-      domain: 'worry_control'
+      domain: 'uncontrollable_worry'
     },
     {
       id: 'gad7_3',
@@ -128,17 +102,17 @@ const MentalHealthScoringTest: React.FC<{
       id: 'gad7_4',
       text: 'Nas últimas 2 semanas, com que frequência você teve problemas para relaxar?',
       instrument: 'GAD-7',
-      domain: 'relaxation_difficulty'
+      domain: 'restlessness'
     },
     {
       id: 'gad7_5',
       text: 'Nas últimas 2 semanas, com que frequência você ficou tão inquieto que foi difícil ficar parado?',
       instrument: 'GAD-7',
-      domain: 'restlessness'
+      domain: 'motor_restlessness'
     },
     {
       id: 'gad7_6',
-      text: 'Nas últimas 2 semanas, com que frequência você ficou facilmente aborrecido ou irritado?',
+      text: 'Nas últimas 2 semanas, com que frequência você ficou facilmente irritado ou mal-humorado?',
       instrument: 'GAD-7',
       domain: 'irritability'
     },
@@ -146,19 +120,9 @@ const MentalHealthScoringTest: React.FC<{
       id: 'gad7_7',
       text: 'Nas últimas 2 semanas, com que frequência você sentiu medo de que algo terrível pudesse acontecer?',
       instrument: 'GAD-7',
-      domain: 'fear_of_terrible_events'
+      domain: 'fear_catastrophe'
     }
   ];
-
-  const getQuestions = () => {
-    if (instrument === 'PHQ-9') return phq9Questions;
-    if (instrument === 'GAD-7') return gad7Questions;
-    return [...phq9Questions, ...gad7Questions];
-  };
-
-  const questions = getQuestions();
-  const currentQuestion = questions[currentQuestionIndex];
-  const totalQuestions = questions.length;
 
   const responseOptions = [
     { value: 0, label: 'Nunca', description: 'Nenhum dia' },
@@ -167,89 +131,159 @@ const MentalHealthScoringTest: React.FC<{
     { value: 3, label: 'Quase todos os dias', description: 'Praticamente todos os dias' }
   ];
 
+  const getQuestions = () => {
+    if (instrument === 'PHQ-9') return phq9Questions;
+    if (instrument === 'GAD-7') return gad7Questions;
+    return [...phq9Questions, ...gad7Questions]; // BOTH
+  };
+
+  const questions = getQuestions();
+  const currentQuestion = questions[currentQuestionIndex];
+
+  const calculatePHQ9Score = (responses: Record<string, number>): number => {
+    const phq9Items = ['phq9_1', 'phq9_2', 'phq9_3', 'phq9_4', 'phq9_5', 'phq9_6', 'phq9_7', 'phq9_8', 'phq9_9'];
+    return phq9Items.reduce((sum, item) => sum + (responses[item] || 0), 0);
+  };
+
+  const calculateGAD7Score = (responses: Record<string, number>): number => {
+    const gad7Items = ['gad7_1', 'gad7_2', 'gad7_3', 'gad7_4', 'gad7_5', 'gad7_6', 'gad7_7'];
+    return gad7Items.reduce((sum, item) => sum + (responses[item] || 0), 0);
+  };
+
+  const interpretPHQ9Score = (score: number): string => {
+    if (score === 0) return 'No depression (0)';
+    if (score >= 1 && score <= 4) return 'Minimal depression (1-4)';
+    if (score >= 5 && score <= 9) return 'Mild depression (5-9)';
+    if (score >= 10 && score <= 14) return 'Moderate depression (10-14)';
+    if (score >= 15 && score <= 19) return 'Moderately severe depression (15-19)';
+    if (score >= 20) return 'Severe depression (20-27)';
+    return 'Invalid score';
+  };
+
+  const interpretGAD7Score = (score: number): string => {
+    if (score >= 0 && score <= 4) return 'Minimal anxiety (0-4)';
+    if (score >= 5 && score <= 9) return 'Mild anxiety (5-9)';
+    if (score >= 10 && score <= 14) return 'Moderate anxiety (10-14)';
+    if (score >= 15) return 'Severe anxiety (15-21)';
+    return 'Invalid score';
+  };
+
   const handleResponse = (value: number) => {
     const newResponses = { ...responses, [currentQuestion.id]: value };
     setResponses(newResponses);
 
-    // Calculate real-time scores
-    const phq9Score = phq9Questions.reduce((sum, q) => sum + (newResponses[q.id] || 0), 0);
-    const gad7Score = gad7Questions.reduce((sum, q) => sum + (newResponses[q.id] || 0), 0);
+    // Calculate scores in real-time
+    const phq9Score = calculatePHQ9Score(newResponses);
+    const gad7Score = calculateGAD7Score(newResponses);
+    
+    setScores({
+      phq9: {
+        total: phq9Score,
+        interpretation: interpretPHQ9Score(phq9Score),
+        suicidalIdeation: newResponses.phq9_9 || 0
+      },
+      gad7: {
+        total: gad7Score,
+        interpretation: interpretGAD7Score(gad7Score)
+      }
+    });
 
-    const newScores = {
-      phq9: phq9Score,
-      gad7: gad7Score
-    };
-    setScores(newScores);
-
-    // Generate clinical decisions
-    const clinicalEngine = new ClinicalDecisionEngine();
-    const phq9Decision = phq9Questions.some(q => newResponses[q.id] !== undefined) 
-      ? clinicalEngine.generatePHQ9Decision(phq9Score, newResponses.phq9_9 || 0)
-      : null;
-    const gad7Decision = gad7Questions.some(q => newResponses[q.id] !== undefined)
-      ? clinicalEngine.generateGAD7Decision(gad7Score)
-      : null;
-
-    const newClinicalDecision = {
+    // Get clinical decisions
+    const engine = ClinicalDecisionEngine.getInstance();
+    const phq9Decision = engine.analyzePHQ9(newResponses);
+    const gad7Decision = engine.analyzeGAD7(newResponses);
+    
+    setClinicalDecision({
       phq9: phq9Decision,
       gad7: gad7Decision
-    };
-    setClinicalDecision(newClinicalDecision);
+    });
 
-    // Check for suicidal ideation emergency protocol
-    if (currentQuestion.id === 'phq9_9' && value > 0) {
-      // Emergency protocol should be activated
-      console.log('EMERGENCY PROTOCOL ACTIVATED - Suicidal ideation detected');
-    }
-
-    // Advance to next question or complete
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      // Assessment complete
-      onComplete({
-        scores: newScores,
-        responses: newResponses,
-        clinicalDecisions: newClinicalDecision,
-        instrument,
-        phq9Score,
-        gad7Score
-      });
-    }
+    // Auto-advance to next question
+    setTimeout(() => {
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+      } else {
+        // Complete assessment
+        onComplete({
+          responses: newResponses,
+          scores: {
+            phq9: {
+              total: phq9Score,
+              interpretation: interpretPHQ9Score(phq9Score),
+              suicidalIdeation: newResponses.phq9_9 || 0
+            },
+            gad7: {
+              total: gad7Score,
+              interpretation: interpretGAD7Score(gad7Score)
+            }
+          },
+          clinicalDecisions: {
+            phq9: phq9Decision,
+            gad7: gad7Decision
+          }
+        });
+      }
+    }, 300);
   };
 
-  const progressPercentage = ((currentQuestionIndex + 1) / totalQuestions) * 100;
+  if (!currentQuestion) {
+    return (
+      <div className="text-center p-8" data-testid="assessment-complete">
+        <h2 className="text-xl font-bold mb-4">Assessment Complete</h2>
+        {scores && (
+          <div className="space-y-4">
+            {instrument !== 'GAD-7' && (
+              <div data-testid="phq9-final-score">
+                <h3 className="font-semibold">PHQ-9 Score: {scores.phq9.total}</h3>
+                <p>{scores.phq9.interpretation}</p>
+                {scores.phq9.suicidalIdeation > 0 && (
+                  <p className="text-red-600 font-bold">⚠️ Suicidal ideation detected (Score: {scores.phq9.suicidalIdeation})</p>
+                )}
+              </div>
+            )}
+            {instrument !== 'PHQ-9' && (
+              <div data-testid="gad7-final-score">
+                <h3 className="font-semibold">GAD-7 Score: {scores.gad7.total}</h3>
+                <p>{scores.gad7.interpretation}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6" role="main" aria-label={`${instrument} Assessment`}>
-      {/* Progress Bar */}
+      {/* Progress indicator */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-gray-600" data-testid="question-counter">
-            Question {currentQuestionIndex + 1} of {totalQuestions}
+            Question {currentQuestionIndex + 1} of {questions.length}
           </span>
-          <span className="text-sm text-gray-600">{instrument}</span>
+          <span className="text-sm text-gray-600">
+            {currentQuestion.instrument}
+          </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
+          <div 
             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progressPercentage}%` }}
+            style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
             role="progressbar"
-            aria-valuenow={progressPercentage}
+            aria-valuenow={(currentQuestionIndex + 1) / questions.length * 100}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`Assessment progress: ${Math.round(progressPercentage)}% complete`}
           />
         </div>
       </div>
 
+      {/* Current question */}
       <div className="space-y-6">
-        {/* Question */}
         <div>
           <h2 className="text-xl font-semibold mb-2" id={`question-${currentQuestion.id}`}>
             {currentQuestion.text}
           </h2>
-          {currentQuestion.isSuicidalQuestion && (
+          {currentQuestion.isHighRisk && (
             <div className="p-3 bg-red-50 border border-red-200 rounded mb-4" role="alert">
               <p className="text-red-800 text-sm">
                 ⚠️ Esta pergunta avalia risco de suicídio. Responda com sinceridade - ajuda está disponível.
@@ -258,22 +292,21 @@ const MentalHealthScoringTest: React.FC<{
           )}
         </div>
 
-        {/* Response Options */}
         <fieldset className="space-y-3" aria-labelledby={`question-${currentQuestion.id}`}>
           <legend className="sr-only">{currentQuestion.text}</legend>
           {responseOptions.map((option, index) => (
             <button
-              key={index}
+              key={option.value}
               type="button"
-              role="radio"
-              aria-checked={responses[currentQuestion.id] === option.value}
+              onClick={() => handleResponse(option.value)}
               className={`w-full p-4 text-left border rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 ${
-                responses[currentQuestion.id] === option.value
-                  ? 'border-blue-500 bg-blue-50'
+                responses[currentQuestion.id] === option.value 
+                  ? 'border-blue-500 bg-blue-50' 
                   : 'border-gray-300'
               }`}
+              role="radio"
+              aria-checked={responses[currentQuestion.id] === option.value}
               data-testid={`response-${currentQuestion.id}-${option.value}`}
-              onClick={() => handleResponse(option.value)}
             >
               <div className="flex justify-between items-start">
                 <div>
@@ -289,43 +322,44 @@ const MentalHealthScoringTest: React.FC<{
         </fieldset>
       </div>
 
-      {/* Real-time Scores */}
+      {/* Real-time scoring display */}
       {scores && (
         <div className="mt-8 p-4 bg-gray-50 rounded" data-testid="current-scores">
           <h3 className="font-semibold mb-2">Current Scores:</h3>
           <div className="space-y-2 text-sm">
-            {(instrument === 'PHQ-9' || instrument === 'BOTH') && scores.phq9 !== undefined && (
+            {instrument !== 'GAD-7' && (
               <div data-testid="phq9-current-score">
-                PHQ-9: {scores.phq9} ({scores.phq9 <= 4 ? 'No depression' : scores.phq9 <= 9 ? 'Mild' : scores.phq9 <= 14 ? 'Moderate' : scores.phq9 <= 19 ? 'Moderately severe' : 'Severe'} ({scores.phq9}))
+                PHQ-9: {scores.phq9.total} ({scores.phq9.interpretation})
+                {scores.phq9.suicidalIdeation > 0 && (
+                  <span className="text-red-600 font-bold ml-2">⚠️ Suicide Risk</span>
+                )}
               </div>
             )}
-            {(instrument === 'GAD-7' || instrument === 'BOTH') && scores.gad7 !== undefined && (
+            {instrument !== 'PHQ-9' && (
               <div data-testid="gad7-current-score">
-                GAD-7: {scores.gad7} ({scores.gad7 <= 4 ? 'Minimal' : scores.gad7 <= 9 ? 'Mild' : scores.gad7 <= 14 ? 'Moderate' : 'Severe'} ({scores.gad7}))
+                GAD-7: {scores.gad7.total} ({scores.gad7.interpretation})
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Clinical Decisions */}
+      {/* Clinical decision display (for testing) */}
       {clinicalDecision && (
         <div className="mt-4 p-4 bg-yellow-50 rounded" data-testid="clinical-decisions">
           <h3 className="font-semibold mb-2">Clinical Decisions:</h3>
           <div className="space-y-2 text-xs">
             {clinicalDecision.phq9 && (
               <div data-testid="phq9-clinical-decision">
-                PHQ-9: {clinicalDecision.phq9.condition} - {clinicalDecision.phq9.severity} ({clinicalDecision.phq9.severity})
+                PHQ-9: {clinicalDecision.phq9.condition} ({clinicalDecision.phq9.severity})
+                {clinicalDecision.phq9.emergencyProtocol && (
+                  <div className="text-red-600 font-bold">EMERGENCY PROTOCOL ACTIVATED</div>
+                )}
               </div>
             )}
             {clinicalDecision.gad7 && (
               <div data-testid="gad7-clinical-decision">
-                GAD-7: {clinicalDecision.gad7.condition} - {clinicalDecision.gad7.severity} ({clinicalDecision.gad7.severity})
-              </div>
-            )}
-            {clinicalDecision.phq9?.emergency_protocol && (
-              <div data-testid="emergency-protocol" className="text-red-700 font-bold">
-                EMERGENCY PROTOCOL ACTIVATED
+                GAD-7: {clinicalDecision.gad7.condition} ({clinicalDecision.gad7.severity})
               </div>
             )}
           </div>
@@ -336,10 +370,9 @@ const MentalHealthScoringTest: React.FC<{
 };
 
 describe('PHQ-9 and GAD-7 Complete Scoring', () => {
-  let mockOnComplete: jest.Mock;
+  const mockOnComplete = jest.fn();
 
   beforeEach(() => {
-    mockOnComplete = jest.fn();
     jest.clearAllMocks();
   });
 
@@ -348,29 +381,24 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Start with question 1 - use more specific query to avoid duplicates
-      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Nas últimas 2 semanas, com que frequência você teve pouco interesse ou prazer em fazer as coisas?');
+      // Start with question 1
+      expect(screen.getByText('Nas últimas 2 semanas, com que frequência você teve pouco interesse ou prazer em fazer as coisas?')).toBeInTheDocument();
       expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 1 of 9');
 
       // Answer first question and verify progression
       await user.click(screen.getByTestId('response-phq9_1-1'));
-      
+
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Nas últimas 2 semanas, com que frequência você se sentiu deprimido, triste ou sem esperança?');
+        expect(screen.getByText('Nas últimas 2 semanas, com que frequência você se sentiu deprimido, triste ou sem esperança?')).toBeInTheDocument();
         expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 2 of 9');
       });
 
-      // Continue through a few more questions to verify sequence
+      // Continue through all questions
       await user.click(screen.getByTestId('response-phq9_2-1'));
       
       await waitFor(() => {
+        expect(screen.getByText(/problemas para adormecer/)).toBeInTheDocument();
         expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 3 of 9');
-      });
-
-      await user.click(screen.getByTestId('response-phq9_3-1'));
-      
-      await waitFor(() => {
-        expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 4 of 9');
       });
     });
 
@@ -378,7 +406,7 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Answer all questions with score of 0 (minimal depression)
+      // Answer all 9 questions with score 0 (minimal depression)
       for (let i = 1; i <= 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i}-0`));
         
@@ -390,10 +418,17 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(0);
-        expect(result.clinicalDecisions.phq9.severity).toBe('minimal');
-        expect(result.clinicalDecisions.phq9.condition).toBe('Depressive Symptoms');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              phq9: expect.objectContaining({
+                total: 0,
+                interpretation: 'No depression (0)',
+                suicidalIdeation: 0
+              })
+            })
+          })
+        );
       });
     });
 
@@ -402,8 +437,8 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
       // Answer questions to achieve moderate depression score (10-14)
-      const responses = [1, 1, 1, 2, 2, 1, 1, 1, 0]; // Total = 10
-
+      const responses = [1, 1, 2, 1, 1, 2, 1, 1, 0]; // Total: 10
+      
       for (let i = 0; i < 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i + 1}-${responses[i]}`));
         
@@ -415,9 +450,17 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(10);
-        expect(result.clinicalDecisions.phq9.severity).toBe('moderate');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              phq9: expect.objectContaining({
+                total: 10,
+                interpretation: 'Moderate depression (10-14)',
+                suicidalIdeation: 0
+              })
+            })
+          })
+        );
       });
     });
 
@@ -425,30 +468,44 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Answer first 8 questions with minimal scores
+      // Answer first 8 questions with low scores
       for (let i = 1; i <= 8; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i}-0`));
         
-        if (i < 8) {
-          await waitFor(() => {
+        await waitFor(() => {
+          if (i < 8) {
             expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 1} of 9`);
-          });
-        }
+          }
+        });
       }
 
       // Check that question 9 shows risk warning
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/pensamentos de que seria melhor estar morto/);
+        expect(screen.getByText(/pensamentos de que seria melhor estar morto/)).toBeInTheDocument();
         expect(screen.getByRole('alert')).toHaveTextContent('Esta pergunta avalia risco de suicídio');
       });
 
       // Answer question 9 with positive suicidal ideation
-      await user.click(screen.getByTestId('response-phq9_9-1'));
+      await user.click(screen.getByTestId('response-phq9_9-2'));
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.responses.phq9_9).toBe(1);
-        expect(result.clinicalDecisions.phq9.emergency_protocol).toBeTruthy();
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              phq9: expect.objectContaining({
+                total: 2,
+                suicidalIdeation: 2
+              })
+            }),
+            clinicalDecisions: expect.objectContaining({
+              phq9: expect.objectContaining({
+                condition: 'Depressive Disorder with Suicidal Ideation',
+                severity: 'critical',
+                emergencyProtocol: expect.any(Object)
+              })
+            })
+          })
+        );
       });
     });
 
@@ -464,7 +521,7 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
         expect(screen.getByTestId('phq9-current-score')).toHaveTextContent('PHQ-9: 2');
       });
 
-      // Answer second question to increase score
+      // Answer second question
       await user.click(screen.getByTestId('response-phq9_2-1'));
 
       await waitFor(() => {
@@ -476,23 +533,29 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Answer questions for severe depression (20+)
-      const responses = [3, 3, 3, 3, 3, 3, 3, 0, 0]; // Total = 21
-
-      for (let i = 0; i < 9; i++) {
-        await user.click(screen.getByTestId(`response-phq9_${i + 1}-${responses[i]}`));
+      // Answer all questions with maximum scores (severe depression: 20+)
+      for (let i = 1; i <= 9; i++) {
+        await user.click(screen.getByTestId(`response-phq9_${i}-3`));
         
-        if (i < 8) {
+        if (i < 9) {
           await waitFor(() => {
-            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 2} of 9`);
+            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 1} of 9`);
           });
         }
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(21);
-        expect(result.clinicalDecisions.phq9.severity).toBe('severe');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              phq9: expect.objectContaining({
+                total: 27,
+                interpretation: 'Severe depression (20-27)',
+                suicidalIdeation: 3
+              })
+            })
+          })
+        );
       });
     });
   });
@@ -503,13 +566,14 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="GAD-7" />);
 
       // Start with question 1
-      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Nas últimas 2 semanas, com que frequência você se sentiu nervoso, ansioso ou muito tenso?');
+      expect(screen.getByText('Nas últimas 2 semanas, com que frequência você se sentiu nervoso, ansioso ou no limite?')).toBeInTheDocument();
       expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 1 of 7');
 
       // Answer first question and verify progression
       await user.click(screen.getByTestId('response-gad7_1-1'));
-      
+
       await waitFor(() => {
+        expect(screen.getByText('Nas últimas 2 semanas, com que frequência você não conseguiu parar ou controlar preocupações?')).toBeInTheDocument();
         expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 2 of 7');
       });
     });
@@ -518,7 +582,7 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="GAD-7" />);
 
-      // Answer all questions with score of 0
+      // Answer all 7 questions with score 0 (minimal anxiety)
       for (let i = 1; i <= 7; i++) {
         await user.click(screen.getByTestId(`response-gad7_${i}-0`));
         
@@ -530,9 +594,16 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.gad7Score).toBe(0);
-        expect(result.clinicalDecisions.gad7.severity).toBe('minimal');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              gad7: expect.objectContaining({
+                total: 0,
+                interpretation: 'Minimal anxiety (0-4)'
+              })
+            })
+          })
+        );
       });
     });
 
@@ -540,9 +611,9 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="GAD-7" />);
 
-      // Answer questions for moderate anxiety (10-14)
-      const responses = [2, 2, 2, 2, 1, 1, 0]; // Total = 10
-
+      // Answer questions to achieve moderate anxiety score (10-14)
+      const responses = [2, 1, 2, 1, 2, 1, 1]; // Total: 10
+      
       for (let i = 0; i < 7; i++) {
         await user.click(screen.getByTestId(`response-gad7_${i + 1}-${responses[i]}`));
         
@@ -554,9 +625,16 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.gad7Score).toBe(10);
-        expect(result.clinicalDecisions.gad7.severity).toBe('moderate');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              gad7: expect.objectContaining({
+                total: 10,
+                interpretation: 'Moderate anxiety (10-14)'
+              })
+            })
+          })
+        );
       });
     });
 
@@ -564,23 +642,28 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="GAD-7" />);
 
-      // Answer questions for severe anxiety (15+)
-      const responses = [3, 3, 3, 3, 3, 0, 0]; // Total = 15
-
-      for (let i = 0; i < 7; i++) {
-        await user.click(screen.getByTestId(`response-gad7_${i + 1}-${responses[i]}`));
+      // Answer all questions with maximum scores (severe anxiety: 15+)
+      for (let i = 1; i <= 7; i++) {
+        await user.click(screen.getByTestId(`response-gad7_${i}-3`));
         
-        if (i < 6) {
+        if (i < 7) {
           await waitFor(() => {
-            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 2} of 7`);
+            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 1} of 7`);
           });
         }
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.gad7Score).toBe(15);
-        expect(result.clinicalDecisions.gad7.severity).toBe('severe');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              gad7: expect.objectContaining({
+                total: 21,
+                interpretation: 'Severe anxiety (15-21)'
+              })
+            })
+          })
+        );
       });
     });
 
@@ -605,7 +688,7 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
 
       expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 1 of 16');
 
-      // Answer all PHQ-9 questions (1-9)
+      // Complete PHQ-9 questions (1-9)
       for (let i = 1; i <= 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i}-1`));
         
@@ -616,12 +699,13 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
         }
       }
 
-      // Now should be on GAD-7 questions (10-16)
+      // Should continue to GAD-7 questions
       await waitFor(() => {
+        expect(screen.getByText('Nas últimas 2 semanas, com que frequência você se sentiu nervoso, ansioso ou no limite?')).toBeInTheDocument();
         expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 10 of 16');
       });
 
-      // Answer all GAD-7 questions (10-16)
+      // Complete GAD-7 questions (1-7)
       for (let i = 1; i <= 7; i++) {
         await user.click(screen.getByTestId(`response-gad7_${i}-1`));
         
@@ -633,10 +717,20 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(9);
-        expect(result.gad7Score).toBe(7);
-        expect(result.instrument).toBe('BOTH');
+        expect(mockOnComplete).toHaveBeenCalledWith(
+          expect.objectContaining({
+            scores: expect.objectContaining({
+              phq9: expect.objectContaining({
+                total: 9,
+                interpretation: 'Mild depression (5-9)'
+              }),
+              gad7: expect.objectContaining({
+                total: 7,
+                interpretation: 'Mild anxiety (5-9)'
+              })
+            })
+          })
+        );
       });
     });
 
@@ -649,19 +743,30 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('phq9-current-score')).toHaveTextContent('PHQ-9: 2');
+        expect(screen.getByTestId('gad7-current-score')).toHaveTextContent('GAD-7: 0');
       });
 
-      // Skip to GAD-7 portion
+      // Continue through PHQ-9 and start GAD-7
       for (let i = 2; i <= 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i}-0`));
+        
+        if (i < 9) {
+          await waitFor(() => {
+            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 1} of 16`);
+          });
+        }
       }
 
-      // Answer first GAD-7 question
-      await user.click(screen.getByTestId('response-gad7_1-1'));
+      // First GAD-7 question
+      await waitFor(() => {
+        expect(screen.getByText(/nervoso, ansioso ou no limite/)).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId('response-gad7_1-3'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('gad7-current-score')).toHaveTextContent('GAD-7: 1');
         expect(screen.getByTestId('phq9-current-score')).toHaveTextContent('PHQ-9: 2');
+        expect(screen.getByTestId('gad7-current-score')).toHaveTextContent('GAD-7: 3');
       });
     });
   });
@@ -672,8 +777,8 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
       // Answer questions to create moderate depression with suicidal ideation
-      const responses = [1, 2, 1, 1, 1, 1, 1, 1, 1]; // PHQ-9 total = 10, with suicidal ideation
-
+      const responses = [2, 2, 1, 1, 1, 1, 1, 0, 2]; // Total: 11, suicidal ideation: 2
+      
       for (let i = 0; i < 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i + 1}-${responses[i]}`));
         
@@ -685,9 +790,12 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       }
 
       await waitFor(() => {
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.clinicalDecisions.phq9.emergency_protocol).toBeTruthy();
-        expect(result.clinicalDecisions.phq9.recommendations).toEqual(
+        const clinicalDecision = mockOnComplete.mock.calls[0][0].clinicalDecisions.phq9;
+        expect(clinicalDecision.condition).toBe('Depressive Disorder with Suicidal Ideation');
+        expect(clinicalDecision.severity).toBe('critical');
+        expect(clinicalDecision.emergencyProtocol).toBeDefined();
+        expect(clinicalDecision.emergencyProtocol.immediateActions).toContain('Do not leave person alone');
+        expect(clinicalDecision.emergencyProtocol.contactNumbers).toEqual(
           expect.arrayContaining([
             expect.objectContaining({ name: 'CVV - Centro de Valorização da Vida', number: '188' })
           ])
@@ -715,7 +823,7 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('clinical-decisions')).toBeInTheDocument();
-        expect(screen.getByTestId('emergency-protocol')).toHaveTextContent('EMERGENCY PROTOCOL ACTIVATED');
+        expect(screen.getByText('EMERGENCY PROTOCOL ACTIVATED')).toBeInTheDocument();
       });
     });
   });
@@ -739,10 +847,10 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
 
       await waitFor(() => {
         const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(27);
-        expect(result.gad7Score).toBe(21);
-        expect(result.clinicalDecisions.phq9.severity).toBe('severe');
-        expect(result.clinicalDecisions.gad7.severity).toBe('severe');
+        expect(result.scores.phq9.total).toBe(27);
+        expect(result.scores.gad7.total).toBe(21);
+        expect(result.scores.phq9.interpretation).toBe('Severe depression (20-27)');
+        expect(result.scores.gad7.interpretation).toBe('Severe anxiety (15-21)');
       });
     });
 
@@ -750,16 +858,16 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Rapidly click through all questions
-      for (let i = 1; i <= 9; i++) {
-        await user.click(screen.getByTestId(`response-phq9_${i}-1`));
-        // Don't wait between clicks to test rapid interaction
-      }
+      const button = screen.getByTestId('response-phq9_1-2');
+      
+      // Click rapidly multiple times
+      await user.click(button);
+      await user.click(button);
+      await user.click(button);
 
+      // Should still progress correctly
       await waitFor(() => {
-        expect(mockOnComplete).toHaveBeenCalledTimes(1);
-        const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(9);
+        expect(screen.getByTestId('question-counter')).toHaveTextContent('Question 2 of 9');
       });
     });
 
@@ -767,9 +875,9 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       const user = userEvent.setup();
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      // Test boundary between mild and moderate (score = 5)
-      const responses = [1, 1, 1, 1, 1, 0, 0, 0, 0]; // Total = 5
-
+      // Create score exactly at boundary (mild/moderate = 10)
+      const responses = [1, 1, 1, 1, 1, 1, 1, 1, 2]; // Total: 10
+      
       for (let i = 0; i < 9; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i + 1}-${responses[i]}`));
         
@@ -782,8 +890,8 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
 
       await waitFor(() => {
         const result = mockOnComplete.mock.calls[0][0];
-        expect(result.phq9Score).toBe(5);
-        expect(result.clinicalDecisions.phq9.severity).toBe('mild');
+        expect(result.scores.phq9.total).toBe(10);
+        expect(result.scores.phq9.interpretation).toBe('Moderate depression (10-14)');
       });
     });
   });
@@ -817,10 +925,17 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
     it('should have proper ARIA attributes', () => {
       render(<MentalHealthScoringTest onComplete={mockOnComplete} instrument="PHQ-9" />);
 
-      expect(screen.getByRole('main')).toHaveAttribute('aria-label', 'PHQ-9 Assessment');
-      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-label');
-      expect(screen.getByRole('group')).toBeInTheDocument(); // fieldset creates a group role
-      expect(screen.getAllByRole('radio')).toHaveLength(4); // 4 response options
+      // Check radio group behavior
+      const radioButtons = screen.getAllByRole('radio');
+      radioButtons.forEach(button => {
+        expect(button).toHaveAttribute('aria-checked');
+      });
+
+      // Check progress bar
+      const progressBar = screen.getByRole('progressbar');
+      expect(progressBar).toHaveAttribute('aria-valuenow');
+      expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+      expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
 
     it('should have proper alert for suicide risk question', async () => {
@@ -830,6 +945,12 @@ describe('PHQ-9 and GAD-7 Complete Scoring', () => {
       // Navigate to question 9
       for (let i = 1; i <= 8; i++) {
         await user.click(screen.getByTestId(`response-phq9_${i}-0`));
+        
+        if (i < 8) {
+          await waitFor(() => {
+            expect(screen.getByTestId('question-counter')).toHaveTextContent(`Question ${i + 1} of 9`);
+          });
+        }
       }
 
       await waitFor(() => {

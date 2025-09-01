@@ -1,21 +1,19 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { OptimizedUnifiedHealthQuestionnaire as UnifiedHealthQuestionnaire } from '@/components/health/OptimizedUnifiedHealthQuestionnaire';
+import { UnifiedHealthQuestionnaire } from '@/components/health/UnifiedHealthQuestionnaire';
 import { HealthNavigationHeader, SessionRestorationBanner } from '@/components/health/HealthNavigationHeader';
 import { HealthAssessmentComplete } from '@/components/health/HealthAssessmentComplete';
-import { HealthQuestionnaireErrorBoundary } from '@/components/health/HealthQuestionnaireErrorBoundary';
 import { useHealthSessionPersistence } from '@/hooks/useHealthSessionPersistence';
 import '@/styles/health-questionnaire-mobile.css';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/useGamification';
 import { HealthAssessmentResults } from '@/lib/unified-health-flow';
-import { logger } from '@/lib/logger';
 import { Activity } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
-function HealthQuestionnaireContent() {
+export default function HealthQuestionnairePage() {
   const router = useRouter();
   const { user } = useAuth();
   useGamification(); // Using the hook to trigger loading even if not destructuring
@@ -25,8 +23,7 @@ function HealthQuestionnaireContent() {
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(15); // Default 15 minutes
   const [isCompleted, setIsCompleted] = useState(false);
   const [healthResults, setHealthResults] = useState<HealthAssessmentResults | null>(null);
-  // PERFORMANCE FIX: Use useMemo to prevent Date object recreation on every render
-  const sessionStartTime = useMemo(() => new Date(), []);
+  const [sessionStartTime, setSessionStartTime] = useState(new Date());
 
   // Session persistence
   const {
@@ -43,7 +40,7 @@ function HealthQuestionnaireContent() {
     autoSaveInterval: 10000, // Auto-save every 10 seconds
     onAutoSave: (success) => {
       if (!success) {
-        logger.warn('[HealthQuestionnairePage] Auto-save failed', undefined, 'HealthQuestionnaire');
+        console.warn('Auto-save failed');
       }
     },
     onRestoreSession: (restoredSession) => {
@@ -52,8 +49,10 @@ function HealthQuestionnaireContent() {
     }
   });
 
-  // Check for existing session
+  // Initialize session start time and check for existing session
   useEffect(() => {
+    setSessionStartTime(new Date());
+    
     const checkExistingSession = async () => {
       if (user?.id) {
         const hasSession = await hasExistingSession();
@@ -62,7 +61,7 @@ function HealthQuestionnaireContent() {
     };
     
     checkExistingSession();
-  }, [user?.id, session]); // Remove hasExistingSession from dependencies to prevent infinite loop
+  }, [user?.id, hasExistingSession, session]);
 
   // Update estimated time based on progress
   useEffect(() => {
@@ -75,64 +74,26 @@ function HealthQuestionnaireContent() {
         setEstimatedTimeRemaining(Math.max(1, remainingTime));
       }
     }
-  }, [questionnaireProgress]); // Remove getSessionStats from dependencies to prevent infinite loop
+  }, [questionnaireProgress, getSessionStats]);
 
   const handleComplete = async (results: unknown) => {
-    logger.debug('[HealthQuestionnairePage] handleComplete - Received results:', { results, type: typeof results, keys: results ? Object.keys(results) : 'null' }, 'HealthQuestionnaire');
-    
+    console.log('Questionnaire results:', results);
     try {
       setIsSubmitting(true);
       
-      // Validate and ensure results have the expected structure
+      // Cast results to HealthAssessmentResults type
       const healthAssessmentResults = results as HealthAssessmentResults;
       
-      // Additional validation to ensure critical fields exist
-      if (!healthAssessmentResults || typeof healthAssessmentResults !== 'object') {
-        logger.error('[HealthQuestionnairePage] Invalid results structure', undefined, { results: healthAssessmentResults }, 'HealthQuestionnaire');
-        // Create a minimal valid structure
-        const fallbackResults: HealthAssessmentResults = {
-          completedDomains: [],
-          riskLevel: 'low',
-          totalRiskScore: 0,
-          recommendations: ['Completar avaliação de saúde novamente'],
-          nextSteps: ['Revisar suas respostas'],
-          riskScores: {},
-          responses: {},
-          fraudDetectionScore: 0,
-          timestamp: new Date().toISOString()
-        };
-        setHealthResults(fallbackResults);
-      } else {
-        logger.info('[HealthQuestionnairePage] Valid healthAssessmentResults', { healthAssessmentResults }, 'HealthQuestionnaire');
-        setHealthResults(healthAssessmentResults);
-      }
-      
+      // Store results and show completion screen
+      setHealthResults(healthAssessmentResults);
       setIsCompleted(true);
       
       // Clear the saved session as questionnaire is complete
       await clearSession();
       
-      logger.info('[HealthQuestionnairePage] Completion successful, showing results screen', undefined, 'HealthQuestionnaire');
-      
     } catch (error) {
-      logger.error('[HealthQuestionnairePage] Error handling completion', error, { stack: error instanceof Error ? error.stack : 'No stack' }, 'HealthQuestionnaire');
-      
-      // Create a fallback results structure on error
-      const fallbackResults: HealthAssessmentResults = {
-        completedDomains: [],
-        riskLevel: 'low',
-        totalRiskScore: 0,
-        recommendations: ['Por favor, tente completar a avaliação novamente'],
-        nextSteps: ['Recarregar a página e tentar novamente'],
-        riskScores: {},
-        responses: typeof results === 'object' && results !== null && 'responses' in results 
-          ? (results as any).responses || {} 
-          : {},
-        fraudDetectionScore: 0,
-        timestamp: new Date().toISOString()
-      };
-      
-      setHealthResults(fallbackResults);
+      console.error('Error handling completion:', error);
+      // Still show completion screen even if there's an error
       setIsCompleted(true);
     } finally {
       setIsSubmitting(false);
@@ -140,12 +101,10 @@ function HealthQuestionnaireContent() {
   };
 
   const handleNavigateHome = () => {
-    logger.debug('[HealthQuestionnairePage] Navigating to home', undefined, 'HealthQuestionnaire');
     router.push('/home');
   };
 
   const handleNavigateNext = () => {
-    logger.debug('[HealthQuestionnairePage] Navigating to document upload', undefined, 'HealthQuestionnaire');
     router.push('/document-upload');
   };
 
@@ -166,7 +125,7 @@ function HealthQuestionnaireContent() {
     try {
       return await saveSession();
     } catch (error) {
-      logger.error('Failed to save session', error, undefined, 'HealthQuestionnaire');
+      console.error('Failed to save session:', error);
       return false;
     }
   };
@@ -220,7 +179,7 @@ function HealthQuestionnaireContent() {
 
   // Check if it's first time for user onboarding flow
   const isFirstTime = user?.registration_step !== 'completed';
-  logger.debug('First time user check', { isFirstTime }, 'HealthQuestionnaire'); // Use the variable to avoid warning
+  console.log('First time user:', isFirstTime); // Use the variable to avoid warning
 
   // Show loading state for session
   if (isLoadingSession) {
@@ -265,27 +224,19 @@ function HealthQuestionnaireContent() {
         <UnifiedHealthQuestionnaire 
           onComplete={handleComplete}
           onProgressUpdate={handleProgressUpdate}
-          {...(user?.id && { userId: user.id })}
+          userId={user?.id}
           mode="standard"
           features={{
             ai: true,
             gamification: true,
             clinical: true,
             progressive: true,
-            accessibility: false
+            accessibility: true
           }}
         />
       </Card>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function HealthQuestionnairePage() {
-  return (
-    <HealthQuestionnaireErrorBoundary>
-      <HealthQuestionnaireContent />
-    </HealthQuestionnaireErrorBoundary>
   );
 }
