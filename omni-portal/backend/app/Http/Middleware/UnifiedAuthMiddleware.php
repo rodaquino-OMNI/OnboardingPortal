@@ -499,6 +499,7 @@ class UnifiedAuthMiddleware
             'api/auth/*/redirect',
             'api/auth/*/callback',
             'api/info',
+            'sanctum/csrf-cookie', // CRITICAL: CSRF cookie endpoint MUST be public for SPAs
         ];
 
         foreach ($publicRoutes as $pattern) {
