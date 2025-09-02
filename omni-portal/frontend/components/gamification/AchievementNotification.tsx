@@ -33,7 +33,7 @@ export function AchievementNotification({
 }: AchievementNotificationProps) {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [isVisible, setIsVisible] = useState(false);
-  const { badgesData, stats } = useGamification();
+  const { badges, stats } = useGamification();
 
   const hideNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
@@ -64,7 +64,7 @@ export function AchievementNotification({
   useEffect(() => {
     const checkForNewAchievements = () => {
       // Simulate new badge earned
-      const newBadgeEarned = badgesData?.earned?.find(badge => 
+      const newBadgeEarned = badges?.earned?.find(badge => 
         badge.earned_at && 
         new Date(badge.earned_at) > new Date(Date.now() - 10000)
       );
@@ -130,7 +130,7 @@ export function AchievementNotification({
     checkForNewAchievements();
 
     return () => clearInterval(interval);
-  }, [badgesData, stats, showNotification, hideNotification]);
+  }, [badges, stats, showNotification, hideNotification]);
 
   const getIcon = (notification: NotificationData) => {
     switch (notification.type) {

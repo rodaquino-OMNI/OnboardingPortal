@@ -11,10 +11,11 @@ use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+use App\Traits\BelongsToTenant;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, BelongsToTenant;
 
     /**
      * The attributes that are mass assignable.
@@ -52,6 +53,7 @@ class User extends Authenticatable
         'last_login_ip',
         'failed_login_attempts',
         'locked_until',
+        'company_id',
     ];
 
     /**
@@ -228,22 +230,123 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user has admin access via either system
-     * This is backward compatible and won't break existing checks
+     * Check if user has admin access using unified role system
+     * This consolidates database enum, Spatie roles, and custom admin roles
      */
     public function hasAdminAccess(): bool
     {
-        // Check Spatie roles (current working system)
-        if ($this->hasRole(['admin', 'super-admin', 'manager', 'hr', 'moderator'])) {
+        return $this->hasUnifiedRole(['admin', 'super-admin', 'manager', 'hr', 'moderator', 'super_admin', 'company_admin']);
+    }
+
+    /**
+     * Unified role checking that considers database enum, Spatie roles, and custom admin roles
+     */
+    public function hasUnifiedRole($roles): bool
+    {
+        $roles = is_array($roles) ? $roles : [$roles];
+        
+        // Check database enum role
+        if ($this->role && in_array($this->role, $roles)) {
             return true;
         }
         
-        // Check custom admin roles (future system) only if table exists
-        if (\Schema::hasTable('admin_user_roles') && $this->adminRoles()->exists()) {
-            return true;
+        // Check mapped roles based on database enum
+        if ($this->role) {
+            $mappedRoles = $this->getMappedSpatieRoles($this->role);
+            if (array_intersect($mappedRoles, $roles)) {
+                return true;
+            }
+        }
+        
+        // Check Spatie roles
+        try {
+            if ($this->hasRole($roles)) {
+                return true;
+            }
+        } catch (\Exception $e) {
+            // Silently continue if Spatie roles not available
+        }
+        
+        // Check custom admin roles if available
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                $adminRoles = $this->adminRoles->pluck('name')->toArray();
+                if (array_intersect($adminRoles, $roles)) {
+                    return true;
+                }
+            } catch (\Exception $e) {
+                // Silently continue if admin roles not available
+            }
         }
         
         return false;
+    }
+
+    /**
+     * Get mapped Spatie roles for a database enum role
+     */
+    public function getMappedSpatieRoles(string $databaseRole): array
+    {
+        $mapping = [
+            'super_admin' => ['super-admin', 'admin', 'manager'],
+            'company_admin' => ['admin', 'manager', 'hr'],
+            'beneficiary' => []
+        ];
+        
+        return $mapping[$databaseRole] ?? [];
+    }
+
+    /**
+     * Get user's hierarchy level based on all role systems
+     */
+    public function getUnifiedHierarchyLevel(): int
+    {
+        $hierarchy = [
+            // Database enum roles
+            'super_admin' => 100,
+            'company_admin' => 50,
+            'beneficiary' => 10,
+            
+            // Spatie roles
+            'super-admin' => 100,
+            'admin' => 90,
+            'manager' => 70,
+            'hr' => 60,
+            'moderator' => 40,
+        ];
+
+        $maxLevel = 0;
+        
+        // Check database enum role
+        if ($this->role) {
+            $maxLevel = max($maxLevel, $hierarchy[$this->role] ?? 0);
+        }
+        
+        // Check Spatie roles
+        try {
+            if ($this->roles) {
+                foreach ($this->roles as $role) {
+                    $level = $hierarchy[$role->name] ?? 0;
+                    $maxLevel = max($maxLevel, $level);
+                }
+            }
+        } catch (\Exception $e) {
+            // Continue silently
+        }
+        
+        // Check custom admin roles
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                foreach ($this->adminRoles as $role) {
+                    $level = $role->hierarchy_level ?? 0;
+                    $maxLevel = max($maxLevel, $level);
+                }
+            } catch (\Exception $e) {
+                // Continue silently
+            }
+        }
+        
+        return $maxLevel;
     }
 
     /**

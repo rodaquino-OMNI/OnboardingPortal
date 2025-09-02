@@ -12,15 +12,56 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// Helper function to get cookie value
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    const cookieValue = parts.pop()?.split(';').shift() || null;
+    // Decode the cookie value as Laravel encodes it
+    return cookieValue ? decodeURIComponent(cookieValue) : null;
+  }
+  return null;
+}
+
 // Add request interceptor for CSRF protection
 api.interceptors.request.use(async (config) => {
-  // Get CSRF cookie for Laravel Sanctum
-  try {
-    await axios.get(`${API_BASE_URL.replace('/api', '')}/sanctum/csrf-cookie`, {
-      withCredentials: true,
-    });
-  } catch (error) {
-    console.warn('Failed to get CSRF cookie:', error);
+  // Skip CSRF cookie fetch for certain endpoints to avoid loops
+  const skipCSRF = config.url?.includes('/sanctum/csrf-cookie') || 
+                   config.url?.includes('/health') ||
+                   config._skipCSRF;
+  
+  if (!skipCSRF) {
+    // Check if CSRF token already exists before making request
+    const existingToken = getCookie('XSRF-TOKEN');
+    
+    if (!existingToken) {
+      // Only fetch CSRF cookie if we don't have one
+      try {
+        await axios.get(`${API_BASE_URL.replace('/api', '')}/sanctum/csrf-cookie`, {
+          withCredentials: true,
+          timeout: 5000,
+          _skipCSRF: true // Prevent nested CSRF requests
+        });
+      } catch (error) {
+        console.warn('Failed to get CSRF cookie:', error);
+        // Don't fail the request if CSRF fetch fails
+      }
+    }
+  }
+  
+  // Add XSRF token for Sanctum stateful requests
+  const xsrfToken = getCookie('XSRF-TOKEN');
+  if (xsrfToken) {
+    // Use X-XSRF-TOKEN header for Laravel Sanctum
+    config.headers['X-XSRF-TOKEN'] = xsrfToken;
+  }
+  
+  // Add AbortSignal support if provided
+  if (config.signal) {
+    // Axios will handle the AbortSignal automatically
   }
   
   return config;
@@ -29,12 +70,35 @@ api.interceptors.request.use(async (config) => {
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth state and redirect to login
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Handle CSRF token mismatch (419)
+    if (error.response?.status === 419 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      // Refetch CSRF token and retry
+      await axios.get(`${API_BASE_URL.replace('/api', '')}/sanctum/csrf-cookie`, {
+        withCredentials: true,
+      });
+      
+      // Retry the original request
+      return api(originalRequest);
     }
+    
+    // Handle authentication errors (401)
+    if (error.response?.status === 401) {
+      // Clear any client-side state - tokens are httpOnly cookies managed by server
+      if (typeof window !== 'undefined') {
+        // Clear any non-httpOnly auth cookies
+        document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        document.cookie = 'onboarding_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        
+        // Redirect to login
+        window.location.href = '/login';
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -279,7 +343,11 @@ export const unifiedAuthApi = {
    */
   logout: async (): Promise<void> => {
     await api.post('/auth/logout');
-    localStorage.removeItem('access_token');
+    // Clear client-accessible cookies - httpOnly cookies are cleared by server
+    if (typeof document !== 'undefined') {
+      document.cookie = 'authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+      document.cookie = 'onboarding_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+    }
   },
 
   /**

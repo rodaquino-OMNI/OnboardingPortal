@@ -21,22 +21,18 @@ return [
 
     'allowed_origins' => env('APP_ENV') === 'production' 
         ? [
-            env('FRONTEND_URL', 'https://portal.austahealth.com'),
+            env('FRONTEND_URL'),
             'https://portal.austahealth.com',
             'https://www.austahealth.com',
         ]
-        : [
+        : array_filter([
             env('FRONTEND_URL', 'http://localhost:3000'),
             'http://localhost:3000',
             'http://localhost:3001',
-            'http://localhost:3002', // Current frontend port
-            'http://localhost:3004', // Port 3004 support
-            'http://127.0.0.1:3000',
-            'http://127.0.0.1:3001',
-            'http://127.0.0.1:3002',
-            'http://127.0.0.1:3004',
-            'http://localhost:8080', // For testing
-        ],
+            'http://localhost:3002',
+            'http://localhost:3004',
+            env('CORS_ADDITIONAL_ORIGIN'), // Allow additional dev origin via env
+        ]),
 
     'allowed_origins_patterns' => env('APP_ENV') === 'production' 
         ? [] 

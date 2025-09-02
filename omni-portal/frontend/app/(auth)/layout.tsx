@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Shield, Clock, Users, Zap } from 'lucide-react';
 
 export default function AuthLayout({

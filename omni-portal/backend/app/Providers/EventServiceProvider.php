@@ -8,10 +8,12 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 use Illuminate\Support\Facades\Event;
 use App\Events\UserAction;
 use App\Events\DocumentProcessed;
+use App\Events\SessionFingerprintMismatch;
 use App\Listeners\AwardPoints;
 use App\Listeners\CheckBadges;
 use App\Listeners\CheckLevelUp;
 use App\Listeners\ProcessDocumentGamification;
+use App\Listeners\LogSessionFingerprintMismatch;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -31,6 +33,9 @@ class EventServiceProvider extends ServiceProvider
         ],
         DocumentProcessed::class => [
             ProcessDocumentGamification::class,
+        ],
+        SessionFingerprintMismatch::class => [
+            LogSessionFingerprintMismatch::class,
         ],
     ];
 

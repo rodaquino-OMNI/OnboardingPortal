@@ -2,12 +2,17 @@ import '@testing-library/jest-dom'
 import 'jest-axe/extend-expect'
 
 // Polyfill fetch for test environment (required for MSW and API calls)
-import { TextEncoder, TextDecoder } from 'util'
+const { TextEncoder, TextDecoder } = require('util')
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
-// Fetch polyfill for Node.js test environment
-global.fetch = require('node-fetch')
+// Fetch polyfill for Node.js test environment - Use a simpler approach to avoid ESM issues
+global.fetch = global.fetch || (() => Promise.resolve({
+  json: () => Promise.resolve({}),
+  text: () => Promise.resolve(''),
+  ok: true,
+  status: 200
+}))
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
@@ -83,11 +88,6 @@ window.location = {
 
 // Mock act for async operations
 global.act = require('react').act
-
-// Add TextEncoder/TextDecoder for MSW
-const { TextEncoder, TextDecoder } = require('util')
-global.TextEncoder = TextEncoder
-global.TextDecoder = TextDecoder
 
 // Add polyfills for MSW
 if (typeof global.Request === 'undefined') {

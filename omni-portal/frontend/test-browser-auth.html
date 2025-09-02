@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Flow Browser Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .warning { border-left-color: #ffc107; background: #fff3cd; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        #results {
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Authentication Flow Browser Test</h1>
+    <p><strong>Frontend:</strong> http://localhost:3001</p>
+    <p><strong>Backend:</strong> http://localhost:8000</p>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results">Click "Run Tests" to start automated testing...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Automated Tests</h2>
+        <button onclick="runAllTests()">🚀 Run All Tests</button>
+        <button onclick="testCSRFCookie()">🍪 Test CSRF Cookie</button>
+        <button onclick="testAPIConnection()">📡 Test API Connection</button>
+        <button onclick="clearResults()">🧹 Clear Results</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Manual Login Test</h2>
+        <p>Test the actual login functionality:</p>
+        
+        <div class="form-group">
+            <label for="email">Email or CPF:</label>
+            <input type="email" id="email" placeholder="test@example.com" value="admin@austahealth.com">
+        </div>
+        
+        <div class="form-group">
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="password" value="admin123">
+        </div>
+        
+        <button onclick="testLogin()">🔑 Test Login</button>
+        <button onclick="testLogout()">🚪 Test Logout</button>
+        <button onclick="testProfile()">👤 Test Get Profile</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Navigation Tests</h2>
+        <button onclick="openLogin()">📄 Open Login Page</button>
+        <button onclick="openDashboard()">🏠 Open Dashboard</button>
+        <button onclick="testConsoleErrors()">🐛 Check Console</button>
+    </div>
+
+    <script>
+        let results = '';
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'success' ? '✅' : 
+                          type === 'error' ? '❌' : 
+                          type === 'warning' ? '⚠️' : 'ℹ️';
+            
+            results += `[${timestamp}] ${prefix} ${message}\n`;
+            document.getElementById('results').textContent = results;
+            document.getElementById('results').scrollTop = document.getElementById('results').scrollHeight;
+        }
+
+        function clearResults() {
+            results = '';
+            document.getElementById('results').textContent = 'Results cleared...';
+        }
+
+        async function runAllTests() {
+            clearResults();
+            log('🚀 Starting Authentication Flow Tests', 'info');
+            
+            try {
+                await testAPIConnection();
+                await testCSRFCookie();
+                await testLoginEndpoint();
+                log('🎉 All automated tests completed!', 'success');
+            } catch (error) {
+                log(`💥 Test suite failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAPIConnection() {
+            log('Testing API connection...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/health', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (response.ok) {
+                    log('API connection successful', 'success');
+                    const data = await response.json();
+                    log(`API response: ${JSON.stringify(data, null, 2)}`, 'info');
+                } else {
+                    log(`API connection failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`API connection error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCSRFCookie() {
+            log('Testing CSRF cookie retrieval...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:8000/sanctum/csrf-cookie', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (response.status === 204) {
+                    log('CSRF cookie endpoint successful', 'success');
+                    
+                    // Check if we have cookies
+                    const cookies = document.cookie;
+                    if (cookies.includes('XSRF-TOKEN')) {
+                        log('XSRF-TOKEN cookie found', 'success');
+                        log(`Cookies: ${cookies}`, 'info');
+                    } else {
+                        log('XSRF-TOKEN cookie not found in document.cookie', 'warning');
+                        log(`Available cookies: ${cookies}`, 'info');
+                    }
+                } else {
+                    log(`CSRF endpoint failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`CSRF test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLoginEndpoint() {
+            log('Testing login endpoint accessibility...', 'info');
+            
+            try {
+                // First get CSRF cookie
+                await fetch('http://localhost:8000/sanctum/csrf-cookie', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                // Extract CSRF token from cookie
+                const csrfToken = getCookie('XSRF-TOKEN');
+                log(`CSRF Token: ${csrfToken ? 'Found' : 'Not found'}`, csrfToken ? 'success' : 'warning');
+
+                // Test login endpoint with dummy data
+                const response = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: 'testpassword'
+                    })
+                });
+
+                if (response.status === 422) {
+                    log('Login endpoint accessible (validation error expected)', 'success');
+                } else if (response.status === 419) {
+                    log('CSRF token issue (419 error)', 'warning');
+                } else {
+                    log(`Login endpoint response: ${response.status}`, 'info');
+                }
+
+                const data = await response.text();
+                log(`Response: ${data}`, 'info');
+
+            } catch (error) {
+                log(`Login endpoint test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            log('Testing actual login...', 'info');
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) {
+                log('Please enter email and password', 'warning');
+                return;
+            }
+
+            try {
+                // Get CSRF cookie first
+                await fetch('http://localhost:8000/sanctum/csrf-cookie', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                const csrfToken = getCookie('XSRF-TOKEN');
+                
+                const response = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ LOGIN SUCCESSFUL!', 'success');
+                    log(`User: ${data.user?.name || data.user?.fullName || 'Unknown'}`, 'success');
+                    log(`Email: ${data.user?.email}`, 'info');
+                } else {
+                    log(`❌ Login failed: ${response.status}`, 'error');
+                    log(`Error: ${data.message || JSON.stringify(data)}`, 'error');
+                }
+
+            } catch (error) {
+                log(`Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testLogout() {
+            log('Testing logout...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (response.ok) {
+                    log('Logout successful', 'success');
+                } else {
+                    log(`Logout failed: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log(`Logout error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProfile() {
+            log('Testing get profile...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/user', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('Profile retrieved successfully', 'success');
+                    log(`Profile: ${JSON.stringify(data, null, 2)}`, 'info');
+                } else {
+                    log(`Profile failed: ${response.status}`, 'error');
+                    log(`Error: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                log(`Profile error: ${error.message}`, 'error');
+            }
+        }
+
+        function openLogin() {
+            window.open('http://localhost:3001/login', '_blank');
+        }
+
+        function openDashboard() {
+            window.open('http://localhost:3001/dashboard', '_blank');
+        }
+
+        function testConsoleErrors() {
+            log('Checking for console errors...', 'info');
+            
+            // Capture console errors
+            const originalError = console.error;
+            let errorCount = 0;
+            
+            console.error = function(...args) {
+                errorCount++;
+                log(`Console Error ${errorCount}: ${args.join(' ')}`, 'error');
+                originalError.apply(console, args);
+            };
+            
+            setTimeout(() => {
+                console.error = originalError;
+                if (errorCount === 0) {
+                    log('No console errors detected', 'success');
+                } else {
+                    log(`${errorCount} console errors detected`, 'warning');
+                }
+            }, 1000);
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) {
+                return parts.pop().split(';').shift();
+            }
+            return null;
+        }
+
+        // Auto-start basic tests
+        window.addEventListener('load', () => {
+            log('🌐 Browser test page loaded');
+            log('Ready to test authentication flow!');
+            
+            // Test if we can reach the frontend
+            fetch('http://localhost:3001/')
+                .then(response => {
+                    if (response.ok) {
+                        log('Frontend (localhost:3001) is accessible', 'success');
+                    } else {
+                        log(`Frontend returned status: ${response.status}`, 'warning');
+                    }
+                })
+                .catch(error => {
+                    log(`Frontend not accessible: ${error.message}`, 'error');
+                });
+        });
+    </script>
+</body>
+</html>

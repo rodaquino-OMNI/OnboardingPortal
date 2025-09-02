@@ -3,13 +3,68 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Response;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class MetricsController extends Controller
 {
-    public function index(): Response
+    /**
+     * Default whitelisted IP addresses for metrics access
+     */
+    private const METRICS_DEFAULT_ALLOWED_IPS = [
+        '127.0.0.1',
+        '::1',
+        'localhost',
+    ];
+
+    public function __construct()
+    {
+        // Apply authentication middleware for metrics endpoint
+        $this->middleware('auth:sanctum')->except([]);
+        $this->middleware(function ($request, $next) {
+            $this->validateMetricsAccess($request);
+            return $next($request);
+        });
+    }
+
+    /**
+     * Validate metrics access with IP whitelisting and rate limiting
+     */
+    private function validateMetricsAccess(Request $request): void
+    {
+        $clientIp = $request->ip();
+        
+        // Rate limiting for metrics endpoint
+        $rateLimit = config('auth_security.metrics.rate_limit', 10);
+        $rateLimitKey = 'metrics:' . $clientIp;
+        if (RateLimiter::tooManyAttempts($rateLimitKey, $rateLimit)) {
+            throw new HttpResponseException(
+                response('Too Many Requests', 429)
+                    ->header('Retry-After', RateLimiter::availableIn($rateLimitKey))
+            );
+        }
+        RateLimiter::hit($rateLimitKey, 60); // Per minute
+        
+        // Environment-based IP validation
+        if (app()->environment('production')) {
+            $allowedIps = array_merge(
+                self::METRICS_DEFAULT_ALLOWED_IPS,
+                config('auth_security.metrics.allowed_ips', [])
+            );
+            
+            if (!in_array($clientIp, $allowedIps, true)) {
+                throw new HttpResponseException(
+                    response('Forbidden - Access denied from IP: ' . $clientIp, 403)
+                );
+            }
+        }
+    }
+
+    public function index(Request $request): Response
     {
         $metrics = [];
         
@@ -39,6 +94,10 @@ class MetricsController extends Controller
         }
         
         return response(implode("\n", $metrics), 200)
-            ->header('Content-Type', 'text/plain; version=0.0.4');
+            ->header('Content-Type', 'text/plain; version=0.0.4')
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->header('X-Content-Type-Options', 'nosniff')
+            ->header('X-Frame-Options', 'DENY')
+            ->header('X-XSS-Protection', '1; mode=block');
     }
 }

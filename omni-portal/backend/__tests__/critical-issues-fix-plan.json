@@ -1,0 +1,21 @@
+{
+  "criticalBlockers": [
+    {
+      "id": "NO_USER_REGISTRATION",
+      "severity": "CRITICAL",
+      "description": "No working user registration endpoint found",
+      "impact": "Cannot register new users"
+    }
+  ],
+  "highPriorityIssues": [],
+  "mediumPriorityIssues": [],
+  "immediateFixes": [],
+  "implementationOrder": [
+    "Fix CSRF token handling",
+    "Add missing database health route",
+    "Add company management endpoints",
+    "Fix user registration flow",
+    "Configure production security headers",
+    "Disable debug mode"
+  ]
+}

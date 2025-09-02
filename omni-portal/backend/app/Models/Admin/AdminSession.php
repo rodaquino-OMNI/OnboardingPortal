@@ -97,7 +97,7 @@ class AdminSession extends Model
     /**
      * Update last activity timestamp
      */
-    public function touch(): void
+    public function touchActivity(): void
     {
         $this->update(['last_activity_at' => now()]);
     }

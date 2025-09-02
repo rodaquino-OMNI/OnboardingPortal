@@ -37,23 +37,21 @@ class AdminAccess
 
         $user = Auth::user();
 
-        // SAFE: Check Spatie roles first (working system)
-        $hasSpatieAdmin = $user->hasRole(['admin', 'super-admin', 'manager', 'hr', 'moderator']);
+        // UNIFIED: Use unified role checking system that consolidates all role sources
+        $hasAdminAccess = $user->hasUnifiedRole([
+            'admin', 'super-admin', 'manager', 'hr', 'moderator',  // Spatie roles
+            'super_admin', 'company_admin'                         // Database enum roles
+        ]);
         
-        // SAFE: Check custom admin roles only if table exists and user doesn't have Spatie role
-        $hasCustomAdmin = false;
-        if (!$hasSpatieAdmin && \Schema::hasTable('admin_user_roles')) {
-            $adminRoles = $user->adminRoles()->where('is_active', true)->get();
-            $hasCustomAdmin = !$adminRoles->isEmpty();
-        }
-        
-        // Allow access if either system grants it
-        if (!$hasSpatieAdmin && !$hasCustomAdmin) {
+        // Allow access if unified system grants it
+        if (!$hasAdminAccess) {
             $this->logSecurityEvent($user, 'unauthorized_admin_access', [
                 'reason' => 'no_admin_roles',
                 'requested_path' => $request->path(),
-                'checked_spatie' => true,
-                'checked_custom' => \Schema::hasTable('admin_user_roles'),
+                'user_database_role' => $user->role,
+                'user_spatie_roles' => $user->roles->pluck('name')->toArray() ?? [],
+                'user_hierarchy_level' => $user->getUnifiedHierarchyLevel(),
+                'checked_unified_system' => true,
             ]);
             
             return response()->json([
@@ -106,14 +104,17 @@ class AdminAccess
             // $user->lockAccount(60); // Lock for 1 hour
         }
 
-        // Add admin context to request
+        // Add unified admin context to request
+        $effectiveRoles = $this->getEffectiveRoles($user);
         $request->merge([
             'admin_context' => [
                 'user_id' => $user->id,
-                'roles' => $adminRoles->pluck('name')->toArray(),
-                'permissions' => $this->getUserPermissions($user),
+                'database_role' => $user->role,
+                'spatie_roles' => $user->roles->pluck('name')->toArray() ?? [],
+                'effective_roles' => $effectiveRoles,
+                'permissions' => $this->getUnifiedPermissions($user),
                 'session_id' => $this->getCurrentAdminSessionId($user),
-                'hierarchy_level' => $adminRoles->max('hierarchy_level'),
+                'hierarchy_level' => $user->getUnifiedHierarchyLevel(),
             ]
         ]);
 
@@ -152,19 +153,104 @@ class AdminAccess
     }
 
     /**
-     * Get all user permissions
+     * Get all effective roles from unified system
+     */
+    private function getEffectiveRoles($user): array
+    {
+        $effectiveRoles = [];
+
+        // Add database enum role
+        if ($user->role) {
+            $effectiveRoles[] = $user->role;
+        }
+
+        // Add Spatie roles
+        try {
+            if ($user->roles) {
+                $spatieRoles = $user->roles->pluck('name')->toArray();
+                $effectiveRoles = array_merge($effectiveRoles, $spatieRoles);
+            }
+        } catch (\Exception $e) {
+            // Continue silently
+        }
+
+        // Add custom admin roles if available
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                if ($user->adminRoles) {
+                    $adminRoles = $user->adminRoles->pluck('name')->toArray();
+                    $effectiveRoles = array_merge($effectiveRoles, $adminRoles);
+                }
+            } catch (\Exception $e) {
+                // Continue silently
+            }
+        }
+
+        return array_unique($effectiveRoles);
+    }
+
+    /**
+     * Get unified permissions from all role systems
+     */
+    private function getUnifiedPermissions($user): array
+    {
+        $permissions = [];
+
+        // Get Spatie permissions
+        try {
+            if (method_exists($user, 'getAllPermissions') && $user->getAllPermissions()) {
+                $spatiePermissions = $user->getAllPermissions()->pluck('name')->toArray();
+                $permissions = array_merge($permissions, $spatiePermissions);
+            }
+        } catch (\Exception $e) {
+            // Continue silently
+        }
+
+        // Get custom admin permissions
+        if (\Schema::hasTable('admin_user_roles')) {
+            try {
+                foreach ($user->adminRoles as $role) {
+                    foreach ($role->adminPermissions as $permission) {
+                        $permissions[] = $permission->identifier;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Continue silently
+            }
+        }
+
+        // Add database role-based permissions
+        if ($user->role) {
+            switch ($user->role) {
+                case 'super_admin':
+                    $permissions = array_merge($permissions, [
+                        'admin.full_access',
+                        'users.manage',
+                        'system.configure',
+                        'security.audit'
+                    ]);
+                    break;
+                case 'company_admin':
+                    $permissions = array_merge($permissions, [
+                        'users.view',
+                        'users.edit',
+                        'reports.view',
+                        'company.manage'
+                    ]);
+                    break;
+            }
+        }
+
+        return array_unique($permissions);
+    }
+
+    /**
+     * Legacy method for backward compatibility
+     * Get all user permissions (now using unified system)
      */
     private function getUserPermissions($user): array
     {
-        $permissions = [];
-        
-        foreach ($user->adminRoles as $role) {
-            foreach ($role->adminPermissions as $permission) {
-                $permissions[] = $permission->identifier;
-            }
-        }
-        
-        return array_unique($permissions);
+        return $this->getUnifiedPermissions($user);
     }
 
     /**

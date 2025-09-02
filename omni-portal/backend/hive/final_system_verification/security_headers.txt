@@ -1,0 +1,22 @@
+HTTP/1.1 200 OK
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.3.23
+Cache-Control: no-cache, private
+Date: Mon, 01 Sep 2025 22:46:44 GMT
+Content-Type: application/json; charset=utf-8
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1756766864
+X-API-Version: 1.0.0
+X-Request-ID: req_68b622541c5982.62621939
+X-Response-Time: 37.6ms
+X-Memory-Usage: 51.44 KB
+Vary: Origin
+

@@ -1,0 +1,206 @@
+# Frontend Login Flow Test Report
+## Date: 2025-09-01
+## Tester: Frontend Login Flow Tester
+
+### 🎯 TESTING OBJECTIVE
+Test the complete frontend login flow including:
+- Frontend page loading
+- CSRF token handling
+- Form submission
+- Authentication validation
+- Error handling
+
+### 📋 TEST ENVIRONMENT
+- **Frontend**: Next.js 14.2.30 on http://localhost:3000
+- **Backend**: Laravel 10 with Sanctum on http://localhost:8000
+- **Authentication**: Laravel Sanctum SPA mode
+- **Testing Method**: cURL simulation + Browser DevTools analysis
+
+### 🔍 FINDINGS
+
+#### ✅ FRONTEND ACCESSIBILITY
+**Test**: Frontend server accessibility
+**Status**: ✅ PASSED
+- Frontend is running successfully on port 3000
+- Login page loads in 5 seconds with proper HTML structure
+- Page title: "Login | Portal de Onboarding"
+- All static assets load correctly
+
+**Evidence from curl test**:
+```
+< HTTP/1.1 200 OK
+< Content-Type: text/html; charset=utf-8
+< link: </_next/static/media/e4af272ccee01ff0-s.p.woff2>; rel=preload
+```
+
+#### ✅ BACKEND CONNECTIVITY
+**Test**: Backend server accessibility
+**Status**: ✅ PASSED
+- Backend running on port 8000 (PHP 8.3.23)
+- API endpoints responding correctly
+- CORS headers properly configured
+- Rate limiting active (30 requests per window)
+
+**Evidence**:
+```
+< X-Powered-By: PHP/8.3.23
+< Access-Control-Allow-Origin: http://localhost:3000
+< Access-Control-Allow-Credentials: true
+< X-RateLimit-Limit: 30
+```
+
+#### ⚠️ CSRF TOKEN MANAGEMENT - CRITICAL ISSUE
+**Test**: CSRF token cookie handling
+**Status**: ⚠️ PARTIAL FAILURE
+
+**Problem Identified**:
+The Laravel Sanctum `/sanctum/csrf-cookie` endpoint is NOT setting the expected `XSRF-TOKEN` cookie that the frontend JavaScript expects.
+
+**Expected Behavior** (from frontend code):
+```javascript
+// From /lib/api/client.ts line 44-46
+const cookies = document.cookie.split(';');
+const xsrfCookie = cookies.find(c => c.trim().startsWith('XSRF-TOKEN='));
+```
+
+**Actual Behavior** (from curl tests):
+```
+# Only laravel_session cookie is set, no XSRF-TOKEN
+Set-Cookie: laravel_session=eyJpdiI6...
+# NO XSRF-TOKEN cookie found
+```
+
+**Root Cause Analysis**:
+- Laravel Sanctum CSRF cookie endpoint returns 204 No Content
+- Only `laravel_session` cookie is set
+- Missing `XSRF-TOKEN` cookie that frontend expects
+- This causes "CSRF token mismatch" error on all login attempts
+
+#### ❌ LOGIN AUTHENTICATION FLOW
+**Test**: Complete login form submission
+**Status**: ❌ FAILED
+
+**Multiple Login Attempts Made**:
+
+**Attempt 1**: Basic credentials
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"test@example.com","password":"password"}'
+```
+**Result**: HTTP 419 - CSRF token mismatch
+
+**Attempt 2**: With session cookies
+```bash
+curl -b cookies.txt -X POST http://localhost:8000/api/auth/login \
+  -H "Accept: application/json" \
+  -d '{"login":"admin@example.com","password":"password"}'  
+```
+**Result**: HTTP 419 - CSRF token mismatch
+
+**Attempt 3**: SPA-style with proper headers
+```bash
+curl -H "Origin: http://localhost:3000" \
+  -H "Referer: http://localhost:3000/login" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -X POST http://localhost:8000/api/auth/login
+```
+**Result**: HTTP 419 - CSRF token mismatch
+
+**Error Response Consistent**:
+```json
+{
+  "error": "CSRF token mismatch",
+  "message": "Invalid or missing CSRF token",
+  "timestamp": "2025-09-01T21:57:44.689944Z"
+}
+```
+
+### 📊 DETAILED TECHNICAL ANALYSIS
+
+#### Frontend Login Form Analysis
+The frontend login page renders correctly with:
+- ✅ Email/CPF input field (placeholder: "000.000.000-00 ou seu@email.com")
+- ✅ Password input field with proper masking
+- ✅ Social login options (Google, Facebook, Instagram)
+- ✅ Proper form validation setup with react-hook-form
+- ✅ Responsive design with mobile support
+- ✅ Accessibility features (screen reader support)
+
+#### API Endpoint Configuration
+**Auth Routes Found**:
+```
+POST api/auth/login ............. auth.login › Api\AuthController@login
+```
+
+**CORS Configuration** (Working correctly):
+```
+Access-Control-Allow-Origin: http://localhost:3000
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: X-CSRF-Token, X-XSRF-TOKEN, X-Rate-Limit-Remaining
+```
+
+#### Database Status
+- ✅ 17 users in database
+- ✅ Test credentials available (admin@test.com, test@test.com)
+- ✅ Database connectivity working
+
+### 🚨 CRITICAL ISSUES IDENTIFIED
+
+#### 1. CSRF Token Cookie Missing
+**Severity**: CRITICAL
+**Impact**: Complete login flow failure
+**Description**: Laravel Sanctum's `/sanctum/csrf-cookie` endpoint does not set the `XSRF-TOKEN` cookie that the frontend JavaScript expects.
+
+**Frontend expects**:
+```javascript
+const xsrfCookie = cookies.find(c => c.trim().startsWith('XSRF-TOKEN='));
+```
+
+**Backend provides**: Only `laravel_session` cookie
+
+#### 2. Token Management Mismatch
+**Severity**: HIGH
+**Impact**: Authentication system broken
+**Description**: Frontend is designed for XSRF-TOKEN based authentication but backend Sanctum configuration doesn't provide it.
+
+### 🔧 RECOMMENDED FIXES
+
+#### Option 1: Configure Laravel Sanctum for SPA
+1. Ensure `SANCTUM_STATEFUL_DOMAINS` includes `localhost:3000`
+2. Configure Sanctum middleware to set XSRF-TOKEN cookie
+3. Update `config/sanctum.php` for proper SPA authentication
+
+#### Option 2: Update Frontend Token Handling
+1. Modify frontend to extract CSRF token from HTML meta tag
+2. Update API client to use different token retrieval method
+3. Align with Laravel's default CSRF approach
+
+#### Option 3: API Token Approach
+1. Switch to Sanctum API token authentication
+2. Remove CSRF requirement for API endpoints
+3. Use Authorization Bearer token approach
+
+### 📝 TEST EVIDENCE FILES CREATED
+1. `hive/csrf_request.log` - CSRF cookie request details
+2. `hive/fresh_csrf_request.log` - Fresh CSRF attempt
+3. `hive/frontend_login_page.log` - Frontend page load test
+4. `hive/login_attempt_1.log` - First login attempt
+5. `hive/login_attempt_admin.log` - Admin login attempt
+6. `hive/login_attempt_spa_style.log` - SPA-style login attempt
+
+### 🎯 NEXT STEPS FOR DEVELOPERS
+
+1. **Immediate Fix**: Configure Sanctum CSRF cookie properly
+2. **Testing**: Verify XSRF-TOKEN cookie appears after `/sanctum/csrf-cookie`
+3. **Integration**: Test full frontend-to-backend authentication flow
+4. **Documentation**: Update authentication flow documentation
+
+### 📊 TEST SUMMARY
+- **Frontend Accessibility**: ✅ PASSED
+- **Backend Connectivity**: ✅ PASSED  
+- **CSRF Token Setup**: ❌ FAILED
+- **Login Authentication**: ❌ FAILED
+- **Overall Status**: ❌ CRITICAL ISSUES FOUND
+
+**Primary Issue**: CSRF token management misconfiguration preventing all authentication attempts.

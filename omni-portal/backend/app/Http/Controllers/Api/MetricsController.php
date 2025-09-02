@@ -6,18 +6,90 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\PrometheusMetrics;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class MetricsController extends Controller
 {
     /**
-     * Export Prometheus metrics
+     * Default whitelisted IP addresses for metrics access in production
+     */
+    private const METRICS_DEFAULT_ALLOWED_IPS = [
+        '127.0.0.1',
+        '::1',
+        'localhost',
+    ];
+
+    public function __construct()
+    {
+        // Apply authentication middleware for ALL metrics endpoints
+        $this->middleware('auth:sanctum');
+        $this->middleware('admin.access'); // Require admin access
+        $this->middleware(function ($request, $next) {
+            $this->validateMetricsAccess($request);
+            return $next($request);
+        });
+    }
+
+    /**
+     * Validate metrics access with IP whitelisting and additional rate limiting
+     */
+    private function validateMetricsAccess(Request $request): void
+    {
+        $clientIp = $request->ip();
+        
+        // Additional rate limiting for metrics endpoint (more restrictive than route-level)
+        $rateLimit = config('auth_security.metrics.rate_limit', 5);
+        $rateLimitKey = 'api_metrics:' . $clientIp;
+        if (RateLimiter::tooManyAttempts($rateLimitKey, $rateLimit)) {
+            throw new HttpResponseException(
+                response()->json([
+                    'error' => 'Too Many Requests to Metrics Endpoint',
+                    'retry_after' => RateLimiter::availableIn($rateLimitKey),
+                    'client_ip' => $clientIp
+                ], 429)->header('Retry-After', RateLimiter::availableIn($rateLimitKey))
+            );
+        }
+        RateLimiter::hit($rateLimitKey, 60); // Per minute
+        
+        // Environment-based IP validation for production
+        if (app()->environment('production')) {
+            $allowedIps = array_merge(
+                self::METRICS_DEFAULT_ALLOWED_IPS,
+                config('auth_security.metrics.allowed_ips', [])
+            );
+            
+            if (!empty($allowedIps) && !in_array($clientIp, $allowedIps, true)) {
+                \Log::warning('Unauthorized metrics access attempt', [
+                    'ip' => $clientIp,
+                    'user_agent' => $request->userAgent(),
+                    'timestamp' => now()
+                ]);
+                
+                throw new HttpResponseException(
+                    response()->json([
+                        'error' => 'Forbidden - Access denied',
+                        'message' => 'Metrics access is restricted in production'
+                    ], 403)
+                );
+            }
+        }
+    }
+
+    /**
+     * Export Prometheus metrics - SECURED
      */
     public function metrics(): Response
     {
         $metrics = PrometheusMetrics::getMetrics();
         
         return response($metrics, 200, [
-            'Content-Type' => 'text/plain; version=0.0.4; charset=utf-8'
+            'Content-Type' => 'text/plain; version=0.0.4; charset=utf-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'X-XSS-Protection' => '1; mode=block'
         ]);
     }
 

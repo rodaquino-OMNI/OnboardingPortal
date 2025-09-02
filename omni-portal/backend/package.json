@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "date-fns": "^4.1.0",
+    "laravel-echo": "^2.2.0",
     "ws": "^8.18.3"
   }
 }

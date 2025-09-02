@@ -36,6 +36,26 @@ class HealthQuestionnaireController extends Controller
     {
         $this->middleware('auth:sanctum');
         $this->middleware(RateLimitHealthEndpoints::class);
+        $this->middleware('verified'); // Ensure email verification
+        $this->middleware(function ($request, $next) {
+            // Additional authorization check for health questionnaires
+            $user = $request->user();
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Authentication required for health questionnaires'
+                ], 401);
+            }
+            
+            // Check email verification if required
+            if (config('auth_security.health_questionnaire.require_email_verification', true) && !$user->hasVerifiedEmail()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email verification required for health questionnaires'
+                ], 403);
+            }
+            return $next($request);
+        });
         $this->healthAIService = $healthAIService;
         $this->clinicalDecisionService = $clinicalDecisionService;
         $this->healthDataCoordinator = $healthDataCoordinator;
@@ -168,14 +188,23 @@ class HealthQuestionnaireController extends Controller
      */
     public function saveResponses($questionnaireId, Request $request): JsonResponse
     {
-        // FIX: Add null check and eager loading
-        $beneficiary = Auth::user()->beneficiary;
+        // Enhanced security validation
+        $user = Auth::user();
+        $beneficiary = $user->beneficiary;
         
         if (!$beneficiary) {
             return response()->json([
                 'success' => false,
                 'message' => 'Beneficiary profile not found'
             ], 422);
+        }
+        
+        // Validate questionnaire ownership
+        if (!$this->validateQuestionnaireOwnership($questionnaireId, $beneficiary->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access to questionnaire'
+            ], 403);
         }
         
         // FIX: Add eager loading to prevent N+1 queries
@@ -185,9 +214,13 @@ class HealthQuestionnaireController extends Controller
             ->where('status', 'in_progress')
             ->firstOrFail();
 
+        $maxResponses = config('auth_security.health_questionnaire.max_responses_per_submission', 500);
+        $maxResponseLength = config('auth_security.health_questionnaire.max_response_length', 2000);
+        
         $validator = Validator::make($request->all(), [
-            'responses' => 'required|array',
-            'current_section' => 'required|string'
+            'responses' => "required|array|max:{$maxResponses}", // Limit response size
+            'responses.*' => "string|max:{$maxResponseLength}", // Limit individual response size
+            'current_section' => 'required|string|max:100|regex:/^[a-zA-Z0-9_-]+$/' // Sanitize section name
         ]);
 
         if ($validator->fails()) {
@@ -198,9 +231,10 @@ class HealthQuestionnaireController extends Controller
         }
 
         try {
-            // Merge new responses with existing ones
+            // Sanitize and merge new responses with existing ones
             $existingResponses = $questionnaire->responses ?? [];
-            $newResponses = array_merge($existingResponses, $request->responses);
+            $sanitizedResponses = $this->sanitizeResponses($request->responses);
+            $newResponses = array_merge($existingResponses, $sanitizedResponses);
 
             $questionnaire->update([
                 'responses' => $newResponses,
@@ -421,6 +455,96 @@ class HealthQuestionnaireController extends Controller
         }
 
         return 'low';
+    }
+
+    /**
+     * Validate questionnaire ownership for security
+     */
+    private function validateQuestionnaireOwnership(int $questionnaireId, int $beneficiaryId): bool
+    {
+        return HealthQuestionnaire::where('id', $questionnaireId)
+            ->where('beneficiary_id', $beneficiaryId)
+            ->exists();
+    }
+
+    /**
+     * Sanitize user responses to prevent XSS and injection attacks
+     */
+    private function sanitizeResponses(array $responses): array
+    {
+        $sanitized = [];
+        
+        foreach ($responses as $key => $value) {
+            // Sanitize key
+            $cleanKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $key);
+            
+            // Sanitize value based on type
+            if (is_string($value)) {
+                // Remove HTML tags and encode special characters
+                $cleanValue = htmlspecialchars(strip_tags(trim($value)), ENT_QUOTES, 'UTF-8');
+                // Limit length to prevent large payloads
+                $maxLength = config('auth_security.health_questionnaire.max_response_length', 2000);
+                $cleanValue = mb_substr($cleanValue, 0, $maxLength);
+            } elseif (is_numeric($value)) {
+                $cleanValue = filter_var($value, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+            } elseif (is_array($value)) {
+                // Recursively sanitize arrays (configurable depth to prevent deep nesting attacks)
+                $maxDepth = config('auth_security.health_questionnaire.max_array_depth', 2);
+                $cleanValue = $this->sanitizeArrayRecursive($value, 1, $maxDepth);
+            } else {
+                // Convert other types to string and sanitize
+                $cleanValue = htmlspecialchars(strip_tags((string)$value), ENT_QUOTES, 'UTF-8');
+            }
+            
+            if (!empty($cleanKey) && $cleanValue !== null) {
+                $sanitized[$cleanKey] = $cleanValue;
+            }
+        }
+        
+        return $sanitized;
+    }
+
+    /**
+     * Sanitize array responses recursively with depth limit
+     */
+    private function sanitizeArrayRecursive(array $array, int $depth, int $maxDepth = 2): array
+    {
+        if ($depth > $maxDepth) {
+            return []; // Prevent deep nesting attacks
+        }
+        
+        $sanitized = [];
+        $count = 0;
+        $maxArraySize = config('auth_security.health_questionnaire.max_array_size', 100);
+        
+        foreach ($array as $key => $value) {
+            if ($count >= $maxArraySize) { // Limit array size
+                break;
+            }
+            
+            $cleanKey = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$key);
+            
+            if (is_string($value)) {
+                $cleanValue = htmlspecialchars(strip_tags(trim($value)), ENT_QUOTES, 'UTF-8');
+                // Shorter limit for nested values
+                $nestedMaxLength = min(1000, config('auth_security.health_questionnaire.max_response_length', 2000) / 2);
+                $cleanValue = mb_substr($cleanValue, 0, $nestedMaxLength);
+            } elseif (is_numeric($value)) {
+                $cleanValue = filter_var($value, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+            } elseif (is_array($value)) {
+                $cleanValue = $this->sanitizeArrayRecursive($value, $depth + 1, $maxDepth);
+            } else {
+                $cleanValue = htmlspecialchars(strip_tags((string)$value), ENT_QUOTES, 'UTF-8');
+            }
+            
+            if (!empty($cleanKey) && $cleanValue !== null) {
+                $sanitized[$cleanKey] = $cleanValue;
+            }
+            
+            $count++;
+        }
+        
+        return $sanitized;
     }
 
     // Additional helper methods remain the same...

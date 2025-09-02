@@ -1,4 +1,5 @@
-import withPWA from '@ducanh2912/next-pwa';
+// Temporarily disable PWA to fix JavaScript assets 500 errors
+// import withPWA from '@ducanh2912/next-pwa';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -143,30 +144,5 @@ const nextConfig = {
   },
 };
 
-const withPWAConfig = withPWA({
-  dest: 'public',
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
-  workboxOptions: {
-    runtimeCaching: [
-      {
-        urlPattern: /^https?.*/,
-        handler: 'NetworkFirst',
-        options: {
-          cacheName: 'https-calls',
-          networkTimeoutSeconds: 15,
-          expiration: {
-            maxEntries: 150,
-            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-          },
-          cacheableResponse: {
-            statuses: [0, 200],
-          },
-        },
-      },
-    ],
-  },
-});
-
-export default withPWAConfig(nextConfig);
+// Temporarily export nextConfig directly without PWA
+export default nextConfig;

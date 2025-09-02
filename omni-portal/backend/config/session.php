@@ -168,7 +168,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE', true),
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') !== 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -196,7 +196,7 @@ return [
     |
     */
 
-    'same_site' => env('SESSION_SAME_SITE', 'strict'),
+    'same_site' => env('SESSION_SAME_SITE', 'lax'),
 
     /*
     |--------------------------------------------------------------------------
@@ -209,6 +209,9 @@ return [
     */
 
     'fingerprinting' => env('SESSION_FINGERPRINTING', true),
+    'fingerprint_mode' => env('SESSION_FINGERPRINT_MODE', 'balanced'), // strict, balanced, permissive
+    'max_fingerprint_mismatches' => env('SESSION_MAX_FINGERPRINT_MISMATCHES', 3),
+    'fingerprint_timeout' => env('SESSION_FINGERPRINT_TIMEOUT', 1440), // minutes
     'rotate_sensitive' => env('SESSION_ROTATE_SENSITIVE', true),
     'validate_ip' => env('SESSION_VALIDATE_IP', true),
     'validate_user_agent' => env('SESSION_VALIDATE_USER_AGENT', true),

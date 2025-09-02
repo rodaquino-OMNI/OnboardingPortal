@@ -19,10 +19,11 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon, permission: 'view_admin_dashboard' },
   { name: 'Usuários', href: '/admin/users', icon: UsersIcon, permission: 'view_users' },
+  { name: 'Funções', href: '/admin/roles', icon: ShieldCheckIcon, permission: 'manage_roles' },
   { name: 'Documentos', href: '/admin/documents', icon: DocumentTextIcon, permission: 'view_all_documents' },
   { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon, permission: 'view_analytics' },
-  { name: 'Configurações', href: '/admin/settings', icon: CogIcon, permission: 'manage_system_settings' },
   { name: 'Segurança', href: '/admin/security', icon: ShieldCheckIcon, permission: 'view_security_logs' },
+  { name: 'Configurações', href: '/admin/settings', icon: CogIcon, permission: 'manage_system_settings' },
   { name: 'Notificações', href: '/admin/notifications', icon: BellIcon, permission: 'send_notifications' },
 ];
 

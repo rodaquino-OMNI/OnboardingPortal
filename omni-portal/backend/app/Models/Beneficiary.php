@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\BelongsToTenant;
 
 class Beneficiary extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
     protected $fillable = [
         'user_id',

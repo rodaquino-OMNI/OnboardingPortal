@@ -27,6 +27,9 @@ class TracingMiddleware
 
         $tracer = Globals::tracerProvider()->getTracer('laravel-http');
         
+        // Get request ID for correlation
+        $requestId = RequestIDMiddleware::getRequestId($request) ?? 'unknown';
+        
         $spanBuilder = $tracer->spanBuilder($request->method() . ' ' . $request->getPathInfo())
             ->setSpanKind(SpanKind::KIND_SERVER)
             ->setAttributes([
@@ -38,6 +41,12 @@ class TracingMiddleware
                 'http.host' => $request->getHost(),
                 'http.target' => $request->getRequestUri(),
                 'http.flavor' => $request->getProtocolVersion(),
+                // Request correlation attributes
+                'request.id' => $requestId,
+                'trace.id' => $requestId,
+                'correlation.id' => $requestId,
+                // Client IP for better tracing
+                'client.ip' => $request->ip(),
                 // Avoid using Auth facade which triggers session initialization
                 // 'user.id' => Auth::id(),
                 // 'user.authenticated' => Auth::check(),
@@ -52,6 +61,7 @@ class TracingMiddleware
             $span->setAttributes([
                 'http.status_code' => $response->getStatusCode(),
                 'http.response.size' => strlen($response->getContent()),
+                'response.headers.content_type' => $response->headers->get('Content-Type'),
             ]);
 
             // Set span status based on HTTP status code
@@ -64,6 +74,12 @@ class TracingMiddleware
 
             return $response;
         } catch (\Throwable $exception) {
+            // Add request ID to exception context
+            $span->setAttributes([
+                'exception.request_id' => $requestId,
+                'exception.type' => get_class($exception),
+            ]);
+            
             $span->recordException($exception);
             $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
             throw $exception;

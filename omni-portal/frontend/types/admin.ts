@@ -1,5 +1,12 @@
 // Admin Dashboard Types
 
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data: T;
+  message?: string;
+  error?: string;
+}
+
 export interface AdminDashboardData {
   summary: {
     total_users: number;

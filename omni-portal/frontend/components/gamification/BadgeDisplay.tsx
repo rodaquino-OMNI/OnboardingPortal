@@ -91,7 +91,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Conquistadas ({badgesData?.earned?.length || 0})
+              Conquistadas ({badges?.earned?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('available')}
@@ -101,7 +101,7 @@ export function BadgeDisplay({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Disponíveis ({badgesData?.available?.length || 0})
+              Disponíveis ({badges?.available?.length || 0})
             </button>
           </div>
         )}

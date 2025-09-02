@@ -11,6 +11,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Session\TokenMismatchException;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Symfony\Component\HttpFoundation\Response;
+use App\Services\SessionFingerprintService;
 
 /**
  * Unified Authentication Middleware
@@ -83,8 +84,8 @@ class UnifiedAuthMiddleware
                 return $this->securityResponse('Invalid security headers', 400);
             }
             
-            // 2. Handle Sanctum stateful requests (needed for proper auth detection)
-            $this->ensureFrontendRequestsAreStateful($request);
+            // 2. Skip duplicated stateful handling - EnsureFrontendRequestsAreStateful runs first in api middleware group
+            // $this->ensureFrontendRequestsAreStateful($request); // Already handled by Laravel Sanctum middleware
             
             // 3. Pre-authenticate to determine user status for rate limiting
             $this->preAuthenticate($request, $guards);
@@ -218,6 +219,12 @@ class UnifiedAuthMiddleware
                     // Set authenticated user context
                     Auth::setUser($user);
                     
+                    // Trigger fingerprint regeneration on fresh login
+                    if ($this->isFreshLogin($request)) {
+                        $fingerprintService = app(SessionFingerprintService::class);
+                        $fingerprintService->onUserLogin($request, $user);
+                    }
+                    
                     $this->logAuthenticationSuccess($request, $user, $guard);
                     return true;
                 }
@@ -261,9 +268,9 @@ class UnifiedAuthMiddleware
             return true;
         }
 
-        // For stateful requests, validate CSRF token
+        // For stateful requests, validate XSRF token (SPA pattern)
         if ($this->isFromStatefulDomain($request)) {
-            return $this->validateCsrfToken($request);
+            return $this->validateXsrfToken($request);
         }
 
         // For non-stateful API requests, validate double-submit cookies
@@ -283,6 +290,22 @@ class UnifiedAuthMiddleware
         }
 
         return hash_equals($sessionToken, $token);
+    }
+
+    /**
+     * Validate XSRF token for SPA requests (Sanctum pattern)
+     */
+    protected function validateXsrfToken(Request $request): bool
+    {
+        $headerToken = $request->header('X-XSRF-TOKEN') ?? $request->header('X-CSRF-TOKEN');
+        $cookieToken = $request->cookie('XSRF-TOKEN');
+
+        if (!$headerToken || !$cookieToken) {
+            return false;
+        }
+
+        // For SPA requests, the header and cookie should match exactly
+        return hash_equals($cookieToken, $headerToken);
     }
 
     /**
@@ -339,11 +362,11 @@ class UnifiedAuthMiddleware
                 $token,
                 120, // 2 hours
                 '/',
-                null,
-                $request->isSecure(),
+                config('session.domain'),
+                config('session.secure', $request->isSecure()),
                 false, // Not httpOnly so JS can read it
                 false,
-                'strict'
+                config('session.same_site', 'strict')
             )
         );
 
@@ -489,17 +512,25 @@ class UnifiedAuthMiddleware
     {
         $publicRoutes = [
             'api/health',        // Health check endpoint only
+            'api/health/*',      // All health endpoints
             'api/health/live',   // Liveness probe
             'api/health/ready',  // Readiness probe
             'api/health/status', // Status endpoint
+            'api/health/database', // Database health check
             'api/metrics',
             'api/auth/login',
             'api/auth/register',
             'api/auth/check-*',
             'api/auth/*/redirect',
             'api/auth/*/callback',
+            'api/auth/forgot-password',
+            'api/auth/reset-password',
+            'api/register/*',    // CRITICAL: All registration endpoints MUST be public
+            'api/companies',     // Company management for testing (should be protected in production)
+            'api/companies/*',   // Company management sub-routes for testing
             'api/info',
             'sanctum/csrf-cookie', // CRITICAL: CSRF cookie endpoint MUST be public for SPAs
+            'api/test/*',        // Test endpoints should be public for testing
         ];
 
         foreach ($publicRoutes as $pattern) {
@@ -701,6 +732,11 @@ class UnifiedAuthMiddleware
 
     protected function shouldAddCsrfToken(Request $request, Response $response): bool
     {
+        // Always add CSRF token for the sanctum/csrf-cookie endpoint
+        if ($request->is('sanctum/csrf-cookie')) {
+            return true;
+        }
+        
         return !$this->isReadOnlyRequest($request) && 
                $response->getStatusCode() < 400 &&
                !$this->isCsrfExempt($request);
@@ -744,6 +780,21 @@ class UnifiedAuthMiddleware
                 'timestamp' => now()->toISOString(),
             ]
         ]);
+    }
+
+    /**
+     * Check if this is a fresh login (not a subsequent authenticated request)
+     */
+    protected function isFreshLogin(Request $request): bool
+    {
+        // Check if this is a login endpoint
+        if ($request->is('api/auth/login') || $request->is('api/auth/*/callback')) {
+            return true;
+        }
+
+        // Check if session was recently regenerated (indicates fresh login)
+        $sessionAge = now()->diffInMinutes(session()->get('login_timestamp', now()->subHour()));
+        return $sessionAge < 1; // Within last minute
     }
 
     /**

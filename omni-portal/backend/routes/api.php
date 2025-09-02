@@ -1,446 +1,261 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\GamificationController;
+use App\Http\Controllers\Api\LGPDController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\RegistrationController;
+use App\Http\Controllers\Api\UserController;
+// use App\Http\Controllers\Api\VideoController;
+// use App\Http\Controllers\Api\WebSocketController;
+use App\Http\Controllers\TestController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\AlertController;
-use App\Http\Controllers\Api\WebSocketTestController;
-use App\Http\Controllers\MetricsController;
-use App\Http\Requests\Auth\LoginRequest;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
 */
 
-// ===== PUBLIC WEBSOCKET TESTING ROUTES (NO AUTH) =====
-Route::group(['prefix' => 'websocket'], function () {
-    Route::get('test', [WebSocketTestController::class, 'testConnection']);
-    Route::post('load-test', [WebSocketTestController::class, 'loadTest']);
-    Route::get('status', [WebSocketTestController::class, 'status']);
+// Test routes for request correlation (can be removed in production)
+Route::prefix('test')->group(function () {
+    Route::get('/endpoint', [TestController::class, 'testEndpoint']);
+    Route::get('/error', [TestController::class, 'testError']);
+    Route::post('/validation', [TestController::class, 'testValidation']);
+    Route::get('/trace', [TestController::class, 'testTrace']);
 });
 
-// Frontend WebSocket Test Routes (no auth needed for testing)
-Route::post('test/trigger-alert', [WebSocketTestController::class, 'triggerTestAlert']);
-
-// ===== PUBLIC ALERT TESTING ROUTES (NO AUTH) =====
-Route::group(['prefix' => 'alerts'], function () {
-    Route::post('broadcast', [AlertController::class, 'broadcastHealthAlert']);
-    Route::post('sample', [AlertController::class, 'generateSampleAlert']);
-    Route::get('connection-info', [AlertController::class, 'connectionInfo']);
-});
-
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+// Health check endpoints
+Route::get('/health', function () {
     return response()->json([
-        'user' => $request->user(),
-        'authenticated' => true,
-        'guard' => 'sanctum',
+        'status' => 'ok',
         'timestamp' => now()->toISOString(),
+        'environment' => app()->environment(),
     ]);
 });
 
-// Metrics endpoint for Prometheus
-Route::get('/metrics', [MetricsController::class, 'index'])->name('metrics');
-
-
-// Health check endpoints - Apply UnifiedAuth middleware explicitly for rate limiting
-Route::prefix('health')->middleware([App\Http\Middleware\UnifiedAuthMiddleware::class])->group(function () {
-    // Comprehensive health check
-    Route::get('/', [App\Http\Controllers\Api\HealthController::class, 'health'])->name('health');
-    
-    // Kubernetes-style liveness probe
-    Route::get('/live', [App\Http\Controllers\Api\HealthController::class, 'live'])->name('health.live');
-    
-    // Kubernetes-style readiness probe
-    Route::get('/ready', [App\Http\Controllers\Api\HealthController::class, 'ready'])->name('health.ready');
-    
-    // Legacy health endpoint for backwards compatibility
-    Route::get('/status', function () {
-        return response()->json([
-            'status' => 'healthy',
-            'timestamp' => now()->toISOString(),
-            'service' => 'omni-portal-backend',
-            'version' => config('app.version', '1.0.0'),
-        ]);
-    })->name('health.status');
-});
-
-// Tracing test endpoint (temporarily disabled)
-/*
-Route::get('/trace-test', function () {
-    $tracer = \OpenTelemetry\API\Globals::tracerProvider()->getTracer('laravel-test');
-    
-    $span = $tracer->spanBuilder('test-operation')
-        ->setSpanKind(\OpenTelemetry\API\Trace\SpanKind::KIND_SERVER)
-        ->setAttributes([
-            'test.attribute' => 'test-value',
-            'user.id' => auth()->id() ?? 'anonymous',
-        ])
-        ->startSpan();
-
+Route::get('/health/database', function () {
     try {
-        // Simulate some work
-        sleep(rand(1, 3));
-        
-        $span->addEvent('work-completed', [
-            'result' => 'success',
-        ]);
-        
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
         return response()->json([
-            'message' => 'Tracing test completed',
-            'trace_id' => $span->getContext()->getTraceId(),
-            'span_id' => $span->getContext()->getSpanId(),
+            'status' => 'ok',
+            'database' => 'connected',
+            'timestamp' => now()->toISOString(),
         ]);
-    } finally {
-        $span->end();
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'database' => 'disconnected',
+            'error' => $e->getMessage(),
+            'timestamp' => now()->toISOString(),
+        ], 503);
     }
-})->name('trace-test');
-*/
+});
 
-// Authentication Routes - All use consistent 'sanctum' guard
+// Authentication routes (public)
 Route::prefix('auth')->group(function () {
-    // Public authentication endpoints (no auth required)
-    Route::post('login', [App\Http\Controllers\Api\AuthController::class, 'login'])->name('auth.login');
-    Route::post('check-email', [App\Http\Controllers\Api\AuthController::class, 'checkEmail'])->name('auth.check-email');
-    Route::post('check-cpf', [App\Http\Controllers\Api\AuthController::class, 'checkCpf'])->name('auth.check-cpf');
+    // Public authentication endpoints
+    Route::post('/login', [AuthController::class, 'login'])->name('api.auth.login');
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     
-    // Registration endpoints (public start, then authenticated flow)
-    Route::post('register', [App\Http\Controllers\Api\RegisterController::class, 'register'])->name('auth.register');
-    Route::post('register/step1', [App\Http\Controllers\Api\RegisterController::class, 'step1'])->name('auth.register.step1');
-    
-    // Protected registration endpoints (ALL use auth:sanctum consistently)
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('register/step2', [App\Http\Controllers\Api\RegisterController::class, 'step2'])->name('auth.register.step2');
-        Route::post('register/step3', [App\Http\Controllers\Api\RegisterController::class, 'step3'])->name('auth.register.step3');
-        Route::get('register/progress', [App\Http\Controllers\Api\RegisterController::class, 'progress'])->name('auth.register.progress');
-        Route::post('register/validate-profile', [App\Http\Controllers\Api\RegisterController::class, 'validateProfileCompletion'])->name('auth.register.validate-profile');
-        Route::delete('register/cancel', [App\Http\Controllers\Api\RegisterController::class, 'cancel'])->name('auth.register.cancel');
-    });
-    
-    // Social Authentication Routes (public callbacks)
-    Route::get('{provider}/redirect', [App\Http\Controllers\Api\SocialAuthController::class, 'redirect'])
-        ->name('auth.social.redirect');
-    Route::get('{provider}/callback', [App\Http\Controllers\Api\SocialAuthController::class, 'callback'])
-        ->name('auth.social.callback');
-    
-    // Protected authentication endpoints (ALL use auth:sanctum consistently)
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('logout', [App\Http\Controllers\Api\AuthController::class, 'logout'])->name('auth.logout');
-        Route::post('logout-all', [App\Http\Controllers\Api\AuthController::class, 'logoutAll'])->name('auth.logout-all');
-        Route::post('refresh', [App\Http\Controllers\Api\AuthController::class, 'refresh'])->name('auth.refresh');
-        Route::get('user', [App\Http\Controllers\Api\AuthController::class, 'user'])->name('auth.user');
+    // Social authentication
+    Route::get('/{provider}/redirect', [AuthController::class, 'redirectToProvider'])
+        ->where('provider', 'google|facebook|instagram');
+    Route::get('/{provider}/callback', [AuthController::class, 'handleProviderCallback'])
+        ->where('provider', 'google|facebook|instagram');
+
+    // Protected authentication endpoints (require authentication)
+    Route::middleware(['auth:sanctum'])->group(function () {
+        Route::get('/user', [AuthController::class, 'user'])->name('api.auth.user');
+        Route::post('/logout', [AuthController::class, 'logout'])->name('api.auth.logout');
+        Route::post('/refresh', [AuthController::class, 'refresh']);
     });
 });
 
-// API Information endpoint
-Route::get('/info', [App\Http\Controllers\Api\ApiInfoController::class, 'index'])->name('api.info');
-
-// Health Questionnaire Routes - CRITICAL for data saving
-Route::middleware('auth:sanctum')->prefix('health-questionnaires')->group(function () {
-    // Template and session management
-    Route::get('/templates', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'getTemplates'])
-        ->name('health-questionnaires.templates');
-    
-    Route::post('/start', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'start'])
-        ->name('health-questionnaires.start');
-    
-    // Progress tracking and auto-save
-    Route::get('/{id}/progress', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'getProgress'])
-        ->name('health-questionnaires.progress');
-    
-    Route::put('/{id}/responses', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'saveResponses'])
-        ->name('health-questionnaires.save-responses');
-    
-    // AI insights
-    Route::post('/{id}/ai-insights', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'getAIInsights'])
-        ->name('health-questionnaires.ai-insights');
-    
-    // Submission endpoints (CRITICAL for data saving)
-    Route::post('/submit', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitQuestionnaire'])
-        ->name('health-questionnaires.submit');
-    
-    Route::post('/submit-progressive', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitProgressive'])
-        ->name('health-questionnaires.submit-progressive');
-    
-    Route::post('/submit-unified', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitUnified'])
-        ->name('health-questionnaires.submit-unified');
-    
-    Route::post('/submit-dual-pathway', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitDualPathway'])
-        ->name('health-questionnaires.submit-dual-pathway');
-    
-    // Test endpoint for scoring algorithms (development only)
-    Route::get('/test-scoring', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'testScoring'])
-        ->name('health-questionnaires.test-scoring');
+// Registration routes (public)
+Route::prefix('register')->group(function () {
+    Route::post('/step1', [RegistrationController::class, 'step1']);
+    Route::post('/step2', [RegistrationController::class, 'step2']);
+    Route::post('/step3', [RegistrationController::class, 'step3']);
+    Route::get('/progress', [RegistrationController::class, 'getProgress']);
+    Route::delete('/cancel', [RegistrationController::class, 'cancel']);
 });
 
-// Gamification Routes
-Route::prefix('gamification')->group(function () {
-    // Public endpoints (for testing and frontend compatibility)
-    Route::get('/progress', [App\Http\Controllers\Api\GamificationController::class, 'getProgress'])->name('gamification.progress');
-    Route::get('/badges', [App\Http\Controllers\Api\GamificationController::class, 'getBadges'])->name('gamification.badges');
-    Route::get('/leaderboard', [App\Http\Controllers\Api\GamificationController::class, 'getLeaderboard'])->name('gamification.leaderboard');
-    Route::get('/levels', [App\Http\Controllers\Api\GamificationController::class, 'getLevels'])->name('gamification.levels');
+// Company management routes (for testing - should be protected in production)
+Route::prefix('companies')->group(function () {
+    Route::post('/', function (\Illuminate\Http\Request $request) {
+        try {
+            $validated = $request->validate([
+                'name' => 'required|string|max:255',
+                'domain' => 'required|string|max:255|unique:companies,domain',
+                'industry' => 'nullable|string|max:255',
+                'size' => 'nullable|string|max:50',
+                'address' => 'nullable|string|max:500',
+                'city' => 'nullable|string|max:255',
+                'country' => 'nullable|string|max:255',
+                'phone' => 'nullable|string|max:20',
+                'email' => 'nullable|email|max:255',
+            ]);
+
+            // Create company record in database
+            $company = \Illuminate\Support\Facades\DB::table('companies')->insertGetId(array_merge($validated, [
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]));
+
+            return response()->json([
+                'id' => $company,
+                'status' => 'created',
+                'message' => 'Company created successfully',
+                'timestamp' => now()->toISOString(),
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Company creation failed',
+                'message' => $e->getMessage(),
+                'timestamp' => now()->toISOString(),
+            ], 422);
+        }
+    });
     
-    // Additional endpoints available with authentication
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::get('/stats', [App\Http\Controllers\Api\GamificationController::class, 'getStats'])->name('gamification.stats');
-        Route::get('/achievements', [App\Http\Controllers\Api\GamificationController::class, 'getAchievements'])->name('gamification.achievements');
-        Route::get('/activity-feed', [App\Http\Controllers\Api\GamificationController::class, 'getActivityFeed'])->name('gamification.activity-feed');
-        Route::get('/dashboard', [App\Http\Controllers\Api\GamificationController::class, 'getDashboard'])->name('gamification.dashboard');
+    Route::get('/', function () {
+        try {
+            $companies = \Illuminate\Support\Facades\DB::table('companies')->get();
+            return response()->json($companies);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to fetch companies',
+                'message' => $e->getMessage(),
+                'timestamp' => now()->toISOString(),
+            ], 500);
+        }
     });
 });
 
-// Admin Routes - Protected with admin middleware
-Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
-    // Dashboard and analytics
-    Route::get('/dashboard', [App\Http\Controllers\Api\AdminController::class, 'dashboard'])->name('admin.dashboard');
-    Route::get('/analytics', [App\Http\Controllers\Api\AdminController::class, 'analytics'])->name('admin.analytics');
-    Route::get('/system-status', [App\Http\Controllers\Api\AdminController::class, 'systemStatus'])->name('admin.system-status');
+// Protected API routes (require authentication)
+Route::middleware(['auth:sanctum'])->group(function () {
     
-    // User management
-    Route::get('/users', [App\Http\Controllers\Api\AdminController::class, 'users'])->name('admin.users');
-    Route::get('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'userDetails'])->name('admin.users.show');
-    Route::put('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateUser'])->name('admin.users.update');
-    Route::delete('/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteUser'])->name('admin.users.delete');
-    Route::post('/users/{id}/activate', [App\Http\Controllers\Api\AdminController::class, 'activateUser'])->name('admin.users.activate');
-    Route::post('/users/{id}/deactivate', [App\Http\Controllers\Api\AdminController::class, 'deactivateUser'])->name('admin.users.deactivate');
-    Route::post('/users/{id}/lock', [App\Http\Controllers\Api\AdminController::class, 'lockUser'])->name('admin.users.lock');
-    Route::post('/users/{id}/unlock', [App\Http\Controllers\Api\AdminController::class, 'unlockUser'])->name('admin.users.unlock');
-    Route::post('/users/{id}/reset-password', [App\Http\Controllers\Api\AdminController::class, 'resetUserPassword'])->name('admin.users.reset-password');
-    Route::get('/users/{id}/activity', [App\Http\Controllers\Api\AdminController::class, 'getUserActivity'])->name('admin.users.activity');
-    Route::get('/users/{id}/audit-trail', [App\Http\Controllers\Api\AdminController::class, 'getUserAuditTrail'])->name('admin.users.audit-trail');
-    
-    // Health risk management
-    Route::get('/health-risks', [App\Http\Controllers\Api\AdminController::class, 'healthRisks'])->name('admin.health-risks');
-    Route::get('/health-risks/alerts', [App\Http\Controllers\Api\AdminController::class, 'healthRiskAlerts'])->name('admin.health-risks.alerts');
-    Route::get('/health-risks/reports', [App\Http\Controllers\Api\AdminController::class, 'healthRiskReports'])->name('admin.health-risks.reports');
-    Route::post('/health-risks/alerts/{id}/acknowledge', [App\Http\Controllers\Api\AdminController::class, 'acknowledgeAlert'])->name('admin.health-risks.alerts.acknowledge');
-    
-    // Health Intelligence Routes (Admin specific)
-    Route::prefix('health-intelligence')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'index'])->name('admin.health-intelligence.index');
-        Route::get('/dashboard', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'dashboard'])->name('admin.health-intelligence.dashboard');
-        Route::get('/alerts', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getAlerts'])->name('admin.health-intelligence.alerts');
-        Route::post('/alerts/{id}/acknowledge', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'acknowledgeAlert'])->name('admin.health-intelligence.alerts.acknowledge');
-        Route::get('/reports', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'getReports'])->name('admin.health-intelligence.reports');
-        Route::post('/reports/generate', [App\Http\Controllers\Api\Admin\AdminHealthRiskController::class, 'generateReport'])->name('admin.health-intelligence.reports.generate');
-    });
-    
-    // Document management
-    Route::get('/documents', [App\Http\Controllers\Api\AdminController::class, 'documents'])->name('admin.documents');
-    Route::get('/documents/{id}', [App\Http\Controllers\Api\AdminController::class, 'getDocument'])->name('admin.documents.show');
-    Route::put('/documents/{id}/review', [App\Http\Controllers\Api\AdminController::class, 'reviewDocument'])->name('admin.documents.review');
-    
-    // Interview management
-    Route::get('/interviews', [App\Http\Controllers\Api\AdminController::class, 'interviews'])->name('admin.interviews');
-    Route::get('/interviews/{id}', [App\Http\Controllers\Api\AdminController::class, 'getInterview'])->name('admin.interviews.show');
-    Route::put('/interviews/{id}/reschedule', [App\Http\Controllers\Api\AdminController::class, 'rescheduleInterview'])->name('admin.interviews.reschedule');
-    
-    // Role & Permission Management
-    Route::get('/roles', [App\Http\Controllers\Api\AdminController::class, 'roles'])->name('admin.roles');
-    Route::post('/roles', [App\Http\Controllers\Api\AdminController::class, 'createRole'])->name('admin.roles.create');
-    Route::put('/roles/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateRole'])->name('admin.roles.update');
-    Route::delete('/roles/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteRole'])->name('admin.roles.delete');
-    Route::post('/roles/assign', [App\Http\Controllers\Api\AdminController::class, 'assignRole'])->name('admin.roles.assign');
-    Route::post('/roles/revoke', [App\Http\Controllers\Api\AdminController::class, 'revokeRole'])->name('admin.roles.revoke');
-    Route::get('/permissions', [App\Http\Controllers\Api\AdminController::class, 'permissions'])->name('admin.permissions');
-    
-    // System settings
-    Route::get('/system-settings', [App\Http\Controllers\Api\AdminController::class, 'systemSettings'])->name('admin.system-settings');
-    Route::put('/system-settings', [App\Http\Controllers\Api\AdminController::class, 'updateSystemSetting'])->name('admin.system-settings.update');
-    
-    // Security & Audit
-    Route::get('/security-audit', [App\Http\Controllers\Api\AdminController::class, 'securityAudit'])->name('admin.security-audit');
-    Route::get('/security/threats', [App\Http\Controllers\Api\AdminController::class, 'getThreatAlerts'])->name('admin.security.threats');
-    Route::get('/security/compliance', [App\Http\Controllers\Api\AdminController::class, 'getComplianceReport'])->name('admin.security.compliance');
-    Route::get('/audit-logs', [App\Http\Controllers\Api\AdminController::class, 'auditLogs'])->name('admin.audit-logs');
-    Route::get('/security-logs', [App\Http\Controllers\Api\AdminController::class, 'securityLogs'])->name('admin.security-logs');
-    
-    // Data Export
-    Route::post('/export', [App\Http\Controllers\Api\AdminController::class, 'exportData'])->name('admin.export');
-    
-    // Document Management
-    Route::get('/documents/{id}', [App\Http\Controllers\Api\AdminController::class, 'getDocument'])->name('admin.documents.show');
-    Route::post('/documents/{id}/approve', [App\Http\Controllers\Api\AdminController::class, 'approveDocument'])->name('admin.documents.approve');
-    Route::post('/documents/{id}/reject', [App\Http\Controllers\Api\AdminController::class, 'rejectDocument'])->name('admin.documents.reject');
-    
-    // Health Questionnaires Management
-    Route::get('/health-questionnaires', [App\Http\Controllers\Api\AdminController::class, 'healthQuestionnaires'])->name('admin.health-questionnaires');
-    Route::post('/health-questionnaires/{id}/review', [App\Http\Controllers\Api\AdminController::class, 'reviewHealthQuestionnaire'])->name('admin.health-questionnaires.review');
-    
-    // System Monitoring
-    Route::get('/system/health', [App\Http\Controllers\Api\AdminController::class, 'getSystemHealth'])->name('admin.system.health');
-    Route::get('/system/metrics', [App\Http\Controllers\Api\AdminController::class, 'getSystemMetrics'])->name('admin.system.metrics');
-    Route::get('/analytics/real-time', [App\Http\Controllers\Api\AdminController::class, 'getRealTimeAnalytics'])->name('admin.analytics.real-time');
-    
-    // Alert Management
-    Route::get('/alerts', [App\Http\Controllers\Api\AdminController::class, 'getAlerts'])->name('admin.alerts');
-    Route::post('/alerts/{id}/acknowledge', [App\Http\Controllers\Api\AdminController::class, 'acknowledgeAlert'])->name('admin.alerts.acknowledge');
-    Route::post('/alerts/{id}/resolve', [App\Http\Controllers\Api\AdminController::class, 'resolveAlert'])->name('admin.alerts.resolve');
-    
-    // Bulk Operations
-    Route::post('/bulk/users', [App\Http\Controllers\Api\AdminController::class, 'bulkUserAction'])->name('admin.bulk.users');
-    Route::post('/bulk/documents', [App\Http\Controllers\Api\AdminController::class, 'bulkDocumentAction'])->name('admin.bulk.documents');
-});
-
-// Document Upload Routes - Protected with authentication
-Route::middleware('auth:sanctum')->group(function () {
-    // Document management
-    Route::prefix('documents')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\DocumentController::class, 'index'])->name('documents.index');
-        Route::post('/upload', [App\Http\Controllers\Api\DocumentController::class, 'upload'])->name('documents.upload');
-        Route::get('/{id}', [App\Http\Controllers\Api\DocumentController::class, 'show'])->name('documents.show');
-        Route::put('/{id}', [App\Http\Controllers\Api\DocumentController::class, 'update'])->name('documents.update');
-        Route::delete('/{id}', [App\Http\Controllers\Api\DocumentController::class, 'delete'])->name('documents.delete');
-        Route::get('/{id}/download', [App\Http\Controllers\Api\DocumentController::class, 'download'])->name('documents.download');
-        Route::post('/{id}/process-ocr', [App\Http\Controllers\Api\DocumentController::class, 'processOCR'])->name('documents.process-ocr');
-        Route::get('/{id}/ocr-status', [App\Http\Controllers\Api\DocumentController::class, 'getOCRStatus'])->name('documents.ocr-status');
-    });
-    
-    // Generic upload endpoint for backward compatibility
-    Route::post('/upload', [App\Http\Controllers\Api\DocumentController::class, 'upload'])->name('upload');
-    
-    // Image processing routes
-    Route::prefix('image-processing')->group(function () {
-        Route::post('/process', [App\Http\Controllers\Api\ImageProcessingController::class, 'processImage'])->name('image-processing.process');
-        Route::post('/extract-text', [App\Http\Controllers\Api\ImageProcessingController::class, 'extractText'])->name('image-processing.extract-text');
-        Route::post('/validate-document', [App\Http\Controllers\Api\ImageProcessingController::class, 'validateDocument'])->name('image-processing.validate-document');
-    });
-});
-
-// Profile Routes - Protected with authentication
-Route::middleware('auth:sanctum')->group(function () {
+    // User profile routes
     Route::prefix('profile')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\ProfileController::class, 'show'])->name('profile.show');
-        Route::put('/', [App\Http\Controllers\Api\ProfileController::class, 'update'])->name('profile.update');
-        Route::post('/avatar', [App\Http\Controllers\Api\ProfileController::class, 'updateAvatar'])->name('profile.avatar');
-        Route::delete('/avatar', [App\Http\Controllers\Api\ProfileController::class, 'deleteAvatar'])->name('profile.avatar.delete');
-        Route::get('/completion-status', [App\Http\Controllers\Api\ProfileController::class, 'getCompletionStatus'])->name('profile.completion-status');
-        Route::post('/validate-completion', [App\Http\Controllers\Api\ProfileController::class, 'validateCompletion'])->name('profile.validate-completion');
+        Route::get('/', [ProfileController::class, 'show']);
+        Route::put('/', [ProfileController::class, 'update']);
+        Route::post('/photo', [ProfileController::class, 'uploadPhoto']);
+        Route::delete('/photo', [ProfileController::class, 'deletePhoto']);
     });
-});
 
-// Health Questionnaire Additional Routes (simplified endpoints)
-Route::middleware('auth:sanctum')->group(function () {
-    // Simplified health questionnaire endpoints for frontend compatibility
-    Route::get('/health-questionnaire', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'getTemplates'])->name('health-questionnaire.show');
-    Route::post('/health-questionnaire', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'submitQuestionnaire'])->name('health-questionnaire.submit');
-    Route::get('/health-questionnaire/progress/{id}', [App\Http\Controllers\Api\HealthQuestionnaireController::class, 'getProgress'])->name('health-questionnaire.progress');
-    
-    // Optimized health questionnaire controller routes
-    Route::prefix('optimized-health')->group(function () {
-        Route::get('/questionnaire', [App\Http\Controllers\Api\OptimizedHealthQuestionnaireController::class, 'getQuestionnaire'])->name('optimized-health.questionnaire');
-        Route::post('/questionnaire/submit', [App\Http\Controllers\Api\OptimizedHealthQuestionnaireController::class, 'submitQuestionnaire'])->name('optimized-health.submit');
-        Route::get('/questionnaire/progress', [App\Http\Controllers\Api\OptimizedHealthQuestionnaireController::class, 'getProgress'])->name('optimized-health.progress');
+    // User management routes
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::get('/{user}', [UserController::class, 'show']);
+        Route::put('/{user}', [UserController::class, 'update']);
+        Route::delete('/{user}', [UserController::class, 'destroy']);
     });
-});
 
-// Interview and Scheduling Routes
-Route::middleware('auth:sanctum')->group(function () {
-    // Interview slots
-    Route::prefix('interview-slots')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\InterviewSlotController::class, 'index'])->name('interview-slots.index');
-        Route::get('/available', [App\Http\Controllers\Api\InterviewSlotController::class, 'available'])->name('interview-slots.available');
-        Route::post('/{id}/book', [App\Http\Controllers\Api\InterviewSlotController::class, 'book'])->name('interview-slots.book');
-        Route::delete('/{id}/cancel', [App\Http\Controllers\Api\InterviewSlotController::class, 'cancel'])->name('interview-slots.cancel');
+    // Gamification routes
+    Route::prefix('gamification')->group(function () {
+        Route::get('/progress', [GamificationController::class, 'getProgress']);
+        Route::get('/stats', [GamificationController::class, 'getStats']);
+        Route::get('/badges', [GamificationController::class, 'getBadges']);
+        Route::get('/leaderboard', [GamificationController::class, 'getLeaderboard']);
+        Route::get('/activity-feed', [GamificationController::class, 'getActivityFeed']);
+        Route::get('/dashboard', [GamificationController::class, 'getDashboard']);
+        Route::get('/levels', [GamificationController::class, 'getLevels']);
+        Route::post('/claim-badge', [GamificationController::class, 'claimBadge']);
     });
-    
-    // Interview management
-    Route::prefix('interviews')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\InterviewController::class, 'index'])->name('interviews.index');
-        Route::get('/{id}', [App\Http\Controllers\Api\InterviewController::class, 'show'])->name('interviews.show');
-        Route::post('/', [App\Http\Controllers\Api\InterviewController::class, 'schedule'])->name('interviews.schedule');
-        Route::put('/{id}/reschedule', [App\Http\Controllers\Api\InterviewController::class, 'reschedule'])->name('interviews.reschedule');
-        Route::delete('/{id}', [App\Http\Controllers\Api\InterviewController::class, 'cancel'])->name('interviews.cancel');
-        Route::post('/{id}/confirm', [App\Http\Controllers\Api\InterviewController::class, 'confirm'])->name('interviews.confirm');
-    });
-    
-    // Telemedicine scheduling
-    Route::prefix('telemedicine')->group(function () {
-        Route::get('/slots', [App\Http\Controllers\Api\TelemedicineSchedulingController::class, 'getAvailableSlots'])->name('telemedicine.slots');
-        Route::post('/schedule', [App\Http\Controllers\Api\TelemedicineSchedulingController::class, 'scheduleAppointment'])->name('telemedicine.schedule');
-        Route::get('/appointments', [App\Http\Controllers\Api\TelemedicineSchedulingController::class, 'getUserAppointments'])->name('telemedicine.appointments');
-        Route::put('/appointments/{id}', [App\Http\Controllers\Api\TelemedicineSchedulingController::class, 'updateAppointment'])->name('telemedicine.appointments.update');
-        Route::delete('/appointments/{id}', [App\Http\Controllers\Api\TelemedicineSchedulingController::class, 'cancelAppointment'])->name('telemedicine.appointments.cancel');
-    });
-});
 
-// Video Conferencing Routes
-Route::middleware('auth:sanctum')->group(function () {
-    Route::prefix('video')->group(function () {
-        Route::post('/room/create', [App\Http\Controllers\Api\VideoConferencingController::class, 'createRoom'])->name('video.room.create');
-        Route::get('/room/{roomId}', [App\Http\Controllers\Api\VideoConferencingController::class, 'joinRoom'])->name('video.room.join');
-        Route::post('/room/{roomId}/end', [App\Http\Controllers\Api\VideoConferencingController::class, 'endRoom'])->name('video.room.end');
-        Route::get('/room/{roomId}/participants', [App\Http\Controllers\Api\VideoConferencingController::class, 'getParticipants'])->name('video.room.participants');
-    });
-});
-
-// Rewards and Incentives
-Route::middleware('auth:sanctum')->group(function () {
-    Route::prefix('rewards')->group(function () {
-        Route::get('/', [App\Http\Controllers\Api\RewardController::class, 'index'])->name('rewards.index');
-        Route::get('/balance', [App\Http\Controllers\Api\RewardController::class, 'getBalance'])->name('rewards.balance');
-        Route::post('/claim/{id}', [App\Http\Controllers\Api\RewardController::class, 'claim'])->name('rewards.claim');
-        Route::get('/history', [App\Http\Controllers\Api\RewardController::class, 'history'])->name('rewards.history');
-        Route::get('/available', [App\Http\Controllers\Api\RewardController::class, 'available'])->name('rewards.available');
-    });
-});
-
-// User Management Routes
-Route::middleware('auth:sanctum')->group(function () {
-    Route::prefix('user-management')->group(function () {
-        Route::get('/profile-completion', [App\Http\Controllers\Api\UserManagementController::class, 'getProfileCompletion'])->name('user-management.profile-completion');
-        Route::post('/complete-profile', [App\Http\Controllers\Api\UserManagementController::class, 'completeProfile'])->name('user-management.complete-profile');
-        Route::get('/onboarding-status', [App\Http\Controllers\Api\UserManagementController::class, 'getOnboardingStatus'])->name('user-management.onboarding-status');
-        Route::post('/update-onboarding-step', [App\Http\Controllers\Api\UserManagementController::class, 'updateOnboardingStep'])->name('user-management.update-onboarding-step');
-    });
-});
-
-// Configuration and Settings
-Route::middleware('auth:sanctum')->group(function () {
-    Route::prefix('config')->group(function () {
-        Route::get('/app', [App\Http\Controllers\Api\ConfigController::class, 'getAppConfig'])->name('config.app');
-        Route::get('/features', [App\Http\Controllers\Api\ConfigController::class, 'getFeatureFlags'])->name('config.features');
-        Route::get('/ui-settings', [App\Http\Controllers\Api\ConfigController::class, 'getUISettings'])->name('config.ui-settings');
-    });
-});
-
-// LGPD (Data Privacy) Routes
-Route::middleware('auth:sanctum')->group(function () {
+    // LGPD routes
     Route::prefix('lgpd')->group(function () {
-        Route::get('/consent-status', [App\Http\Controllers\Api\LGPDController::class, 'getConsentStatus'])->name('lgpd.consent-status');
-        Route::post('/update-consent', [App\Http\Controllers\Api\LGPDController::class, 'updateConsent'])->name('lgpd.update-consent');
-        Route::post('/data-export-request', [App\Http\Controllers\Api\LGPDController::class, 'requestDataExport'])->name('lgpd.data-export-request');
-        Route::post('/data-deletion-request', [App\Http\Controllers\Api\LGPDController::class, 'requestDataDeletion'])->name('lgpd.data-deletion-request');
-        Route::get('/privacy-settings', [App\Http\Controllers\Api\LGPDController::class, 'getPrivacySettings'])->name('lgpd.privacy-settings');
-        Route::put('/privacy-settings', [App\Http\Controllers\Api\LGPDController::class, 'updatePrivacySettings'])->name('lgpd.privacy-settings.update');
+        Route::get('/privacy-settings', [LGPDController::class, 'getPrivacySettings']);
+        Route::put('/privacy-settings', [LGPDController::class, 'updatePrivacySettings']);
+        Route::get('/consent-history', [LGPDController::class, 'getConsentHistory']);
+        Route::get('/data-processing-activities', [LGPDController::class, 'getDataProcessingActivities']);
+        Route::get('/export-data', [LGPDController::class, 'exportUserData']);
+        Route::get('/export-data-pdf', [LGPDController::class, 'exportUserDataPdf']);
+        Route::post('/withdraw-consent', [LGPDController::class, 'withdrawConsent']);
+        Route::delete('/delete-account', [LGPDController::class, 'deleteAccount']);
     });
+
+    // Admin routes (require admin access)
+    Route::middleware(['admin.access'])->prefix('admin')->group(function () {
+        // Dashboard and overview
+        Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+        Route::get('/analytics', [AdminController::class, 'analytics'])->name('admin.analytics');
+        Route::get('/system-status', [AdminController::class, 'systemStatus'])->name('admin.system-status');
+        Route::get('/system-health', [AdminController::class, 'getSystemHealth']);
+        Route::get('/audit-logs', [AdminController::class, 'getAuditLogs']);
+        
+        // User management - simplified existing routes
+        Route::get('/users', [AdminController::class, 'getUsers']);
+        Route::post('/users/{user}/suspend', [AdminController::class, 'suspendUser']);
+        Route::post('/users/{user}/activate', [AdminController::class, 'activateUser']);
+        Route::post('/users/{user}/reset-password', [AdminController::class, 'resetUserPassword']);
+        
+        // Role management
+        Route::get('/roles', [AdminController::class, 'roles'])->name('admin.roles');
+        Route::post('/roles', [AdminController::class, 'createRole'])->name('admin.roles.create');
+        Route::put('/roles/{id}', [AdminController::class, 'updateRole'])->name('admin.roles.update');
+        Route::delete('/roles/{id}', [AdminController::class, 'deleteRole'])->name('admin.roles.delete');
+        Route::post('/roles/assign', [AdminController::class, 'assignRole'])->name('admin.roles.assign');
+        Route::post('/roles/revoke', [AdminController::class, 'revokeRole'])->name('admin.roles.revoke');
+        Route::get('/permissions', [AdminController::class, 'permissions'])->name('admin.permissions');
+        
+        // System settings
+        Route::get('/system-settings', [AdminController::class, 'systemSettings'])->name('admin.system-settings');
+        Route::put('/system-settings', [AdminController::class, 'updateSystemSetting'])->name('admin.system-settings.update');
+        Route::get('/system/health', [AdminController::class, 'getSystemHealth'])->name('admin.system.health');
+        Route::get('/system/metrics', [AdminController::class, 'getSystemMetrics'])->name('admin.system.metrics');
+        
+        // Security audit
+        Route::get('/security-audit', [AdminController::class, 'securityAudit'])->name('admin.security-audit');
+        Route::get('/security/threats', [AdminController::class, 'getThreatAlerts'])->name('admin.security.threats');
+        Route::get('/security/compliance', [AdminController::class, 'getComplianceReport'])->name('admin.security.compliance');
+        Route::get('/security-logs', [AdminController::class, 'securityLogs'])->name('admin.security-logs');
+        
+        // Feature flags
+        Route::get('/feature-flags', [App\Http\Controllers\Api\FeatureFlagController::class, 'index'])->name('admin.feature-flags');
+        Route::get('/feature-flags/{flag}', [App\Http\Controllers\Api\FeatureFlagController::class, 'show'])->name('admin.feature-flags.show');
+        Route::post('/feature-flags/{flag}/enable', [App\Http\Controllers\Api\FeatureFlagController::class, 'enable'])->name('admin.feature-flags.enable');
+        Route::post('/feature-flags/{flag}/disable', [App\Http\Controllers\Api\FeatureFlagController::class, 'disable'])->name('admin.feature-flags.disable');
+        Route::post('/feature-flags/{flag}/rollout', [App\Http\Controllers\Api\FeatureFlagController::class, 'setRolloutPercentage'])->name('admin.feature-flags.rollout');
+        Route::post('/feature-flags/{flag}/user', [App\Http\Controllers\Api\FeatureFlagController::class, 'enableForUser'])->name('admin.feature-flags.user');
+        
+        // System management
+        Route::post('/clear-cache', [AdminController::class, 'clearCache']);
+        Route::post('/maintenance-mode', [AdminController::class, 'toggleMaintenanceMode']);
+        
+        // SECURED Metrics endpoint - ADMIN ACCESS ONLY with rate limiting
+        Route::middleware(['throttle:10,1'])->get('/metrics', [App\Http\Controllers\MetricsController::class, 'index'])
+            ->name('admin.metrics');
+    });
+
+    // Video processing routes (Controller not implemented yet)
+    // Route::prefix('videos')->group(function () {
+    //     Route::post('/upload', [VideoController::class, 'upload']);
+    //     Route::get('/{video}', [VideoController::class, 'show']);
+    //     Route::post('/{video}/process', [VideoController::class, 'process']);
+    //     Route::get('/{video}/status', [VideoController::class, 'getProcessingStatus']);
+    //     Route::delete('/{video}', [VideoController::class, 'destroy']);
+    // });
+
+    // WebSocket authentication routes (Controller not implemented yet)
+    // Route::prefix('websocket')->group(function () {
+    //     Route::post('/auth', [WebSocketController::class, 'authenticate']);
+    //     Route::get('/channels', [WebSocketController::class, 'getChannels']);
+    // });
 });
 
-// Public API endpoints (no authentication required)
-Route::prefix('public')->group(function () {
-    Route::get('/gamification/leaderboard', [App\Http\Controllers\Api\GamificationPublicController::class, 'getLeaderboard'])->name('public.gamification.leaderboard');
-    Route::get('/gamification/badges', [App\Http\Controllers\Api\GamificationPublicController::class, 'getBadges'])->name('public.gamification.badges');
+// Catch-all route for undefined API endpoints
+Route::fallback(function () {
+    return response()->json([
+        'success' => false,
+        'error' => [
+            'code' => 'ENDPOINT_NOT_FOUND',
+            'message' => 'The requested API endpoint was not found.',
+            'request_id' => request()->header('X-Request-ID', 'unknown'),
+            'timestamp' => now()->toISOString(),
+        ]
+    ], 404);
 });
-
-// Testing and Development Routes (should be disabled in production)
-// Apply UnifiedAuthMiddleware explicitly to ensure rate limiting works
-Route::prefix('test')->middleware([App\Http\Middleware\UnifiedAuthMiddleware::class])->group(function () {
-    Route::get('/auth', [App\Http\Controllers\Api\TestController::class, 'testAuth'])->name('test.auth');
-    Route::get('/database', [App\Http\Controllers\Api\TestController::class, 'testDatabase'])->name('test.database');
-    Route::get('/redis', [App\Http\Controllers\Api\TestController::class, 'testRedis'])->name('test.redis');
-    Route::post('/email', [App\Http\Controllers\Api\TestController::class, 'testEmail'])->name('test.email');
-    Route::get('/storage', [App\Http\Controllers\Api\TestController::class, 'testStorage'])->name('test.storage');
-    
-    // Rate limiting test route for submission endpoints
-    Route::post('/submit', function () {
-        return response()->json(['message' => 'Test submission successful']);
-    })->name('test.submit');
-});
-
-// Routes moved to top of file (outside auth middleware)

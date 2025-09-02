@@ -37,7 +37,7 @@ export class RealWebSocketClient {
   private connectionOptions: WebSocketConnectionOptions;
   private reconnectAttempts = 0;
   private isConnecting = false;
-  private listeners: { [key: string]: Function[] } = {};
+  private listeners: { [key: string]: ((...args: any[]) => void)[] } = {};
   private channels: { [key: string]: any } = {};
 
   public readyState: number = 0; // CONNECTING
@@ -231,14 +231,14 @@ export class RealWebSocketClient {
     }
   }
 
-  public addEventListener(event: string, callback: Function) {
+  public addEventListener(event: string, callback: (...args: any[]) => void) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
     this.listeners[event].push(callback);
   }
 
-  public removeEventListener(event: string, callback: Function) {
+  public removeEventListener(event: string, callback: (...args: any[]) => void) {
     if (this.listeners[event]) {
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
     }

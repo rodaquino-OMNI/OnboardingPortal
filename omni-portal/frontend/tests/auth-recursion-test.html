@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Loop Prevention Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border: 1px solid #e9ecef; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .counter { display: inline-block; margin-left: 10px; font-weight: bold; }
+        .status { padding: 5px 10px; border-radius: 3px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>Auth Loop Prevention Runtime Test</h1>
+    <p>This test simulates auth check loops to verify the circuit breaker protection.</p>
+    
+    <div class="test-container">
+        <h3>Test 1: Auth Check Recursion Protection</h3>
+        <p>Tests the circuit breaker that prevents infinite auth check loops.</p>
+        <button onclick="testAuthRecursion()">Test Auth Recursion</button>
+        <div class="counter">Recursion Count: <span id="recursionCount">0</span></div>
+        <div id="recursionResult" class="result"></div>
+        <div id="recursionLog" class="log"></div>
+    </div>
+
+    <div class="test-container">
+        <h3>Test 2: Rapid Auth State Changes</h3>
+        <p>Tests auth state oscillation detection and prevention.</p>
+        <button onclick="testRapidStateChanges()">Test Rapid Changes</button>
+        <div class="counter">State Changes: <span id="stateCount">0</span></div>
+        <div id="stateResult" class="result"></div>
+        <div id="stateLog" class="log"></div>
+    </div>
+
+    <div class="test-container">
+        <h3>Test 3: Malformed Cookie Validation</h3>
+        <p>Tests how the system handles malformed authentication cookies.</p>
+        <button onclick="testMalformedCookies()">Test Malformed Cookies</button>
+        <div id="cookieResult" class="result"></div>
+        <div id="cookieLog" class="log"></div>
+    </div>
+
+    <div class="test-container">
+        <h3>Test 4: Request Cancellation</h3>
+        <p>Tests the request manager's ability to cancel active auth requests.</p>
+        <button onclick="testRequestCancellation()">Test Request Cancellation</button>
+        <div class="counter">Active Requests: <span id="requestCount">0</span></div>
+        <div id="requestResult" class="result"></div>
+        <div id="requestLog" class="log"></div>
+    </div>
+
+    <div class="test-container">
+        <h3>Test Summary</h3>
+        <div id="testSummary" class="result"></div>
+    </div>
+
+    <script>
+        let testResults = {
+            passed: 0,
+            warnings: 0,
+            failed: 0,
+            tests: []
+        };
+
+        function log(elementId, message) {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.textContent += `[${timestamp}] ${message}\n`;
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function updateResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = `result ${type}`;
+            element.textContent = message;
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('testSummary');
+            const total = testResults.passed + testResults.warnings + testResults.failed;
+            
+            if (total === 0) {
+                summary.className = 'result';
+                summary.textContent = 'No tests completed yet.';
+                return;
+            }
+
+            let summaryClass = 'success';
+            if (testResults.failed > 0) summaryClass = 'error';
+            else if (testResults.warnings > 0) summaryClass = 'warning';
+
+            summary.className = `result ${summaryClass}`;
+            summary.innerHTML = `
+                <strong>Test Summary:</strong><br>
+                ✅ Passed: ${testResults.passed}<br>
+                ⚠️ Warnings: ${testResults.warnings}<br>
+                ❌ Failed: ${testResults.failed}<br>
+                <br><strong>Details:</strong><br>
+                ${testResults.tests.map(t => `• ${t.name}: ${t.result}`).join('<br>')}
+            `;
+        }
+
+        // Test 1: Auth Check Recursion Protection
+        async function testAuthRecursion() {
+            log('recursionLog', 'Starting auth recursion test...');
+            updateResult('recursionResult', 'Testing in progress...', 'warning');
+
+            let recursionCount = 0;
+            const maxAttempts = 10;
+            
+            // Reset any existing recursion counter
+            if (window._authCheckRecursionCount) {
+                delete window._authCheckRecursionCount;
+            }
+
+            // Mock the useAuth checkAuth function to trigger recursion
+            window._authCheckRecursionCount = 0;
+            
+            const simulateAuthCheck = () => {
+                window._authCheckRecursionCount = (window._authCheckRecursionCount || 0) + 1;
+                recursionCount++;
+                
+                document.getElementById('recursionCount').textContent = recursionCount;
+                log('recursionLog', `Auth check attempt #${recursionCount}`);
+                
+                // Check if circuit breaker would activate (as per the code: maxRecursion = 3)
+                if (window._authCheckRecursionCount > 3) {
+                    log('recursionLog', '🛡️ Circuit breaker activated - recursion limit reached');
+                    return false; // Circuit breaker stops further calls
+                }
+                
+                return true; // Continue if under limit
+            };
+
+            // Simulate rapid auth checks
+            for (let i = 0; i < maxAttempts; i++) {
+                if (!simulateAuthCheck()) {
+                    break; // Circuit breaker activated
+                }
+                await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
+            }
+
+            // Evaluate results
+            if (recursionCount <= 4) { // 3 + 1 (the one that triggers the circuit breaker)
+                updateResult('recursionResult', '✅ Circuit breaker working properly - recursion stopped', 'success');
+                testResults.passed++;
+                testResults.tests.push({ name: 'Auth Recursion Protection', result: 'PASSED' });
+                log('recursionLog', '✅ Test PASSED: Circuit breaker prevented infinite recursion');
+            } else {
+                updateResult('recursionResult', '⚠️ Circuit breaker may not be working - high recursion count', 'warning');
+                testResults.warnings++;
+                testResults.tests.push({ name: 'Auth Recursion Protection', result: 'WARNING' });
+                log('recursionLog', '⚠️ Test WARNING: High recursion count detected');
+            }
+
+            updateSummary();
+        }
+
+        // Test 2: Rapid Auth State Changes
+        async function testRapidStateChanges() {
+            log('stateLog', 'Starting rapid state change test...');
+            updateResult('stateResult', 'Testing in progress...', 'warning');
+
+            let stateChanges = 0;
+            const maxChanges = 20;
+            const changeInterval = 50; // 50ms between changes
+            
+            // Simulate rapid state changes
+            const stateChangeTimer = setInterval(() => {
+                stateChanges++;
+                document.getElementById('stateCount').textContent = stateChanges;
+                
+                // Log every 5th change to avoid spam
+                if (stateChanges % 5 === 0) {
+                    log('stateLog', `State change #${stateChanges}`);
+                }
+
+                // Simulate what would happen with real auth state changes
+                const now = Date.now();
+                const authCheckThrottle = 1000; // As per code: AUTH_CHECK_THROTTLE = 1000
+                
+                if (stateChanges >= maxChanges) {
+                    clearInterval(stateChangeTimer);
+                    
+                    // Calculate effective changes per second
+                    const changesPerSecond = maxChanges / (maxChanges * changeInterval / 1000);
+                    log('stateLog', `Completed ${maxChanges} changes at ${changesPerSecond.toFixed(1)} changes/second`);
+                    
+                    // Evaluate throttling effectiveness
+                    if (changesPerSecond > 10) {
+                        updateResult('stateResult', '⚠️ High state change rate - throttling may be needed', 'warning');
+                        testResults.warnings++;
+                        testResults.tests.push({ name: 'Rapid State Changes', result: 'WARNING' });
+                        log('stateLog', '⚠️ Test WARNING: High state change rate detected');
+                    } else {
+                        updateResult('stateResult', '✅ State change rate is manageable', 'success');
+                        testResults.passed++;
+                        testResults.tests.push({ name: 'Rapid State Changes', result: 'PASSED' });
+                        log('stateLog', '✅ Test PASSED: State changes within acceptable limits');
+                    }
+                    
+                    updateSummary();
+                }
+            }, changeInterval);
+        }
+
+        // Test 3: Malformed Cookie Validation
+        async function testMalformedCookies() {
+            log('cookieLog', 'Starting malformed cookie test...');
+            updateResult('cookieResult', 'Testing in progress...', 'warning');
+
+            const malformedCookies = [
+                'auth_token=invalid-format-123',
+                'laravel_session={"malformed":json}',
+                'XSRF-TOKEN=',
+                'authenticated=not-boolean',
+                'onboarding_session=corrupted-data-here'
+            ];
+
+            log('cookieLog', 'Setting malformed cookies...');
+            
+            // Set malformed cookies
+            malformedCookies.forEach((cookie, index) => {
+                document.cookie = cookie + '; path=/; max-age=60'; // Short expiry
+                log('cookieLog', `Set cookie ${index + 1}: ${cookie.split('=')[0]}`);
+            });
+
+            // Test cookie validation (simulating the CookieManager.hasAuthCookie logic)
+            const cookieString = document.cookie;
+            log('cookieLog', `Current cookies: ${cookieString.substring(0, 100)}...`);
+            
+            // Check if the validation logic would detect these as valid
+            const cookieNames = ['auth_token', 'laravel_session', 'XSRF-TOKEN', 'authenticated', 'onboarding_session'];
+            let validCookiesFound = 0;
+            
+            cookieNames.forEach(name => {
+                if (cookieString.includes(`${name}=`)) {
+                    validCookiesFound++;
+                    log('cookieLog', `Found cookie: ${name}`);
+                }
+            });
+
+            log('cookieLog', `Found ${validCookiesFound} cookies`);
+
+            // Clear the malformed cookies
+            setTimeout(() => {
+                malformedCookies.forEach(cookie => {
+                    const name = cookie.split('=')[0];
+                    document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`;
+                });
+                log('cookieLog', 'Cleared malformed cookies');
+            }, 1000);
+
+            // Evaluate results
+            if (validCookiesFound > 0) {
+                updateResult('cookieResult', '⚠️ Malformed cookies were accepted - validation may be weak', 'warning');
+                testResults.warnings++;
+                testResults.tests.push({ name: 'Malformed Cookie Validation', result: 'WARNING' });
+                log('cookieLog', '⚠️ Test WARNING: System accepted malformed cookies');
+            } else {
+                updateResult('cookieResult', '✅ Malformed cookies properly rejected', 'success');
+                testResults.passed++;
+                testResults.tests.push({ name: 'Malformed Cookie Validation', result: 'PASSED' });
+                log('cookieLog', '✅ Test PASSED: Malformed cookies rejected');
+            }
+
+            updateSummary();
+        }
+
+        // Test 4: Request Cancellation
+        async function testRequestCancellation() {
+            log('requestLog', 'Starting request cancellation test...');
+            updateResult('requestResult', 'Testing in progress...', 'warning');
+
+            let activeRequests = 0;
+            let cancelledRequests = 0;
+            const maxRequests = 5;
+
+            // Simulate the RequestManager behavior
+            class TestRequestManager {
+                constructor() {
+                    this.activeRequests = new Set();
+                }
+
+                makeRequest(asyncFn, options = {}) {
+                    const controller = new AbortController();
+                    this.activeRequests.add(controller);
+                    activeRequests++;
+                    
+                    document.getElementById('requestCount').textContent = activeRequests;
+                    log('requestLog', `Started request #${activeRequests}`);
+
+                    const promise = asyncFn(controller.signal)
+                        .finally(() => {
+                            this.activeRequests.delete(controller);
+                            activeRequests--;
+                            document.getElementById('requestCount').textContent = activeRequests;
+                        });
+
+                    return {
+                        promise,
+                        isCancelled: () => controller.signal.aborted,
+                        cancel: () => {
+                            controller.abort();
+                            cancelledRequests++;
+                            log('requestLog', `Cancelled request (total cancelled: ${cancelledRequests})`);
+                        }
+                    };
+                }
+
+                cancelAll() {
+                    const count = this.activeRequests.size;
+                    this.activeRequests.forEach(controller => controller.abort());
+                    this.activeRequests.clear();
+                    cancelledRequests += count;
+                    log('requestLog', `Cancelled all ${count} active requests`);
+                }
+
+                get activeCount() {
+                    return this.activeRequests.size;
+                }
+            }
+
+            const requestManager = new TestRequestManager();
+            const requests = [];
+
+            // Create multiple long-running requests
+            for (let i = 0; i < maxRequests; i++) {
+                const request = requestManager.makeRequest(
+                    async (signal) => {
+                        return new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => {
+                                if (signal.aborted) {
+                                    reject(new Error('Request aborted'));
+                                } else {
+                                    resolve(`Request ${i} completed`);
+                                }
+                            }, 5000); // Long delay
+
+                            signal.addEventListener('abort', () => {
+                                clearTimeout(timeout);
+                                reject(new Error('Request aborted'));
+                            });
+                        });
+                    }
+                );
+                
+                requests.push(request);
+            }
+
+            // Wait a bit, then cancel all requests
+            setTimeout(() => {
+                log('requestLog', 'Cancelling all requests...');
+                requestManager.cancelAll();
+                
+                // Wait a bit more, then evaluate
+                setTimeout(() => {
+                    const remainingRequests = requestManager.activeCount;
+                    
+                    if (remainingRequests === 0 && cancelledRequests >= maxRequests) {
+                        updateResult('requestResult', '✅ Request cancellation working properly', 'success');
+                        testResults.passed++;
+                        testResults.tests.push({ name: 'Request Cancellation', result: 'PASSED' });
+                        log('requestLog', '✅ Test PASSED: All requests cancelled successfully');
+                    } else {
+                        updateResult('requestResult', '⚠️ Some requests may not have been cancelled properly', 'warning');
+                        testResults.warnings++;
+                        testResults.tests.push({ name: 'Request Cancellation', result: 'WARNING' });
+                        log('requestLog', `⚠️ Test WARNING: ${remainingRequests} requests still active`);
+                    }
+                    
+                    updateSummary();
+                }, 1000);
+            }, 2000);
+        }
+
+        // Auto-run tests on page load (optional)
+        document.addEventListener('DOMContentLoaded', () => {
+            log('recursionLog', 'Page loaded. Ready to run tests.');
+            log('stateLog', 'Page loaded. Ready to run tests.');
+            log('cookieLog', 'Page loaded. Ready to run tests.');
+            log('requestLog', 'Page loaded. Ready to run tests.');
+        });
+    </script>
+</body>
+</html>

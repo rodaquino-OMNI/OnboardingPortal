@@ -1,6 +1,15 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ApiResponse, GamificationStats, GamificationBadge, LeaderboardEntry } from '@/types';
 import { LGPDPrivacySettings, LGPDConsentHistoryEntry, LGPDDataProcessingActivity, LGPDConsentWithdrawal, LGPDAccountDeletionRequest } from '@/types/lgpd';
+import { 
+  generateRequestId, 
+  getCorrelationHeaders, 
+  extractRequestIdFromResponse, 
+  requestCorrelationManager,
+  createRequestCorrelation,
+  logRequest,
+  createCorrelatedError
+} from '@/lib/request-correlation';
 
 class ApiService {
   private client: AxiosInstance;
@@ -28,6 +37,23 @@ class ApiService {
     // Request interceptor
     this.client.interceptors.request.use(
       async (config) => {
+        // Generate or use existing request ID for correlation
+        const requestId = config.headers['X-Request-ID'] || generateRequestId();
+        
+        // Add correlation headers
+        const correlationHeaders = getCorrelationHeaders(requestId);
+        Object.assign(config.headers, correlationHeaders);
+
+        // Create correlation data for tracking
+        const correlation = createRequestCorrelation(
+          requestId,
+          config.method || 'GET',
+          config.url || 'unknown'
+        );
+
+        // Start request tracking
+        requestCorrelationManager.startRequest(correlation);
+
         // Ensure CSRF cookie is set before first request
         if (!this.csrfInitialized) {
           await this.initializeCsrf();
@@ -39,20 +65,54 @@ class ApiService {
         // Add CSRF token from cookie
         const csrfToken = this.getCsrfToken();
         if (csrfToken) {
-          config.headers['X-CSRF-TOKEN'] = csrfToken;
+          config.headers['X-XSRF-TOKEN'] = csrfToken;
         }
 
         return config;
       },
       (error) => {
+        const requestId = error.config?.headers?.['X-Request-ID'];
+        if (requestId) {
+          requestCorrelationManager.completeRequest(requestId, false, {
+            error: 'Request interceptor error',
+            message: error.message,
+          });
+        }
         return Promise.reject(error);
       }
     );
 
     // Response interceptor
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // Extract request ID from request headers
+        const requestId = response.config?.headers?.['X-Request-ID'];
+        
+        if (requestId) {
+          // Get response request ID for correlation verification
+          const responseRequestId = extractRequestIdFromResponse(response.headers);
+          
+          // Complete request tracking
+          requestCorrelationManager.completeRequest(requestId, true, {
+            status: response.status,
+            response_request_id: responseRequestId,
+          });
+        }
+        
+        return response;
+      },
       async (error) => {
+        const requestId = error.config?.headers?.['X-Request-ID'];
+        
+        // Complete request tracking for failed requests
+        if (requestId) {
+          requestCorrelationManager.completeRequest(requestId, false, {
+            status: error.response?.status,
+            error: error.message,
+            response_request_id: extractRequestIdFromResponse(error.response?.headers || {}),
+          });
+        }
+
         // Handle CSRF token mismatch
         if (error.response?.status === 419) {
           // Reset CSRF and retry once
@@ -61,7 +121,7 @@ class ApiService {
           
           // Retry the original request
           const originalRequest = error.config;
-          originalRequest.headers['X-CSRF-TOKEN'] = this.getCsrfToken();
+          originalRequest.headers['X-XSRF-TOKEN'] = this.getCsrfToken();
           return this.client.request(originalRequest);
         }
 
@@ -70,6 +130,18 @@ class ApiService {
           this.clearAuthToken();
           window.location.href = '/login';
         }
+
+        // Add request correlation to error
+        if (requestId && requestCorrelationManager.getActiveRequest(requestId)) {
+          const correlationData = requestCorrelationManager.getActiveRequest(requestId);
+          const correlatedError = createCorrelatedError(
+            error.message || 'Request failed',
+            error,
+            correlationData
+          );
+          return Promise.reject(correlatedError);
+        }
+
         return Promise.reject(error);
       }
     );
@@ -173,23 +245,42 @@ class ApiService {
     }
   }
 
-  // Error handling
+  // Error handling with request correlation
   private handleError(error: unknown): ApiResponse<never> {
+    let requestId: string | undefined;
+    let responseRequestId: string | undefined;
+
+    // Extract correlation data
     if (axios.isAxiosError(error)) {
+      requestId = error.config?.headers?.['X-Request-ID'];
+      responseRequestId = error.response?.data?.error?.request_id || 
+                          extractRequestIdFromResponse(error.response?.headers || {});
+
       return {
         success: false,
         error: {
           code: error.response?.data?.error?.code || 'UNKNOWN_ERROR',
           message: error.response?.data?.error?.message || error.message,
           details: error.response?.data?.error?.details,
+          request_id: requestId,
+          response_request_id: responseRequestId,
+          timestamp: error.response?.data?.error?.timestamp || new Date().toISOString(),
         },
       };
     }
+
+    // Handle correlated errors
+    if ((error as any)?.requestId) {
+      requestId = (error as any).requestId;
+    }
+
     return {
       success: false,
       error: {
         code: 'UNKNOWN_ERROR',
         message: 'An unexpected error occurred',
+        request_id: requestId,
+        timestamp: new Date().toISOString(),
       },
     };
   }

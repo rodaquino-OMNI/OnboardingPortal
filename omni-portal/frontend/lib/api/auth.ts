@@ -1,8 +1,15 @@
 import axios from 'axios';
 import type { LoginData, RegisterData, ForgotPasswordData, ResetPasswordData } from '@/lib/schemas/auth';
 import type { AuthResponse, AuthUser } from '@/types/auth';
+import { 
+  generateRequestId, 
+  getCorrelationHeaders, 
+  extractRequestIdFromResponse,
+  requestCorrelationManager,
+  createRequestCorrelation
+} from '@/lib/request-correlation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const BASE_URL = API_BASE_URL.replace('/api', '');
 
 const api = axios.create({
@@ -15,13 +22,30 @@ const api = axios.create({
   timeout: 15000, // 15 second timeout
 });
 
-// Add CSRF token to requests - tokens now handled via httpOnly cookies
+// Add CSRF token and request correlation to requests
 api.interceptors.request.use((config) => {
+  // Generate or use existing request ID for correlation
+  const requestId = config.headers['X-Request-ID'] || generateRequestId();
+  
+  // Add correlation headers
+  const correlationHeaders = getCorrelationHeaders(requestId);
+  Object.assign(config.headers, correlationHeaders);
+
+  // Create correlation data for tracking
+  const correlation = createRequestCorrelation(
+    requestId,
+    config.method || 'GET',
+    config.url || 'unknown'
+  );
+
+  // Start request tracking
+  requestCorrelationManager.startRequest(correlation);
+
   // Add XSRF token for Sanctum stateful requests
   const xsrfToken = getCookie('XSRF-TOKEN');
   if (xsrfToken) {
-    // Use X-CSRF-TOKEN header for Laravel CSRF protection
-    config.headers['X-CSRF-TOKEN'] = xsrfToken;
+    // Use X-XSRF-TOKEN header for Laravel Sanctum (NOT X-CSRF-TOKEN)
+    config.headers['X-XSRF-TOKEN'] = xsrfToken;
   }
   
   // Add AbortSignal support if provided
@@ -44,15 +68,59 @@ function getCookie(name: string): string | null {
   return null;
 }
 
-// Handle token refresh on 401 errors
+// Handle token refresh on 401 errors and CSRF token mismatch on 419
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Extract request ID for correlation verification
+    const requestId = response.config?.headers?.['X-Request-ID'];
+    
+    if (requestId) {
+      // Get response request ID for correlation verification
+      const responseRequestId = extractRequestIdFromResponse(response.headers);
+      
+      // Complete request tracking
+      requestCorrelationManager.completeRequest(requestId, true, {
+        status: response.status,
+        response_request_id: responseRequestId,
+      });
+    }
+    
+    return response;
+  },
   async (error) => {
+    const originalRequest = error.config;
+    const requestId = error.config?.headers?.['X-Request-ID'];
+    
+    // Complete request tracking for failed requests
+    if (requestId) {
+      requestCorrelationManager.completeRequest(requestId, false, {
+        status: error.response?.status,
+        error: error.message,
+        response_request_id: extractRequestIdFromResponse(error.response?.headers || {}),
+      });
+    }
+    
+    // Handle CSRF token mismatch (419)
+    if (error.response?.status === 419 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      // Refetch CSRF token and retry
+      await axios.get(`${BASE_URL}/sanctum/csrf-cookie`, { 
+        withCredentials: true,
+        timeout: 5000 
+      });
+      
+      // Retry the original request
+      return api(originalRequest);
+    }
+    
+    // Handle authentication errors (401)
     if (error.response?.status === 401) {
       // Clear any client-side state and redirect to login
       // Tokens are now httpOnly cookies managed by the server
       window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );

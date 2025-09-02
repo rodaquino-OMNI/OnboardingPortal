@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
+use App\Helpers\UnifiedRoleHelper;
 
 /**
  * Admin Dashboard Controller
@@ -1486,22 +1487,46 @@ class AdminController extends Controller
     {
         $user = Auth::user();
         
-        // Check if user has admin roles
-        if (!$user->adminRoles()->exists()) {
+        // UNIFIED: Check admin access using unified role system
+        if (!UnifiedRoleHelper::isAdmin($user)) {
+            UnifiedRoleHelper::logRoleEvent($user, 'admin_access_denied', [
+                'action' => $action,
+                'resource' => $resource,
+                'reason' => 'not_admin'
+            ]);
             abort(403, 'Admin access required');
         }
 
-        // Check specific permission
-        $hasPermission = false;
-        foreach ($user->adminRoles as $role) {
-            if ($role->hasPermission($resource, $action)) {
-                $hasPermission = true;
-                break;
+        // UNIFIED: Check specific permission using unified system
+        $permission = "{$resource}.{$action}";
+        
+        // Check if user has the specific permission
+        if (!UnifiedRoleHelper::authorize($user, $permission)) {
+            // For super admins, allow all actions
+            if (UnifiedRoleHelper::isSuperAdmin($user)) {
+                UnifiedRoleHelper::logRoleEvent($user, 'super_admin_override', [
+                    'action' => $action,
+                    'resource' => $resource
+                ]);
+                return;
             }
-        }
-
-        if (!$hasPermission) {
+            
+            // Log the permission denial
+            UnifiedRoleHelper::logRoleEvent($user, 'permission_denied', [
+                'action' => $action,
+                'resource' => $resource,
+                'required_permission' => $permission,
+                'user_permissions' => UnifiedRoleHelper::getUserPermissions($user)
+            ]);
+            
             abort(403, "Insufficient permissions for {$action} on {$resource}");
         }
+
+        // Log successful authorization
+        UnifiedRoleHelper::logRoleEvent($user, 'permission_granted', [
+            'action' => $action,
+            'resource' => $resource,
+            'permission' => $permission
+        ]);
     }
 }

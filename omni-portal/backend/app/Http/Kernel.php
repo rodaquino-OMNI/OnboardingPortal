@@ -20,6 +20,7 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        \App\Http\Middleware\RequestIDMiddleware::class, // Request ID correlation (before tracing)
         \App\Http\Middleware\TracingMiddleware::class,
     ];
 
@@ -34,14 +35,18 @@ class Kernel extends HttpKernel
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \App\Http\Middleware\SessionFingerprintMiddleware::class, // Session fingerprinting security
             \App\Http\Middleware\UnifiedAuthMiddleware::class, // Unified authentication with CSRF
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
 
         'api' => [
+            // Laravel Sanctum stateful middleware for SPA authentication
+            \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             // Optimized unified middleware stack for API requests
             \App\Http\Middleware\ApiPerformanceMiddleware::class, // Performance monitoring wrapper
             \App\Http\Middleware\ForceJsonResponse::class, // JSON response formatting (early)
+            \App\Http\Middleware\SessionFingerprintMiddleware::class, // Session fingerprinting security
             \App\Http\Middleware\UnifiedAuthMiddleware::class, // Unified auth/security/CSRF protection
             \Illuminate\Routing\Middleware\SubstituteBindings::class, // Route model binding
         ],
@@ -83,6 +88,9 @@ class Kernel extends HttpKernel
         // Application-specific middleware
         'api.performance' => \App\Http\Middleware\ApiPerformanceMiddleware::class,
         'admin.access' => \App\Http\Middleware\AdminAccess::class,
+        'unified.role' => \App\Http\Middleware\UnifiedRoleMiddleware::class,
+        'fingerprint' => \App\Http\Middleware\SessionFingerprintMiddleware::class,
+        'tenant.boundary' => \App\Http\Middleware\TenantBoundaryMiddleware::class,
 
         // Deprecated aliases (for backward compatibility - will be removed in future)
         'auth.legacy' => \App\Http\Middleware\Authenticate::class,

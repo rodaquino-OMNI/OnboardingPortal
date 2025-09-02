@@ -1,13 +1,20 @@
 'use client';
 
+// DEPRECATED: This file is kept for backward compatibility only
+// Use useUnifiedAuth from @/lib/auth/unified-auth instead
+
+import { useUnifiedAuth } from '@/lib/auth/unified-auth';
+import type { AuthUser } from '@/types/auth';
+import type { LoginData, RegisterData } from '@/lib/schemas/auth';
+import { logger } from '@/lib/logger';
+
+// Legacy imports for backward compatibility
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi } from '@/lib/api/auth';
 import type { LoginResponse } from '@/types/auth';
-import type { LoginData, RegisterData } from '@/lib/schemas/auth';
 import type { AppError } from '@/types';
 import { eventBus, EventTypes } from '@/modules/events/EventBus';
-import { logger } from '@/lib/logger';
 
 // ===== TYPES =====
 interface AuthResult {
@@ -333,6 +340,21 @@ export const useAuthStore = create<AuthState>()(
         const now = Date.now();
         const AUTH_CHECK_THROTTLE = 1000; // 1 second throttle
         
+        // Circuit breaker: prevent infinite auth check loops
+        const recursionKey = '_authCheckRecursionCount';
+        const maxRecursion = 3;
+        if (typeof window !== 'undefined') {
+          const recursionCount = (window as any)[recursionKey] || 0;
+          if (recursionCount > maxRecursion) {
+            console.warn('Auth check recursion limit reached, breaking loop');
+            return;
+          }
+          (window as any)[recursionKey] = recursionCount + 1;
+          setTimeout(() => {
+            (window as any)[recursionKey] = 0;
+          }, 5000); // Reset after 5 seconds
+        }
+        
         // Throttle auth checks to prevent excessive calls
         if (
           now - state._lastAuthCheck < AUTH_CHECK_THROTTLE && 
@@ -475,35 +497,77 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-// ===== MAIN HOOK =====
+// ===== MAIN HOOK (UNIFIED IMPLEMENTATION) =====
 export function useAuth() {
-  const store = useAuthStore();
+  logger.warn('useAuth is deprecated, use useUnifiedAuth instead');
   
-  // Set implementation marker for debugging
-  if (typeof window !== 'undefined') {
-    (window as any).__AUTH_VERSION__ = 'consolidated-v1';
-    (window as any).__AUTH_IMPLEMENTATION__ = {
-      version: 'consolidated-v1',
-      timestamp: Date.now(),
-      features: ['httpOnly-cookies', 'request-cancellation', 'token-refresh', 'error-boundaries']
-    };
-  }
+  const unifiedStore = useUnifiedAuth();
   
-  logger.debug('useAuth hook accessed', {
-    isAuthenticated: store.isAuthenticated,
-    hasUser: !!store.user,
-    isLoading: store.isLoading,
-    activeRequests: requestManager.activeCount
-  });
+  // Transform unified auth user to legacy format for compatibility
+  const legacyUser = unifiedStore.user ? {
+    id: unifiedStore.user.id,
+    name: unifiedStore.user.fullName,
+    email: unifiedStore.user.email,
+    cpf: unifiedStore.user.cpf,
+    gamification_progress: {
+      points: unifiedStore.user.points,
+      level: unifiedStore.user.level
+    },
+    lgpd_consent: unifiedStore.user.lgpd_consent,
+    lgpd_consent_at: unifiedStore.user.lgpd_consent_at,
+    last_login_at: unifiedStore.user.last_login_at
+  } : null;
   
-  return store;
+  // Return legacy-compatible interface
+  return {
+    user: legacyUser,
+    token: 'managed-by-httponly-cookies', // Legacy compatibility
+    isAuthenticated: unifiedStore.isAuthenticated,
+    isLoading: unifiedStore.isLoading,
+    error: unifiedStore.error,
+    
+    // Methods
+    login: unifiedStore.login,
+    register: unifiedStore.register,
+    socialLogin: unifiedStore.socialLogin,
+    logout: unifiedStore.logout,
+    checkAuth: unifiedStore.checkAuth,
+    clearError: unifiedStore.clearError,
+    refreshToken: unifiedStore.refreshToken,
+    cancelAllRequests: unifiedStore.cancelAllRequests,
+    
+    // Internal methods
+    _setLoading: unifiedStore._setLoading,
+    _setError: unifiedStore._setError,
+    _setUser: (user: LoginResponse['user'] | null) => {
+      if (user) {
+        const authUser: AuthUser = {
+          id: user.id,
+          fullName: user.name,
+          email: user.email,
+          cpf: user.cpf,
+          points: user.gamification_progress?.points || 0,
+          level: user.gamification_progress?.level || 1,
+          lgpd_consent: user.lgpd_consent || false,
+          lgpd_consent_at: user.lgpd_consent_at,
+          last_login_at: user.last_login_at
+        };
+        unifiedStore._setUser(authUser);
+      } else {
+        unifiedStore._setUser(null);
+      }
+    },
+    _lastAuthCheck: unifiedStore.lastAuthCheck
+  };
 }
 
 // ===== EXPORTS =====
 export default useAuth;
 
-// Backward compatibility exports (temporary)
-export const useUnifiedAuth = useAuth;
+// Forward compatibility exports
+export { useUnifiedAuth } from '@/lib/auth/unified-auth';
 export const useAuthIntegration = useAuth;
 export const useAuthWithMigration = useAuth;
+
+// Legacy store (deprecated)
 export const useAuthStoreCompat = useAuthStore;

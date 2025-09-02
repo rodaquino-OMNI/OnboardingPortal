@@ -52,3 +52,20 @@ export interface User {
     level: number;
   };
 }
+
+export interface AuthUser {
+  id: string;
+  fullName: string;
+  email: string;
+  cpf: string;
+  points: number;
+  level: number;
+  lgpd_consent: boolean;
+  lgpd_consent_at?: string;
+  last_login_at?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}

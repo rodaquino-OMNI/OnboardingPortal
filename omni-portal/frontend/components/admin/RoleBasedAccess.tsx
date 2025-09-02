@@ -441,10 +441,6 @@ export function withRoleBasedAccess<P extends object>(
 
 // ===== EXPORTS =====
 export {
-  SYSTEM_ROLES,
-  PERMISSIONS,
-  ROLE_HIERARCHY,
-  ROLE_PERMISSIONS,
   type SystemRole,
   type Permission,
   type RoleBasedAccessProps,

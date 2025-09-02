@@ -1,0 +1,25 @@
+{
+  "name": "frontend-flow-test",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Frontend Authentication Flow Testing with Playwright",
+  "main": "run-tests.js",
+  "scripts": {
+    "test": "node run-tests.js",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug",
+    "report": "npx playwright show-report",
+    "install-browsers": "npx playwright install",
+    "health": "node health-check.js"
+  },
+  "keywords": ["playwright", "testing", "authentication", "frontend"],
+  "author": "Frontend Flow Tester Agent",
+  "license": "MIT",
+  "dependencies": {
+    "@playwright/test": "^1.55.0",
+    "axios": "^1.11.0",
+    "fs-extra": "^11.3.1",
+    "playwright": "^1.55.0"
+  }
+}

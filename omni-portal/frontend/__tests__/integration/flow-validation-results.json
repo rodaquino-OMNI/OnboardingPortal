@@ -1,0 +1,103 @@
+{
+  "testRun": {
+    "timestamp": "2025-09-01T22:49:18.946Z",
+    "baseUrl": "http://localhost:3002",
+    "totalFlows": 6
+  },
+  "flows": {
+    "registration": {
+      "flow": "registration",
+      "url": "http://localhost:3002/register",
+      "success": false,
+      "errors": [
+        "Page not found"
+      ],
+      "warnings": [
+        "Page contains error messages"
+      ],
+      "timestamp": "2025-09-01T22:49:18.948Z",
+      "responseTime": 7828,
+      "statusCode": 200
+    },
+    "login": {
+      "flow": "login",
+      "url": "http://localhost:3002/login",
+      "success": false,
+      "errors": [
+        "Page not found"
+      ],
+      "warnings": [
+        "Page contains error messages"
+      ],
+      "timestamp": "2025-09-01T22:49:26.782Z",
+      "responseTime": 3091,
+      "statusCode": 200
+    },
+    "health-questionnaire": {
+      "flow": "health-questionnaire",
+      "url": "http://localhost:3002/health-questionnaire",
+      "success": false,
+      "errors": [
+        "HTTP 404: Not Found"
+      ],
+      "warnings": [],
+      "timestamp": "2025-09-01T22:49:29.876Z",
+      "responseTime": 11819,
+      "statusCode": 404
+    },
+    "document-upload": {
+      "flow": "document-upload",
+      "url": "http://localhost:3002/document-upload",
+      "success": false,
+      "errors": [
+        "Page not found"
+      ],
+      "warnings": [
+        "Page contains error messages"
+      ],
+      "timestamp": "2025-09-01T22:49:41.697Z",
+      "responseTime": 1851,
+      "statusCode": 200
+    },
+    "auth-redirects": {
+      "flow": "auth-redirects",
+      "url": "http://localhost:3002/dashboard",
+      "success": false,
+      "errors": [
+        "Page not found"
+      ],
+      "warnings": [
+        "Page contains error messages"
+      ],
+      "timestamp": "2025-09-01T22:49:43.560Z",
+      "responseTime": 6555,
+      "statusCode": 200
+    },
+    "form-validation": {
+      "flow": "form-validation",
+      "url": "http://localhost:3002/register",
+      "success": false,
+      "errors": [
+        "Page not found"
+      ],
+      "warnings": [
+        "Page contains error messages"
+      ],
+      "timestamp": "2025-09-01T22:49:50.120Z",
+      "responseTime": 146,
+      "statusCode": 200
+    },
+    "landing_page": {
+      "flow": "landing_page",
+      "url": "http://localhost:3002/",
+      "success": true,
+      "statusCode": 200,
+      "responseTime": 0
+    }
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 6,
+    "warnings": 5
+  }
+}

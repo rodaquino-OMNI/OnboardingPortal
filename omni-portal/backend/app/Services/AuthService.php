@@ -194,13 +194,13 @@ class AuthService
         return $response->cookie(
             'auth_token',
             $token,
-            config('sanctum.expiration', 525600), // 1 year default
-            '/',
-            null, // No domain restriction for localhost
-            config('session.secure', app()->environment('production')), // Secure in production
-            true, // httpOnly
+            config('auth_security.cookie.expiration', config('sanctum.expiration', 525600)),
+            config('auth_security.cookie.path', '/'),
+            config('auth_security.cookie.domain', null),
+            config('auth_security.cookie.secure', app()->environment('production')),
+            config('auth_security.cookie.httponly', true),
             false, // raw (don't encode)
-            'Lax' // SameSite=Lax for better compatibility
+            config('auth_security.cookie.samesite', app()->environment('production') ? 'Strict' : 'Lax')
         );
     }
 
@@ -213,12 +213,12 @@ class AuthService
             'auth_token',
             '',
             -1, // Expire immediately
-            '/',
-            null,
-            config('session.secure', app()->environment('production')),
-            true, // httpOnly
+            config('auth_security.cookie.path', '/'),
+            config('auth_security.cookie.domain', null),
+            config('auth_security.cookie.secure', app()->environment('production')),
+            config('auth_security.cookie.httponly', true),
             false,
-            'Lax'
+            config('auth_security.cookie.samesite', app()->environment('production') ? 'Strict' : 'Lax')
         );
     }
 
