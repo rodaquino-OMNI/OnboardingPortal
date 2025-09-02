@@ -97,6 +97,7 @@ const AccessibleModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           onClose();
+          return;
         }
         
         if (e.key === 'Tab') {
@@ -108,10 +109,10 @@ const AccessibleModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           
           if (e.shiftKey && document.activeElement === firstElement) {
             e.preventDefault();
-            lastElement.focus();
+            lastElement?.focus();
           } else if (!e.shiftKey && document.activeElement === lastElement) {
             e.preventDefault();
-            firstElement.focus();
+            firstElement?.focus();
           }
         }
       };

@@ -1,21 +1,68 @@
 {
-  "error": "Login failed: Too many requests. Please slow down and try again later.",
-  "timestamp": "2025-09-02T03:27:13.142Z",
+  "error": "Dashboard access failed: Status 401, Message: Authentication required to access this resource",
+  "timestamp": "2025-09-02T04:30:50.740Z",
   "results": [
     {
-      "timestamp": "2025-09-02T03:27:12.931Z",
+      "timestamp": "2025-09-02T04:30:47.847Z",
       "message": "✅ Get CSRF Cookie - SUCCESS",
       "data": {
-        "statusCode": 429,
+        "statusCode": 204,
         "hasCookies": true,
-        "cookieCount": 1
+        "cookieCount": 2
       }
     },
     {
-      "timestamp": "2025-09-02T03:27:13.135Z",
-      "message": "❌ Admin User Login - FAILED",
+      "timestamp": "2025-09-02T04:30:49.619Z",
+      "message": "✅ Admin User Login - SUCCESS",
       "data": {
-        "error": "Login failed: Too many requests. Please slow down and try again later."
+        "statusCode": 200,
+        "success": true,
+        "user": {
+          "id": 7,
+          "name": "Admin Test",
+          "email": "admin.test@example.com",
+          "email_verified_at": "2025-09-02T03:26:17.000000Z",
+          "role": "super_admin",
+          "phone": "11987654321",
+          "is_active": true,
+          "preferred_language": "pt-BR",
+          "preferences": null,
+          "created_at": "2025-09-02T03:25:02.000000Z",
+          "updated_at": "2025-09-02T04:30:48.000000Z",
+          "deleted_at": null,
+          "cpf": "12345678901",
+          "registration_step": "completed",
+          "lgpd_consent": false,
+          "lgpd_consent_at": null,
+          "lgpd_consent_ip": null,
+          "department": null,
+          "job_title": null,
+          "employee_id": null,
+          "start_date": null,
+          "status": "active",
+          "last_login_at": "2025-09-02T04:30:48.000000Z",
+          "last_login_ip": "::1",
+          "failed_login_attempts": 0,
+          "locked_until": null,
+          "google_id": null,
+          "facebook_id": null,
+          "instagram_id": null,
+          "avatar_url": null,
+          "social_provider": null,
+          "social_login": false,
+          "lgpd_consent_explicit": false,
+          "company_id": null,
+          "beneficiary": null,
+          "gamification_progress": null
+        },
+        "hasNewCookies": true
+      }
+    },
+    {
+      "timestamp": "2025-09-02T04:30:50.729Z",
+      "message": "❌ Admin Dashboard Access - FAILED",
+      "data": {
+        "error": "Dashboard access failed: Status 401, Message: Authentication required to access this resource"
       }
     }
   ]
