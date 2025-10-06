@@ -1,0 +1,93 @@
+[
+  {
+    "name": "Valid registration completed - all validations passed",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_completed",
+      "timestamp": "2025-10-03T12:00:00.000Z",
+      "user_id": "hash_regcomplete1234567890abcdefregcomplete1234567890abcdefregcomple12",
+      "session_id": "session_reg_complete_001",
+      "platform": "web",
+      "properties": {
+        "time_to_complete_seconds": 180,
+        "cpf_validation_passed": true,
+        "email_domain": "gmail.com",
+        "phone_validated": true,
+        "lgpd_consent": true
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid registration completed - corporate email",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_completed",
+      "timestamp": "2025-10-03T13:45:00.000Z",
+      "user_id": "hash_corpreg1234567890abcdefcorpreg1234567890abcdefcorpreg1234567890ab",
+      "session_id": "session_reg_corp_001",
+      "platform": "web",
+      "properties": {
+        "time_to_complete_seconds": 240,
+        "cpf_validation_passed": true,
+        "email_domain": "company.com.br",
+        "phone_validated": true,
+        "lgpd_consent": true
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "2560x1440",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field cpf_validation_passed",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_completed",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "time_to_complete_seconds": 200,
+        "email_domain": "example.com",
+        "phone_validated": true,
+        "lgpd_consent": true
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative time_to_complete_seconds",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_completed",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "time_to_complete_seconds": -50,
+        "cpf_validation_passed": true,
+        "email_domain": "test.com",
+        "phone_validated": false,
+        "lgpd_consent": true
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

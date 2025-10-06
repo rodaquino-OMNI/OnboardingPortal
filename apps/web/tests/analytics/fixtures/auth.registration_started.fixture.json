@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Valid registration started - with UTM parameters",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_started",
+      "timestamp": "2025-10-03T10:00:00.000Z",
+      "session_id": "session_reg_start_001",
+      "platform": "web",
+      "properties": {
+        "source": "landing_page",
+        "utm_source": "google",
+        "utm_medium": "cpc",
+        "utm_campaign": "q4_2025_acquisition"
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "referrer": "https://google.com",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid registration started - organic source",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_started",
+      "timestamp": "2025-10-03T11:30:00.000Z",
+      "session_id": "session_reg_organic_001",
+      "platform": "web",
+      "properties": {
+        "source": "direct"
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "1440x900",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field source",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_started",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "platform": "web",
+      "properties": {
+        "utm_source": "facebook",
+        "utm_medium": "social"
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - user_id should not be present at registration start",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.registration_started",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "source": "mobile_app"
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

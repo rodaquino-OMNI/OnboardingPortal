@@ -1,0 +1,106 @@
+[
+  {
+    "name": "Valid upload failure - file too large",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_failed",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_uploadfail1234567890abcdefuploadfail1234567890abcdefuploadfail123",
+      "session_id": "session_upload_fail_001",
+      "platform": "web",
+      "properties": {
+        "document_type": "proof_of_address",
+        "failure_reason": "file_too_large",
+        "file_size_bytes": 10485760,
+        "retry_attempt": 1
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid upload failure - network error on retry",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_failed",
+      "timestamp": "2025-10-03T16:30:00.000Z",
+      "user_id": "hash_netfail1234567890abcdefnetfail1234567890abcdefnetfail1234567890ab",
+      "session_id": "session_network_fail_002",
+      "platform": "mobile",
+      "properties": {
+        "document_type": "rg",
+        "failure_reason": "network_error",
+        "file_size_bytes": 2097152,
+        "retry_attempt": 3
+      },
+      "context": {
+        "user_agent": "OnboardingApp/1.0 (Android 13)",
+        "screen_resolution": "1080x2400",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid upload failure - minimal data (no file size)",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_failed",
+      "timestamp": "2025-10-03T17:45:00.000Z",
+      "user_id": "hash_minimal1234567890abcdefminimal1234567890abcdefminimal1234567890ab",
+      "session_id": "session_minimal_fail_001",
+      "platform": "web",
+      "properties": {
+        "document_type": "cpf",
+        "failure_reason": "invalid_format"
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field document_type",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_failed",
+      "timestamp": "2025-10-03T18:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "failure_reason": "unknown_error",
+        "file_size_bytes": 1024000
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative retry_attempt",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_failed",
+      "timestamp": "2025-10-03T19:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "document_type": "health_card",
+        "failure_reason": "server_error",
+        "retry_attempt": -2
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

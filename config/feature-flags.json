@@ -1,0 +1,53 @@
+{
+  "$schema": "./feature-flags.schema.json",
+  "flags": {
+    "sliceA_registration": {
+      "name": "Slice A: Registration Flow",
+      "description": "Registration → Email Verification → Profile → First Points",
+      "default": true,
+      "environments": {
+        "development": true,
+        "staging": true,
+        "production": false
+      },
+      "rollout_percentage": 0,
+      "dependencies": []
+    },
+    "sliceB_documents": {
+      "name": "Slice B: Document Upload & Approval",
+      "description": "Document Upload → OCR → Validation → Approval → Points + Badges",
+      "default": false,
+      "environments": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "rollout_percentage": 0,
+      "dependencies": ["sliceA_registration"]
+    },
+    "gamification_enabled": {
+      "name": "Gamification System",
+      "description": "Points, levels, badges, streaks",
+      "default": true,
+      "environments": {
+        "development": true,
+        "staging": true,
+        "production": true
+      },
+      "rollout_percentage": 100,
+      "dependencies": []
+    },
+    "analytics_verbose": {
+      "name": "Verbose Analytics Logging",
+      "description": "Log all analytics events to console (dev only)",
+      "default": false,
+      "environments": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "rollout_percentage": 0,
+      "dependencies": []
+    }
+  }
+}

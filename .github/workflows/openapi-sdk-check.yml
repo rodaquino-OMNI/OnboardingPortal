@@ -1,0 +1,124 @@
+name: OpenAPI SDK Freshness Check
+
+on:
+  pull_request:
+    paths:
+      - 'docs/API_SPEC.yaml'
+      - 'omni-portal/backend/routes/**'
+      - 'omni-portal/frontend/src/services/api/**'
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  check-sdk-freshness:
+    name: Verify SDK matches OpenAPI spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install OpenAPI Generator
+        run: |
+          npm install -g @openapitools/openapi-generator-cli
+          openapi-generator-cli version-manager set 7.2.0
+
+      - name: Generate fresh SDK
+        run: |
+          mkdir -p /tmp/fresh-sdk
+          openapi-generator-cli generate \
+            -i docs/API_SPEC.yaml \
+            -g typescript-axios \
+            -o /tmp/fresh-sdk \
+            --additional-properties=npmName=@omni-portal/api-client,supportsES6=true,withInterfaces=true
+
+      - name: Compare with committed SDK
+        run: |
+          SDK_PATH="omni-portal/frontend/src/services/api"
+
+          echo "Comparing generated SDK with committed version..."
+
+          # Compare API client files
+          if ! diff -r /tmp/fresh-sdk/api/ "$SDK_PATH/" > /tmp/sdk-diff.txt 2>&1; then
+            echo "ERROR: SDK drift detected!"
+            echo ""
+            echo "The committed SDK does not match the OpenAPI specification."
+            echo "Please regenerate the SDK using:"
+            echo "  npm run generate:sdk"
+            echo ""
+            echo "Differences found:"
+            cat /tmp/sdk-diff.txt
+            exit 1
+          fi
+
+          echo "SDK is up to date with OpenAPI specification"
+
+      - name: Check for breaking changes
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking for breaking changes in API..."
+
+          # Install oasdiff for breaking change detection
+          npm install -g oasdiff
+
+          # Compare current spec with main branch
+          git fetch origin main
+          git show origin/main:docs/API_SPEC.yaml > /tmp/base-spec.yaml
+
+          oasdiff breaking /tmp/base-spec.yaml docs/API_SPEC.yaml > /tmp/breaking-changes.txt || true
+
+          if [ -s /tmp/breaking-changes.txt ]; then
+            echo "WARNING: Breaking changes detected in API:"
+            cat /tmp/breaking-changes.txt
+            echo ""
+            echo "Please ensure backward compatibility or update API version."
+          else
+            echo "No breaking changes detected"
+          fi
+
+      - name: Upload SDK diff
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-diff
+          path: /tmp/sdk-diff.txt
+          retention-days: 7
+
+  validate-routes:
+    name: Validate Laravel routes against spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, bcmath
+
+      - name: Install Composer dependencies
+        run: |
+          cd omni-portal/backend
+          composer install --no-interaction --no-progress
+
+      - name: Generate routes list
+        run: |
+          cd omni-portal/backend
+          php artisan route:list --json > /tmp/laravel-routes.json
+
+      - name: Audit routes against OpenAPI spec
+        run: |
+          bash scripts/audit-routes.sh

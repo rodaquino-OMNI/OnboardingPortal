@@ -1,0 +1,93 @@
+[
+  {
+    "name": "Valid level up - bronze to silver",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.level_up",
+      "timestamp": "2025-10-03T12:00:00.000Z",
+      "user_id": "hash_fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+      "session_id": "session_levelup_001",
+      "platform": "web",
+      "properties": {
+        "old_level": "bronze",
+        "new_level": "silver",
+        "points_at_levelup": 1000,
+        "time_to_levelup_seconds": 86400,
+        "benefits_unlocked": ["priority_support", "badge_showcase"]
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid level up - silver to gold with multiple benefits",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.level_up",
+      "timestamp": "2025-10-04T08:30:00.000Z",
+      "user_id": "hash_abcd1234efgh5678ijkl9012mnop3456qrst7890uvwx1234yzab5678cdef9012",
+      "session_id": "session_levelup_002",
+      "platform": "web",
+      "properties": {
+        "old_level": "silver",
+        "new_level": "gold",
+        "points_at_levelup": 5000,
+        "time_to_levelup_seconds": 259200,
+        "benefits_unlocked": ["express_processing", "exclusive_rewards", "early_access"]
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "2560x1440",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field old_level",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.level_up",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "new_level": "platinum",
+        "points_at_levelup": 10000,
+        "time_to_levelup_seconds": 604800,
+        "benefits_unlocked": []
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative time_to_levelup_seconds",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.level_up",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "old_level": "bronze",
+        "new_level": "silver",
+        "points_at_levelup": 1000,
+        "time_to_levelup_seconds": -100,
+        "benefits_unlocked": []
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

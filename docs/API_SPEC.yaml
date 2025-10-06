@@ -1,0 +1,1180 @@
+openapi: 3.1.0
+info:
+  title: Onboarding Portal API
+  version: 1.0.0
+  description: |
+    Complete API specification for the Onboarding Portal with authentication,
+    health questionnaires, document management, gamification, and admin features.
+
+    ## Authentication
+    - JWT-based authentication with refresh tokens
+    - Bearer token in `Authorization` header
+    - HttpOnly cookies for web clients
+    - MFA support (TOTP)
+
+    ## Gamification
+    - Points system for user actions
+    - Level progression (Iniciante → Bronze → Prata → Ouro → Platina)
+    - Achievement badges and streaks
+    - Real-time updates via WebSocket (Pusher)
+
+    ## Security
+    - All endpoints require authentication except `/auth/login` and `/auth/register`
+    - Admin endpoints require `admin` role
+    - Rate limiting: 100 req/min per user, 1000 req/min per IP
+    - LGPD/HIPAA compliant data handling
+
+  contact:
+    name: API Support
+    email: api@onboardingportal.com
+
+servers:
+  - url: https://api.onboardingportal.com/v1
+    description: Production
+  - url: https://staging-api.onboardingportal.com/v1
+    description: Staging
+  - url: http://localhost:8000/api
+    description: Local Development
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Onboarding
+    description: Multi-step onboarding flow
+  - name: Health
+    description: Health questionnaire and risk assessment
+  - name: Documents
+    description: Document upload, OCR, and approval
+  - name: Interviews
+    description: Interview scheduling and management
+  - name: Gamification
+    description: Points, levels, badges, and achievements
+  - name: Admin
+    description: Admin-only endpoints for moderation and analytics
+
+security:
+  - BearerAuth: []
+  - CookieAuth: []
+
+paths:
+  # ==========================================
+  # AUTHENTICATION ENDPOINTS
+  # ==========================================
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user account
+      description: |
+        Creates a new user account and sends email verification link.
+        No authentication required.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, password_confirmation, cpf, phone]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: joao.silva@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SecurePass123!
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+                cpf:
+                  type: string
+                  pattern: '^\d{3}\.\d{3}\.\d{3}-\d{2}$'
+                  example: '123.456.789-00'
+                phone:
+                  type: string
+                  pattern: '^\(\d{2}\) \d{4,5}-\d{4}$'
+                  example: '(11) 98765-4321'
+                lgpd_consent:
+                  type: boolean
+                  default: true
+                terms_accepted:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Conta criada com sucesso! Verifique seu email.'
+                  user:
+                    $ref: '#/components/schemas/User'
+                  verification_email_sent:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/verify-email:
+    get:
+      tags: [Authentication]
+      summary: Verify email address
+      description: |
+        Verifies user email via token sent to their email.
+        Sets `email_verified_at` and returns access/refresh tokens.
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          example: 'abc123xyz789'
+      responses:
+        '200':
+          description: Email verified successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: 'access_token=xxx; HttpOnly; Secure; SameSite=Strict'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Email verificado com sucesso!'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+                  gamification:
+                    type: object
+                    properties:
+                      points_earned:
+                        type: integer
+                        example: 100
+                      badge_unlocked:
+                        type: string
+                        example: 'first_steps'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Token not found or expired
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: |
+        Authenticates user with email/password.
+        Returns JWT access token (15min TTL) and refresh token (7 days TTL).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                session_fingerprint:
+                  type: string
+                  description: Browser fingerprint for session validation
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: 'Bearer'
+                  expires_in:
+                    type: integer
+                    example: 900
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: |
+        Exchanges refresh token for new access token.
+        Extends session without re-authentication.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  expires_in:
+                    type: integer
+                    example: 900
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: |
+        Invalidates current access token and refresh token.
+        Clears session cookies.
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Logout realizado com sucesso'
+
+  /auth/mfa/enable:
+    post:
+      tags: [Authentication]
+      summary: Enable MFA (TOTP)
+      description: |
+        Generates TOTP secret and QR code for MFA setup.
+        User must verify with code before MFA is activated.
+      responses:
+        '200':
+          description: MFA secret generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret:
+                    type: string
+                    example: 'JBSWY3DPEHPK3PXP'
+                  qr_code_url:
+                    type: string
+                    format: uri
+                  recovery_codes:
+                    type: array
+                    items:
+                      type: string
+                    example: ['abc123', 'def456', 'ghi789']
+
+  /auth/mfa/verify:
+    post:
+      tags: [Authentication]
+      summary: Verify MFA code
+      description: |
+        Verifies TOTP code during login or MFA setup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: MFA verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'MFA verificado com sucesso'
+                  mfa_enabled:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ==========================================
+  # ONBOARDING ENDPOINTS
+  # ==========================================
+  /onboarding/steps:
+    get:
+      tags: [Onboarding]
+      summary: Get onboarding steps
+      description: |
+        Returns all onboarding steps with completion status.
+      responses:
+        '200':
+          description: Onboarding steps retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OnboardingStep'
+                  current_step:
+                    type: integer
+                    example: 2
+                  completion_percentage:
+                    type: number
+                    format: float
+                    example: 40.0
+
+  /onboarding/progress:
+    get:
+      tags: [Onboarding]
+      summary: Get onboarding progress
+      description: |
+        Returns current onboarding progress and next steps.
+      responses:
+        '200':
+          description: Progress retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  completion_percentage:
+                    type: number
+                    example: 65.5
+                  completed_steps:
+                    type: array
+                    items:
+                      type: string
+                    example: ['registration', 'profile', 'health_questionnaire']
+                  next_step:
+                    type: string
+                    example: 'document_upload'
+                  estimated_time_remaining:
+                    type: integer
+                    description: Seconds
+                    example: 300
+
+  # ==========================================
+  # HEALTH ENDPOINTS
+  # ==========================================
+  /health/templates:
+    get:
+      tags: [Health]
+      summary: Get health questionnaire templates
+      description: |
+        Returns available health questionnaire templates.
+      responses:
+        '200':
+          description: Templates retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QuestionnaireTemplate'
+
+  /health/templates/{id}:
+    get:
+      tags: [Health]
+      summary: Get specific template
+      parameters:
+        - $ref: '#/components/parameters/TemplateId'
+      responses:
+        '200':
+          description: Template retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireTemplate'
+
+  /health/submit:
+    post:
+      tags: [Health]
+      summary: Submit health questionnaire
+      description: |
+        Submits completed health questionnaire.
+        Triggers risk scoring and clinical decision support.
+        Awards points based on completion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template_id, answers]
+              properties:
+                template_id:
+                  type: integer
+                  example: 1
+                answers:
+                  type: object
+                  additionalProperties:
+                    oneOf:
+                      - type: string
+                      - type: array
+                        items:
+                          type: string
+                  example:
+                    '1': 'Sim'
+                    '2': ['Diabetes', 'Hipertensão']
+                    '3': 'Não'
+      responses:
+        '201':
+          description: Questionnaire submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Questionário enviado com sucesso!'
+                  submission_id:
+                    type: integer
+                  risk_score:
+                    type: number
+                    format: float
+                    example: 25.5
+                  risk_category:
+                    type: string
+                    enum: [low, medium, high]
+                    example: 'low'
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+                    example: ['Consulta de rotina', 'Manter hábitos saudáveis']
+                  gamification:
+                    type: object
+                    properties:
+                      points_earned:
+                        type: integer
+                        example: 500
+                      badges_unlocked:
+                        type: array
+                        items:
+                          type: string
+                        example: ['health_champion']
+                      level_up:
+                        type: boolean
+                        example: true
+                      new_level:
+                        type: string
+                        example: 'bronze'
+
+  /health/risk-score:
+    get:
+      tags: [Health]
+      summary: Get current risk score
+      description: |
+        Returns latest health risk score and category.
+      responses:
+        '200':
+          description: Risk score retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  risk_score:
+                    type: number
+                    example: 25.5
+                  risk_category:
+                    type: string
+                    example: 'low'
+                  calculated_at:
+                    type: string
+                    format: date-time
+
+  # ==========================================
+  # DOCUMENTS ENDPOINTS
+  # ==========================================
+  /documents/upload:
+    post:
+      tags: [Documents]
+      summary: Upload document
+      description: |
+        Uploads document for OCR processing.
+        Queues job for hybrid Tesseract + Textract processing.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, document_type]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                document_type:
+                  type: string
+                  enum: [rg_front, rg_back, cpf, address_proof, health_card]
+                  example: 'rg_front'
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Documento enviado com sucesso!'
+                  document:
+                    $ref: '#/components/schemas/Document'
+                  gamification:
+                    type: object
+                    properties:
+                      points_earned:
+                        type: integer
+                        example: 75
+        '413':
+          description: File too large (max 10MB)
+
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List user documents
+      description: |
+        Returns all documents uploaded by authenticated user.
+      responses:
+        '200':
+          description: Documents retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+
+  /documents/{id}/status:
+    get:
+      tags: [Documents]
+      summary: Get document status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /documents/{id}/approve:
+    post:
+      tags: [Documents]
+      summary: Approve document (Admin only)
+      description: |
+        Approves document after manual review.
+        Awards bonus points to user.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Document approved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Documento aprovado'
+                  document:
+                    $ref: '#/components/schemas/Document'
+
+  # ==========================================
+  # GAMIFICATION ENDPOINTS
+  # ==========================================
+  /gamification/points/earn:
+    post:
+      tags: [Gamification]
+      summary: Award points (Internal use)
+      description: |
+        Awards points to user for specific action.
+        Typically called internally by other services.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action_type, points]
+              properties:
+                action_type:
+                  type: string
+                  enum:
+                    - registration_complete
+                    - profile_complete
+                    - health_question_answered
+                    - document_uploaded
+                    - document_approved
+                    - interview_scheduled
+                    - interview_attended
+                    - onboarding_complete
+                points:
+                  type: integer
+                  minimum: 1
+                  maximum: 500
+                bonus_type:
+                  type: string
+                  enum: [early_completion, thoroughness, punctuality, zero_errors]
+      responses:
+        '200':
+          description: Points awarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points_earned:
+                    type: integer
+                  total_points:
+                    type: integer
+                  level_up:
+                    type: boolean
+                  new_level:
+                    type: string
+
+  /gamification/levels/current:
+    get:
+      tags: [Gamification]
+      summary: Get current level
+      responses:
+        '200':
+          description: Level retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_level:
+                    type: string
+                    example: 'prata'
+                  total_points:
+                    type: integer
+                    example: 825
+                  next_level:
+                    type: string
+                    example: 'ouro'
+                  points_to_next_level:
+                    type: integer
+                    example: 375
+                  benefits:
+                    type: array
+                    items:
+                      type: string
+                    example: ['Suporte prioritário 24h', 'Processamento expresso']
+
+  /gamification/badges:
+    get:
+      tags: [Gamification]
+      summary: Get user badges
+      responses:
+        '200':
+          description: Badges retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unlocked:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Badge'
+                  locked:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Badge'
+                  total_unlocked:
+                    type: integer
+                    example: 8
+                  total_badges:
+                    type: integer
+                    example: 25
+
+  /gamification/streaks:
+    get:
+      tags: [Gamification]
+      summary: Get user streaks
+      responses:
+        '200':
+          description: Streaks retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current_streak:
+                    type: integer
+                    example: 5
+                  longest_streak:
+                    type: integer
+                    example: 12
+                  last_active_date:
+                    type: string
+                    format: date
+                  streak_status:
+                    type: string
+                    enum: [active, at_risk, broken]
+
+  /gamification/dashboard:
+    get:
+      tags: [Gamification]
+      summary: Get gamification dashboard
+      description: |
+        Returns comprehensive gamification data for user dashboard.
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: integer
+                  level:
+                    type: string
+                  badges:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Badge'
+                  streaks:
+                    type: object
+                  challenges:
+                    type: array
+                    items:
+                      type: object
+                  leaderboard_position:
+                    type: integer
+
+  # ==========================================
+  # ADMIN ENDPOINTS
+  # ==========================================
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Get audit logs (Admin only)
+      description: |
+        Returns audit trail of all user actions.
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: action_type
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Audit logs retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /admin/fraud-flags:
+    get:
+      tags: [Admin]
+      summary: Get fraud flags (Admin only)
+      description: |
+        Returns users flagged for suspicious activity.
+      responses:
+        '200':
+          description: Fraud flags retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flagged_users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id:
+                          type: integer
+                        fraud_score:
+                          type: number
+                        flags:
+                          type: array
+                          items:
+                            type: string
+                        flagged_at:
+                          type: string
+                          format: date-time
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token with 15-minute expiration.
+        Format: `Authorization: Bearer <token>`
+
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: |
+        HttpOnly cookie containing JWT access token.
+        Automatically sent with requests from web clients.
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PerPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    TemplateId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        email:
+          type: string
+          format: email
+        email_verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        cpf:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OnboardingStep:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: 'Perfil'
+        slug:
+          type: string
+          example: 'profile'
+        completed:
+          type: boolean
+        order:
+          type: integer
+
+    QuestionnaireTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              text:
+                type: string
+              type:
+                type: string
+                enum: [single_choice, multiple_choice, text, number]
+              required:
+                type: boolean
+              options:
+                type: array
+                items:
+                  type: string
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        document_type:
+          type: string
+        file_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [pending, processing, approved, rejected]
+        ocr_text:
+          type: string
+          nullable: true
+        ocr_confidence:
+          type: number
+          format: float
+          nullable: true
+        uploaded_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Badge:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 'health_champion'
+        name:
+          type: string
+          example: 'Campeão da Saúde'
+        description:
+          type: string
+        category:
+          type: string
+          enum: [onboarding, health, consistency, social, excellence]
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, legendary]
+        icon:
+          type: string
+          example: '💪'
+        points:
+          type: integer
+        unlocked:
+          type: boolean
+        unlocked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: integer
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    Pagination:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Bad Request'
+            message: 'Invalid request parameters'
+            code: 'BAD_REQUEST'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Unauthorized'
+            message: 'Authentication required'
+            code: 'UNAUTHORIZED'
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Forbidden'
+            message: 'Insufficient permissions'
+            code: 'FORBIDDEN'
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Not Found'
+            message: 'Resource not found'
+            code: 'NOT_FOUND'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'Validation Error'
+              message:
+                type: string
+                example: 'The given data was invalid'
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                example:
+                  email: ['The email field is required.']
+                  password: ['The password must be at least 8 characters.']

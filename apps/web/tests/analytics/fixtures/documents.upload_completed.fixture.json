@@ -1,0 +1,89 @@
+[
+  {
+    "name": "Valid document upload - RG document",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_completed",
+      "timestamp": "2025-10-03T13:00:00.000Z",
+      "user_id": "hash_docupload1234567890abcdefdocupload1234567890abcdefdocupload123456",
+      "session_id": "session_doc_upload_001",
+      "platform": "web",
+      "properties": {
+        "document_id": 101,
+        "document_type": "rg",
+        "upload_duration_ms": 2500,
+        "file_size_bytes": 1048576
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid document upload - CPF document with large file",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_completed",
+      "timestamp": "2025-10-03T14:30:00.000Z",
+      "user_id": "hash_largefile1234567890abcdeflargefile1234567890abcdeflargefile123456",
+      "session_id": "session_large_upload_001",
+      "platform": "web",
+      "properties": {
+        "document_id": 102,
+        "document_type": "cpf",
+        "upload_duration_ms": 8750,
+        "file_size_bytes": 5242880
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "2560x1440",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field document_type",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_completed",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "document_id": 103,
+        "upload_duration_ms": 3000,
+        "file_size_bytes": 2097152
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative upload_duration_ms",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.upload_completed",
+      "timestamp": "2025-10-03T16:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "document_id": 104,
+        "document_type": "proof_of_address",
+        "upload_duration_ms": -1000,
+        "file_size_bytes": 1024000
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

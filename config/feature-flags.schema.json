@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["flags"],
+  "properties": {
+    "flags": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_]+$": {
+          "type": "object",
+          "required": ["name", "description", "default", "environments"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Human-readable flag name"
+            },
+            "description": {
+              "type": "string",
+              "description": "Flag purpose and behavior"
+            },
+            "default": {
+              "type": "boolean",
+              "description": "Default value if not configured"
+            },
+            "environments": {
+              "type": "object",
+              "required": ["development", "staging", "production"],
+              "properties": {
+                "development": { "type": "boolean" },
+                "staging": { "type": "boolean" },
+                "production": { "type": "boolean" }
+              }
+            },
+            "rollout_percentage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Gradual rollout percentage (0-100)"
+            },
+            "dependencies": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Required flags that must be enabled first"
+            }
+          }
+        }
+      }
+    }
+  }
+}

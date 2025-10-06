@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "documents.upload_failed",
+  "title": "Documents Upload Failed Event Schema",
+  "description": "Schema for tracking when document uploads fail",
+  "allOf": [
+    {
+      "$ref": "base-event.schema.json"
+    }
+  ],
+  "properties": {
+    "event": {
+      "const": "documents.upload_failed"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^hash_[a-f0-9]{64}$",
+      "description": "User ID (optional for failed uploads if not authenticated)"
+    },
+    "properties": {
+      "type": "object",
+      "required": [
+        "document_type",
+        "failure_reason"
+      ],
+      "properties": {
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "rg_front",
+            "rg_back",
+            "cpf",
+            "proof_residence",
+            "medical_report",
+            "insurance_card",
+            "employment_proof",
+            "other",
+            "unknown"
+          ],
+          "description": "Type of document that failed to upload"
+        },
+        "failure_reason": {
+          "type": "string",
+          "enum": [
+            "file_too_large",
+            "invalid_format",
+            "network_error",
+            "server_error",
+            "validation_failed",
+            "storage_full",
+            "permission_denied",
+            "timeout",
+            "corrupted_file",
+            "virus_detected",
+            "unknown_error"
+          ],
+          "description": "Reason for upload failure"
+        },
+        "file_size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 104857600,
+          "description": "Size of file that failed to upload in bytes (optional)"
+        },
+        "retry_attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Which retry attempt this was (optional)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "event",
+    "timestamp",
+    "platform",
+    "properties",
+    "context"
+  ]
+}

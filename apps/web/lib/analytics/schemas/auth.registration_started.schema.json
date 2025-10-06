@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "auth.registration_started",
+  "title": "Authentication Registration Started Event Schema",
+  "description": "Schema for tracking when users start the registration process",
+  "allOf": [
+    {
+      "$ref": "base-event.schema.json"
+    }
+  ],
+  "properties": {
+    "event": {
+      "const": "auth.registration_started"
+    },
+    "properties": {
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "landing_page_cta",
+            "navigation_menu",
+            "sidebar_banner",
+            "popup_modal",
+            "footer_link",
+            "direct_url",
+            "referral_link",
+            "social_media",
+            "email_campaign",
+            "search_result"
+          ],
+          "description": "Source from which registration was initiated"
+        },
+        "utm_source": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+$",
+          "maxLength": 100,
+          "description": "UTM source parameter (marketing attribution)"
+        },
+        "utm_medium": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+$",
+          "maxLength": 100,
+          "description": "UTM medium parameter (marketing attribution)"
+        },
+        "utm_campaign": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.-]+$",
+          "maxLength": 100,
+          "description": "UTM campaign parameter (marketing attribution)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "event",
+    "timestamp",
+    "platform",
+    "properties",
+    "context"
+  ]
+}

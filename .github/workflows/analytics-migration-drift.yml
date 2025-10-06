@@ -1,0 +1,71 @@
+name: Analytics Migration Drift Detection
+
+on:
+  pull_request:
+    paths:
+      - 'omni-portal/backend/database/migrations/*analytics_events*.php'
+      - 'omni-portal/backend/app/Models/AnalyticsEvent.php'
+      - 'omni-portal/backend/app/Services/AnalyticsEventRepository.php'
+
+jobs:
+  detect-drift:
+    runs-on: ubuntu-latest
+    name: Detect Analytics Schema Drift
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-branch
+
+      - name: Compare Analytics Migration
+        id: compare
+        run: |
+          echo "Comparing analytics_events migration..."
+
+          PR_MIGRATION=$(find omni-portal/backend/database/migrations -name "*analytics_events*.php" | head -n 1)
+          MAIN_MIGRATION=$(find main-branch/omni-portal/backend/database/migrations -name "*analytics_events*.php" | head -n 1)
+
+          if [ -z "$PR_MIGRATION" ]; then
+            echo "::error::No analytics_events migration found in PR"
+            exit 1
+          fi
+
+          if [ -z "$MAIN_MIGRATION" ]; then
+            echo "::warning::No analytics_events migration in main branch (new feature)"
+            exit 0
+          fi
+
+          # Compare migration files
+          if ! diff -u "$MAIN_MIGRATION" "$PR_MIGRATION"; then
+            echo "drift=true" >> $GITHUB_OUTPUT
+            echo "::warning::Analytics migration has changed - review carefully"
+          else
+            echo "drift=false" >> $GITHUB_OUTPUT
+            echo "No drift detected"
+          fi
+
+      - name: Post Drift Warning
+        if: steps.compare.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Analytics Schema Drift Detected**\n\n' +
+                    'The analytics_events migration has been modified. Please review:\n\n' +
+                    '- [ ] Schema changes are backward compatible\n' +
+                    '- [ ] Indexes are maintained/improved\n' +
+                    '- [ ] LGPD/HIPAA compliance is preserved\n' +
+                    '- [ ] Tests are updated\n' +
+                    '- [ ] Documentation is updated\n\n' +
+                    'See workflow for detailed diff.'
+            })

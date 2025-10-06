@@ -1,0 +1,232 @@
+name: Sprint 2A Security Guards
+
+on:
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+  push:
+    branches: [main, develop]
+
+jobs:
+  guard-1-forbidden-browser-storage:
+    name: Guard 1 - No Browser Storage in Auth/Health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for forbidden browser storage in sensitive paths
+        run: |
+          echo "🔒 GUARD 1: Checking for browser storage in application code..."
+          echo "Scanning paths: apps/web/src/**, packages/ui/src/**"
+
+          VIOLATIONS=0
+
+          # Function to check for storage API usage (excluding comments)
+          check_storage_usage() {
+            local pattern="$1"
+            local path="$2"
+            local name="$3"
+
+            # Grep for pattern, exclude comment-only lines
+            # Pattern matches: filename:linenum:content
+            # We exclude lines where content starts with //, /*, or * (block comment)
+            if grep -r --include=\*.{ts,tsx,js,jsx} -n "$pattern" "$path" 2>/dev/null | \
+               grep -v "://\s*.*$pattern" | grep -v ":/\*.*$pattern" | grep -v ":\s*\*.*$pattern"; then
+              echo ""
+              echo "❌ VIOLATION: $name found in $path"
+              return 1
+            fi
+            return 0
+          }
+
+          # Check for localStorage in apps/web/src
+          check_storage_usage "localStorage" "apps/web/src" "localStorage (application code)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          # Check for localStorage in packages/ui/src
+          check_storage_usage "localStorage" "packages/ui/src" "localStorage (UI package)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          # Check for sessionStorage in apps/web/src
+          check_storage_usage "sessionStorage" "apps/web/src" "sessionStorage (application code)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          # Check for sessionStorage in packages/ui/src
+          check_storage_usage "sessionStorage" "packages/ui/src" "sessionStorage (UI package)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          # Check for IndexedDB in apps/web/src
+          check_storage_usage "IndexedDB\|indexedDB" "apps/web/src" "IndexedDB (application code)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          # Check for IndexedDB in packages/ui/src
+          check_storage_usage "IndexedDB\|indexedDB" "packages/ui/src" "IndexedDB (UI package)" || VIOLATIONS=$((VIOLATIONS + 1))
+
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ GUARD 1 FAILED: Browser storage detected in application code"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Reason: Application code MUST NOT use browser storage"
+            echo "Rule: ADR-002 - Tokens use httpOnly cookies, sensitive data must not persist client-side"
+            echo "Fix: Remove localStorage/sessionStorage/IndexedDB from application code"
+            exit 1
+          fi
+
+          echo "✅ GUARD 1 PASSED: No browser storage in application code"
+
+  guard-2-no-archive-imports:
+    name: Guard 2 - No Imports from Archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for imports from archived code
+        run: |
+          echo "🔒 GUARD 2: Checking for imports from archive/ directory..."
+
+          # Check all source files for imports from archive
+          if grep -r --include=\*.{ts,tsx,js,jsx} -E "from ['\"].*archive/|import.*from ['\"].*archive/" \
+            apps packages 2>/dev/null | grep -v node_modules; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ GUARD 2 FAILED: Imports from archive/ directory detected"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Reason: Archived code is legacy and must not be referenced"
+            echo "Rule: No active code may import from archive/ directory"
+            echo "Fix: Remove imports from archive/ or migrate needed code to active codebase"
+            exit 1
+          fi
+
+          echo "✅ GUARD 2 PASSED: No archive imports detected"
+
+  guard-3-ui-package-purity:
+    name: Guard 3 - UI Package Purity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check UI package for storage and network impurities
+        run: |
+          echo "🔒 GUARD 3: Checking @austa/ui package purity..."
+          echo "Scanning: packages/ui/src/**"
+
+          VIOLATIONS=0
+
+          # Check for browser storage (excluding comments)
+          # Pattern matches: filename:linenum:content
+          # We exclude lines where content starts with //, /*, or * (block comment)
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "localStorage\|sessionStorage\|IndexedDB\|indexedDB" \
+            packages/ui/src 2>/dev/null | \
+            grep -v "://\s*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB" | \
+            grep -v ":/\*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB" | \
+            grep -v ":\s*\*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB"; then
+            echo ""
+            echo "❌ VIOLATION: Browser storage APIs found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Check for network calls
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "fetch(" \
+            packages/ui/src 2>/dev/null; then
+            echo ""
+            echo "❌ VIOLATION: fetch() calls found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "axios\|XMLHttpRequest" \
+            packages/ui/src 2>/dev/null; then
+            echo ""
+            echo "❌ VIOLATION: axios/XMLHttpRequest found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          if grep -r --include=\*.{ts,tsx,js,jsx} -E "\.post\(|\.get\(|\.put\(|\.delete\(" \
+            packages/ui/src 2>/dev/null | grep -v "\.toString()" | grep -v "\.toJSON()"; then
+            echo ""
+            echo "❌ VIOLATION: HTTP method calls found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ GUARD 3 FAILED: UI package contains impure code"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Reason: packages/ui MUST be pure presentation layer"
+            echo "Rule: No storage APIs, no network calls in UI package"
+            echo "Fix: Move storage/network logic to app layer or orchestration hooks"
+            exit 1
+          fi
+
+          echo "✅ GUARD 3 PASSED: UI package is pure"
+
+  guard-4-orchestration-boundary:
+    name: Guard 4 - Orchestration Boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check UI package for app-layer orchestration imports
+        run: |
+          echo "🔒 GUARD 4: Checking orchestration boundary enforcement..."
+          echo "Scanning: packages/ui/src/** for app-layer imports"
+
+          VIOLATIONS=0
+
+          # Check for app-layer hook imports (except UI-only hooks)
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "from '@/hooks/use" \
+            packages/ui/src 2>/dev/null | grep -v "useToast" | grep -v "useMediaQuery"; then
+            echo ""
+            echo "❌ VIOLATION: App-layer hook imports found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Check for API service imports
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "from '@/services/api'" \
+            packages/ui/src 2>/dev/null; then
+            echo ""
+            echo "❌ VIOLATION: API service imports found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Check for lib imports (except types)
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "from '@/lib/" \
+            packages/ui/src 2>/dev/null | grep -v "types" | grep -v ".d.ts"; then
+            echo ""
+            echo "❌ VIOLATION: Lib imports (non-types) found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Check for direct API client imports
+          if grep -r --include=\*.{ts,tsx,js,jsx} -n "import api from\|import.*apiClient" \
+            packages/ui/src 2>/dev/null; then
+            echo ""
+            echo "❌ VIOLATION: Direct API client imports found in UI package"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ GUARD 4 FAILED: Orchestration boundary violated"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Reason: UI components must not import app-layer orchestration"
+            echo "Rule: UI package receives data via props, not direct imports"
+            echo "Fix: Pass data/handlers as props from app layer, remove orchestration imports"
+            exit 1
+          fi
+
+          echo "✅ GUARD 4 PASSED: Orchestration boundary respected"
+
+  all-guards-summary:
+    name: All Security Guards Summary
+    runs-on: ubuntu-latest
+    needs: [guard-1-forbidden-browser-storage, guard-2-no-archive-imports, guard-3-ui-package-purity, guard-4-orchestration-boundary]
+    steps:
+      - name: Report success
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ ALL SPRINT 2A SECURITY GUARDS PASSED"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Guard 1: No browser storage in auth/health modules"
+          echo "✅ Guard 2: No imports from archive/ directory"
+          echo "✅ Guard 3: UI package purity maintained"
+          echo "✅ Guard 4: Orchestration boundary respected"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

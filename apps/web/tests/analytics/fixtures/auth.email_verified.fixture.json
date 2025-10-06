@@ -1,0 +1,81 @@
+[
+  {
+    "name": "Valid email verified - email link method",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.email_verified",
+      "timestamp": "2025-10-03T12:30:00.000Z",
+      "user_id": "hash_emailverif1234567890abcdefemailverif1234567890abcdefemailverif123",
+      "session_id": "session_email_verify_001",
+      "platform": "web",
+      "properties": {
+        "verification_method": "email_link",
+        "time_since_registration_seconds": 300
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid email verified - verification code method",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.email_verified",
+      "timestamp": "2025-10-03T14:15:00.000Z",
+      "user_id": "hash_emailcode1234567890abcdefemailcode1234567890abcdefemailcode12345",
+      "session_id": "session_email_code_001",
+      "platform": "mobile",
+      "properties": {
+        "verification_method": "verification_code",
+        "time_since_registration_seconds": 600
+      },
+      "context": {
+        "user_agent": "OnboardingApp/1.0 (iOS 17.0)",
+        "screen_resolution": "1170x2532",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field verification_method",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.email_verified",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "time_since_registration_seconds": 450
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative time_since_registration_seconds",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "auth.email_verified",
+      "timestamp": "2025-10-03T16:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "verification_method": "email_link",
+        "time_since_registration_seconds": -100
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

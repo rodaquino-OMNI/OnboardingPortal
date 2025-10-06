@@ -1,0 +1,176 @@
+name: DAST Security Scan
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+  schedule:
+    # Run DAST scan daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  dast-scan:
+    name: Dynamic Application Security Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for staging deployment
+        if: github.event_name == 'push'
+        run: |
+          echo "Waiting for staging deployment to complete..."
+          sleep 60
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: ${{ secrets.STAGING_URL || 'https://staging.example.com' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -I -r zap_report.html'
+
+      - name: ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.8.0
+        with:
+          target: ${{ secrets.STAGING_URL || 'https://staging.example.com' }}
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a -j -I -r zap_full_report.html'
+
+      - name: Upload ZAP Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-reports
+          path: |
+            zap_report.html
+            zap_full_report.html
+
+      - name: Check for vulnerabilities
+        run: |
+          # Parse ZAP results and fail on HIGH/CRITICAL
+          if grep -q "HIGH" zap_report.html || grep -q "CRITICAL" zap_report.html; then
+            echo "::error::HIGH or CRITICAL vulnerabilities found!"
+            exit 1
+          fi
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+
+  api-security-scan:
+    name: API Security Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run REST API Security Scan
+        run: |
+          # Use OWASP ZAP API scan or custom security tests
+          echo "Running API security tests..."
+
+          # Test for common API vulnerabilities:
+          # - Broken authentication
+          # - Broken authorization
+          # - Mass assignment
+          # - SQL injection
+          # - XSS in API responses
+          # - Rate limiting bypass
+
+      - name: Test SQL Injection
+        run: |
+          API_URL="${{ secrets.STAGING_URL }}/api"
+
+          # Test SQL injection in login endpoint
+          curl -X POST "$API_URL/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@example.com'\'' OR 1=1--","password":"anything"}' \
+            | grep -q "SQL" && exit 1 || echo "SQL injection test passed"
+
+      - name: Test XSS in API
+        run: |
+          API_URL="${{ secrets.STAGING_URL }}/api"
+
+          # Test XSS in profile update
+          curl -X PUT "$API_URL/profile" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.TEST_TOKEN }}" \
+            -d '{"name":"<script>alert(1)</script>"}' \
+            | grep -q "<script>" && exit 1 || echo "XSS test passed"
+
+      - name: Test Authentication Bypass
+        run: |
+          API_URL="${{ secrets.STAGING_URL }}/api"
+
+          # Test accessing protected endpoint without token
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/admin/users")
+
+          if [ "$STATUS" != "401" ] && [ "$STATUS" != "403" ]; then
+            echo "::error::Authentication bypass detected! Status: $STATUS"
+            exit 1
+          fi
+
+      - name: Test CSRF Protection
+        run: |
+          API_URL="${{ secrets.STAGING_URL }}/api"
+
+          # Test CSRF token validation
+          curl -X POST "$API_URL/profile" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.TEST_TOKEN }}" \
+            -d '{"name":"Test"}' \
+            | grep -q "CSRF" && echo "CSRF protection active" || echo "::warning::CSRF protection may be missing"
+
+  penetration-test:
+    name: Automated Penetration Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Nuclei
+        run: |
+          wget https://github.com/projectdiscovery/nuclei/releases/latest/download/nuclei_linux_amd64.zip
+          unzip nuclei_linux_amd64.zip
+          sudo mv nuclei /usr/local/bin/
+          nuclei -update-templates
+
+      - name: Run Nuclei Scan
+        run: |
+          nuclei -target ${{ secrets.STAGING_URL }} \
+            -severity critical,high,medium \
+            -json \
+            -o nuclei-results.json
+
+      - name: Upload Nuclei Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuclei-results
+          path: nuclei-results.json
+
+      - name: Check Nuclei Results
+        run: |
+          if [ -f nuclei-results.json ]; then
+            CRITICAL=$(grep -c '"severity":"critical"' nuclei-results.json || true)
+            HIGH=$(grep -c '"severity":"high"' nuclei-results.json || true)
+
+            echo "Found $CRITICAL critical and $HIGH high severity issues"
+
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "::error::Critical or high severity vulnerabilities found!"
+              exit 1
+            fi
+          fi

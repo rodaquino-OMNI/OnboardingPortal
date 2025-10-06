@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "gamification.level_up",
+  "title": "Gamification Level Up Event Schema",
+  "description": "Schema for tracking when users level up in the gamification system",
+  "allOf": [
+    {
+      "$ref": "base-event.schema.json"
+    }
+  ],
+  "properties": {
+    "event": {
+      "const": "gamification.level_up"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^hash_[a-f0-9]{64}$",
+      "description": "Required for gamification events"
+    },
+    "properties": {
+      "type": "object",
+      "required": [
+        "old_level",
+        "new_level",
+        "points_at_levelup",
+        "time_to_levelup_seconds",
+        "benefits_unlocked"
+      ],
+      "properties": {
+        "old_level": {
+          "type": "string",
+          "enum": [
+            "iniciante",
+            "bronze",
+            "prata",
+            "ouro",
+            "platina",
+            "diamante"
+          ],
+          "description": "Previous level before the level up"
+        },
+        "new_level": {
+          "type": "string",
+          "enum": [
+            "bronze",
+            "prata",
+            "ouro",
+            "platina",
+            "diamante",
+            "elite"
+          ],
+          "description": "New level after the level up"
+        },
+        "points_at_levelup": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total points when user leveled up"
+        },
+        "time_to_levelup_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Time taken to reach this level in seconds"
+        },
+        "benefits_unlocked": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "express_processing",
+              "priority_support",
+              "exclusive_content",
+              "early_access",
+              "premium_features",
+              "dedicated_manager",
+              "bonus_points",
+              "skip_queue"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "description": "List of benefits unlocked at this level"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "event",
+    "timestamp",
+    "user_id",
+    "platform",
+    "properties",
+    "context"
+  ]
+}

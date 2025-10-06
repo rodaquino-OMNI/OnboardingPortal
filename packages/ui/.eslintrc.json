@@ -1,0 +1,38 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended"
+  ],
+  "plugins": ["@typescript-eslint", "react", "react-hooks"],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/hooks/*", "**/services/*", "**/lib/*"],
+            "message": "ADR-003 Violation: UI components must not import from hooks/services/lib (orchestration layer)"
+          },
+          {
+            "group": ["axios", "fetch"],
+            "message": "ADR-003 Violation: UI components must not make network calls"
+          },
+          {
+            "group": ["localStorage", "sessionStorage", "indexedDB"],
+            "message": "ADR-003 Violation: UI components must not access storage"
+          }
+        ]
+      }
+    ],
+    "react/prop-types": "off",
+    "@typescript-eslint/explicit-function-return-type": "off"
+  },
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  }
+}

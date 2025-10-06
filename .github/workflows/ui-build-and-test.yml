@@ -1,0 +1,403 @@
+name: UI Build and Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'packages/ui/**'
+      - '.github/workflows/ui-build-and-test.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'packages/ui/**'
+      - '.github/workflows/ui-build-and-test.yml'
+
+# Cancel in-progress runs for the same workflow and branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  COVERAGE_THRESHOLD_LINES: 85
+  COVERAGE_THRESHOLD_FUNCTIONS: 85
+  COVERAGE_THRESHOLD_BRANCHES: 80
+  COVERAGE_THRESHOLD_STATEMENTS: 85
+  MAX_BUNDLE_SIZE_INCREASE: 10
+
+jobs:
+  build-ui-package:
+    name: Build UI Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Build TypeScript
+        working-directory: packages/ui
+        run: npm run build
+
+      - name: Verify build output
+        working-directory: packages/ui
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Error: dist/ directory not found"
+            exit 1
+          fi
+          echo "Build output verified successfully"
+          ls -la dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-build-artifacts
+          path: packages/ui/dist/
+          retention-days: 7
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Run Vitest unit tests
+        working-directory: packages/ui
+        run: npm run test:unit -- --coverage --ci
+
+      - name: Check coverage thresholds
+        working-directory: packages/ui
+        run: |
+          npm run test:unit -- --coverage --reporter=json --outputFile=coverage-summary.json
+
+          # Extract coverage percentages
+          LINES=$(jq '.total.lines.pct' coverage/coverage-summary.json)
+          FUNCTIONS=$(jq '.total.functions.pct' coverage/coverage-summary.json)
+          BRANCHES=$(jq '.total.branches.pct' coverage/coverage-summary.json)
+          STATEMENTS=$(jq '.total.statements.pct' coverage/coverage-summary.json)
+
+          echo "Coverage Results:"
+          echo "Lines: $LINES% (threshold: ${{ env.COVERAGE_THRESHOLD_LINES }}%)"
+          echo "Functions: $FUNCTIONS% (threshold: ${{ env.COVERAGE_THRESHOLD_FUNCTIONS }}%)"
+          echo "Branches: $BRANCHES% (threshold: ${{ env.COVERAGE_THRESHOLD_BRANCHES }}%)"
+          echo "Statements: $STATEMENTS% (threshold: ${{ env.COVERAGE_THRESHOLD_STATEMENTS }}%)"
+
+          # Check thresholds
+          if (( $(echo "$LINES < ${{ env.COVERAGE_THRESHOLD_LINES }}" | bc -l) )); then
+            echo "Error: Line coverage below threshold"
+            exit 1
+          fi
+          if (( $(echo "$FUNCTIONS < ${{ env.COVERAGE_THRESHOLD_FUNCTIONS }}" | bc -l) )); then
+            echo "Error: Function coverage below threshold"
+            exit 1
+          fi
+          if (( $(echo "$BRANCHES < ${{ env.COVERAGE_THRESHOLD_BRANCHES }}" | bc -l) )); then
+            echo "Error: Branch coverage below threshold"
+            exit 1
+          fi
+          if (( $(echo "$STATEMENTS < ${{ env.COVERAGE_THRESHOLD_STATEMENTS }}" | bc -l) )); then
+            echo "Error: Statement coverage below threshold"
+            exit 1
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: packages/ui/coverage/coverage-final.json
+          flags: ui-package
+          name: ui-unit-tests
+          fail_ci_if_error: true
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-coverage-report
+          path: packages/ui/coverage/
+          retention-days: 7
+
+  component-tests:
+    name: Component Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Run React Testing Library component tests
+        working-directory: packages/ui
+        run: npm run test:component || npm run test -- --testPathPattern=components
+
+      - name: Generate component test report
+        if: always()
+        working-directory: packages/ui
+        run: |
+          echo "Component test results:"
+          npm run test:component -- --reporter=verbose || npm run test -- --testPathPattern=components --reporter=verbose
+
+      - name: Upload component test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: component-test-results
+          path: packages/ui/test-results/
+          retention-days: 7
+
+  type-check:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Run TypeScript compiler
+        working-directory: packages/ui
+        run: npm run typecheck
+
+      - name: Verify no type errors
+        working-directory: packages/ui
+        run: |
+          # Run tsc and capture output
+          if ! npm run typecheck 2>&1 | tee typecheck-output.txt; then
+            echo "TypeScript compilation failed with errors:"
+            cat typecheck-output.txt
+            exit 1
+          fi
+          echo "TypeScript type checking passed with zero errors"
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: packages/ui
+        run: npm run lint
+
+      - name: Verify zero ESLint errors
+        working-directory: packages/ui
+        run: |
+          # Run ESLint with JSON output
+          if ! npm run lint -- --format=json --output-file=eslint-report.json; then
+            echo "ESLint found errors:"
+            cat eslint-report.json | jq '.[] | select(.errorCount > 0)'
+            exit 1
+          fi
+          echo "ESLint passed with zero errors"
+
+      - name: Upload ESLint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: packages/ui/eslint-report.json
+          retention-days: 7
+
+  bundle-analysis:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build-ui-package
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'packages/ui/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/ui
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-build-artifacts
+          path: packages/ui/dist/
+
+      - name: Analyze bundle size
+        working-directory: packages/ui
+        run: |
+          # Calculate current bundle size
+          CURRENT_SIZE=$(du -sb dist/ | cut -f1)
+          echo "Current bundle size: $CURRENT_SIZE bytes"
+
+          # Store baseline if it doesn't exist
+          BASELINE_FILE=".github/bundle-baseline.txt"
+          if [ ! -f "$BASELINE_FILE" ]; then
+            echo "$CURRENT_SIZE" > "$BASELINE_FILE"
+            echo "Baseline size stored: $CURRENT_SIZE bytes"
+            exit 0
+          fi
+
+          # Compare against baseline
+          BASELINE_SIZE=$(cat "$BASELINE_FILE")
+          echo "Baseline bundle size: $BASELINE_SIZE bytes"
+
+          # Calculate percentage increase
+          INCREASE=$(( (CURRENT_SIZE - BASELINE_SIZE) * 100 / BASELINE_SIZE ))
+          echo "Bundle size change: $INCREASE%"
+
+          # Check if increase exceeds threshold
+          if [ $INCREASE -gt ${{ env.MAX_BUNDLE_SIZE_INCREASE }} ]; then
+            echo "Error: Bundle size increased by $INCREASE%, exceeding ${{ env.MAX_BUNDLE_SIZE_INCREASE }}% threshold"
+            exit 1
+          fi
+
+          echo "Bundle size check passed"
+
+      - name: Generate bundle report
+        working-directory: packages/ui
+        run: |
+          # Generate detailed bundle analysis
+          npm run build -- --stats || true
+
+          # Create summary
+          echo "# Bundle Analysis Report" > bundle-report.md
+          echo "" >> bundle-report.md
+          echo "- Total size: $(du -sh dist/ | cut -f1)" >> bundle-report.md
+          echo "- File count: $(find dist/ -type f | wc -l)" >> bundle-report.md
+          echo "- Largest files:" >> bundle-report.md
+          find dist/ -type f -exec du -h {} + | sort -rh | head -10 >> bundle-report.md
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: packages/ui/bundle-report.md
+          retention-days: 7
+
+  ui-build-and-test-summary:
+    name: UI Build and Test Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    needs:
+      - build-ui-package
+      - unit-tests
+      - component-tests
+      - type-check
+      - lint
+      - bundle-analysis
+    if: always()
+
+    steps:
+      - name: Check all jobs status
+        run: |
+          echo "Checking status of all required jobs..."
+
+          # Check each job status
+          BUILD_STATUS="${{ needs.build-ui-package.result }}"
+          UNIT_TESTS_STATUS="${{ needs.unit-tests.result }}"
+          COMPONENT_TESTS_STATUS="${{ needs.component-tests.result }}"
+          TYPE_CHECK_STATUS="${{ needs.type-check.result }}"
+          LINT_STATUS="${{ needs.lint.result }}"
+          BUNDLE_STATUS="${{ needs.bundle-analysis.result }}"
+
+          echo "Build UI Package: $BUILD_STATUS"
+          echo "Unit Tests: $UNIT_TESTS_STATUS"
+          echo "Component Tests: $COMPONENT_TESTS_STATUS"
+          echo "Type Check: $TYPE_CHECK_STATUS"
+          echo "Lint: $LINT_STATUS"
+          echo "Bundle Analysis: $BUNDLE_STATUS"
+
+          # Fail if any job failed
+          if [ "$BUILD_STATUS" != "success" ] || \
+             [ "$UNIT_TESTS_STATUS" != "success" ] || \
+             [ "$COMPONENT_TESTS_STATUS" != "success" ] || \
+             [ "$TYPE_CHECK_STATUS" != "success" ] || \
+             [ "$LINT_STATUS" != "success" ] || \
+             [ "$BUNDLE_STATUS" != "success" ]; then
+            echo "One or more jobs failed. Workflow failed."
+            exit 1
+          fi
+
+          echo "All jobs passed successfully!"
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "# UI Build and Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build UI Package | ${{ needs.build-ui-package.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Component Tests | ${{ needs.component-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Type Check | ${{ needs.type-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bundle Analysis | ${{ needs.bundle-analysis.result }} |" >> $GITHUB_STEP_SUMMARY

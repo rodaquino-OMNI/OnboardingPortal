@@ -1,0 +1,328 @@
+name: Phase 4 - Quality Gates
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**', 'phase-4/**' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      skip_quality_gates:
+        description: 'Skip quality gates (emergency only)'
+        required: false
+        default: 'false'
+
+env:
+  PHP_VERSION: '8.2'
+  NODE_VERSION: '20'
+  REPORTS_DIR: 'reports'
+
+jobs:
+  # ======================
+  # Quality Gates Job
+  # ======================
+  quality-gates:
+    name: Quality Gates Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    outputs:
+      quality_passed: ${{ steps.quality-check.outputs.passed }}
+      security_passed: ${{ steps.security-check.outputs.passed }}
+      performance_passed: ${{ steps.performance-check.outputs.passed }}
+      contracts_passed: ${{ steps.contracts-check.outputs.passed }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for accurate analysis
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, xml, ctype, json, curl, dom, bcmath, gd
+          coverage: xdebug
+          tools: composer:v2, phpstan, infection
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: omni-portal/frontend/package-lock.json
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: omni-portal/backend/vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install backend dependencies
+        working-directory: omni-portal/backend
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Install frontend dependencies
+        working-directory: omni-portal/frontend
+        run: npm ci
+
+      - name: Create reports directory
+        run: mkdir -p ${{ env.REPORTS_DIR }}
+
+      # ======================
+      # QUALITY GATES
+      # ======================
+      - name: Run Quality Gates
+        id: quality-check
+        run: |
+          chmod +x scripts/run-quality-gates.sh
+          if scripts/run-quality-gates.sh; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ Quality gates PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Quality gates FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        continue-on-error: false
+
+      # ======================
+      # SECURITY GATES
+      # ======================
+      - name: Run Security Checks
+        id: security-check
+        run: |
+          chmod +x scripts/run-security-checks.sh
+          if scripts/run-security-checks.sh; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ Security gates PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Security gates FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        continue-on-error: false
+
+      # ======================
+      # PERFORMANCE GATES
+      # ======================
+      - name: Start test services
+        run: |
+          # Start backend server for performance testing
+          cd omni-portal/backend
+          php artisan serve --host=0.0.0.0 --port=8000 &
+          sleep 5
+
+          # Wait for server to be ready
+          timeout 30 bash -c 'until curl -f http://localhost:8000/api/health; do sleep 2; done'
+
+      - name: Run Performance Checks
+        id: performance-check
+        env:
+          API_BASE_URL: http://localhost:8000/api
+        run: |
+          chmod +x scripts/run-performance-checks.sh
+          if scripts/run-performance-checks.sh; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ Performance gates PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Performance gates FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        continue-on-error: false
+
+      # ======================
+      # CONTRACT GATES
+      # ======================
+      - name: Run Contract Checks
+        id: contracts-check
+        run: |
+          chmod +x scripts/run-contract-checks.sh
+          if scripts/run-contract-checks.sh; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+            echo "✅ Contract gates PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "❌ Contract gates FAILED" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        continue-on-error: false
+
+      # ======================
+      # GENERATE REPORTS
+      # ======================
+      - name: Generate quality report
+        if: always()
+        run: |
+          cat > ${{ env.REPORTS_DIR }}/quality-summary.md <<EOF
+          # Phase 4 - Quality Gates Report
+
+          **Build:** \`${{ github.run_number }}\`
+          **Commit:** \`${{ github.sha }}\`
+          **Branch:** \`${{ github.ref_name }}\`
+          **Triggered by:** @${{ github.actor }}
+
+          ## Gate Results
+
+          | Gate | Status |
+          |------|--------|
+          | Quality Gates | ${{ steps.quality-check.outputs.passed == 'true' && '✅ PASS' || '❌ FAIL' }} |
+          | Security Gates | ${{ steps.security-check.outputs.passed == 'true' && '✅ PASS' || '❌ FAIL' }} |
+          | Performance Gates | ${{ steps.performance-check.outputs.passed == 'true' && '✅ PASS' || '❌ FAIL' }} |
+          | Contract Gates | ${{ steps.contracts-check.outputs.passed == 'true' && '✅ PASS' || '❌ FAIL' }} |
+
+          ## Detailed Reports
+
+          - [Quality Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Security Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Performance Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Contract Report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+
+          *Generated at: $(date -u +"%Y-%m-%d %H:%M:%S UTC")*
+          EOF
+
+          cat ${{ env.REPORTS_DIR }}/quality-summary.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-${{ github.run_number }}
+          path: |
+            ${{ env.REPORTS_DIR }}/**/*
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('${{ env.REPORTS_DIR }}/quality-summary.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # ======================
+  # Auto-Rollback Job
+  # ======================
+  auto-rollback:
+    name: Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: failure() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revert failed commit
+        run: |
+          git config --global user.name "Quality Gates Bot"
+          git config --global user.email "quality-gates@github-actions"
+
+          # Get the previous commit
+          PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+
+          # Create revert commit
+          git revert --no-edit HEAD
+
+          # Push revert
+          git push origin main
+
+      - name: Create rollback issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Auto-Rollback: Quality Gates Failed',
+              body: `## Quality Gates Failure - Auto Rollback
+
+              **Commit:** \`${{ github.sha }}\`
+              **Author:** @${{ github.actor }}
+              **Build:** ${{ github.run_number }}
+
+              ### Failed Gates
+              - Quality: ${{ needs.quality-gates.outputs.quality_passed }}
+              - Security: ${{ needs.quality-gates.outputs.security_passed }}
+              - Performance: ${{ needs.quality-gates.outputs.performance_passed }}
+              - Contracts: ${{ needs.quality-gates.outputs.contracts_passed }}
+
+              ### Action Required
+              1. Review the [failed build](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+              2. Fix the issues in a new PR
+              3. Ensure all quality gates pass before merging
+
+              **Note:** This commit has been automatically reverted to maintain production stability.`,
+              labels: ['auto-rollback', 'quality-gates', 'urgent']
+            });
+
+            core.info(\`Created rollback issue #\${issue.data.number}\`);
+
+      - name: Notify team
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Send notification (customize based on your notification system)
+            core.warning('Quality gates failed on main branch. Auto-rollback executed.');
+            core.error('All deployments stopped. Manual intervention required.');
+
+  # ======================
+  # Metrics Collection Job
+  # ======================
+  collect-metrics:
+    name: Collect Quality Metrics
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: always()
+
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v4
+        with:
+          name: quality-reports-${{ github.run_number }}
+          path: reports
+
+      - name: Parse and store metrics
+        run: |
+          # Extract metrics from JSON reports
+          QUALITY_METRICS=$(jq -s '.[0]' reports/quality-gates/quality-gate-report.json || echo '{}')
+          SECURITY_METRICS=$(jq -s '.[0]' reports/security/security-report.json || echo '{}')
+          PERF_METRICS=$(jq -s '.[0]' reports/performance/performance-report.json || echo '{}')
+
+          # Create consolidated metrics
+          jq -n \
+            --argjson quality "$QUALITY_METRICS" \
+            --argjson security "$SECURITY_METRICS" \
+            --argjson performance "$PERF_METRICS" \
+            '{
+              build: "${{ github.run_number }}",
+              commit: "${{ github.sha }}",
+              branch: "${{ github.ref_name }}",
+              timestamp: "${{ github.event.head_commit.timestamp }}",
+              quality: $quality,
+              security: $security,
+              performance: $performance
+            }' > reports/consolidated-metrics.json
+
+          echo "Metrics collected and consolidated"
+
+      - name: Upload consolidated metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-metrics-${{ github.run_number }}
+          path: reports/consolidated-metrics.json
+          retention-days: 90

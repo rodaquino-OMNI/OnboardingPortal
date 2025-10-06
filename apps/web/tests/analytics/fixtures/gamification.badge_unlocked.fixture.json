@@ -1,0 +1,94 @@
+[
+  {
+    "name": "Valid badge unlock - common rarity",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.badge_unlocked",
+      "timestamp": "2025-10-03T12:00:00.000Z",
+      "user_id": "hash_badge1234567890abcdefbadge1234567890abcdefbadge1234567890abcdef12",
+      "session_id": "session_badge_001",
+      "platform": "web",
+      "properties": {
+        "badge_id": "first_steps",
+        "badge_name": "First Steps",
+        "badge_category": "onboarding",
+        "badge_rarity": "common",
+        "points_awarded": 50
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid badge unlock - legendary rarity",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.badge_unlocked",
+      "timestamp": "2025-10-04T09:15:00.000Z",
+      "user_id": "hash_legendary1234567890abcdeflegendary1234567890abcdeflegendary12345678",
+      "session_id": "session_badge_legendary",
+      "platform": "web",
+      "properties": {
+        "badge_id": "perfect_onboarding",
+        "badge_name": "Perfect Onboarding Champion",
+        "badge_category": "achievement",
+        "badge_rarity": "legendary",
+        "points_awarded": 1000
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "2560x1440",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - invalid badge_rarity value",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.badge_unlocked",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "badge_id": "invalid_badge",
+        "badge_name": "Invalid Badge",
+        "badge_category": "test",
+        "badge_rarity": "mythical",
+        "points_awarded": 100
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative points_awarded",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.badge_unlocked",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "badge_id": "test_badge",
+        "badge_name": "Test Badge",
+        "badge_category": "test",
+        "badge_rarity": "common",
+        "points_awarded": -50
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

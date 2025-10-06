@@ -1,0 +1,89 @@
+[
+  {
+    "name": "Valid document approval - automatic approval",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.approved",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "user_id": "hash_docapprove1234567890abcdefdocapprove1234567890abcdefdocapprove123",
+      "session_id": "session_doc_approve_001",
+      "platform": "api",
+      "properties": {
+        "document_id": 201,
+        "document_type": "rg",
+        "approved_by": "hash_admin1234567890abcdefadmin1234567890abcdefadmin1234567890abcdef12",
+        "time_to_approval_hours": 2.5,
+        "manual_review_required": false
+      },
+      "context": {
+        "environment": "production",
+        "server_timestamp": "2025-10-03T14:00:00.500Z"
+      }
+    }
+  },
+  {
+    "name": "Valid document approval - manual review",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.approved",
+      "timestamp": "2025-10-03T16:15:00.000Z",
+      "user_id": "hash_manualrev1234567890abcdefmanualrev1234567890abcdefmanualrev123456",
+      "session_id": "session_manual_review_001",
+      "platform": "web",
+      "properties": {
+        "document_id": 202,
+        "document_type": "proof_of_address",
+        "approved_by": "hash_admin9876543210fedcbaadmin9876543210fedcbaadmin9876543210fedcba98",
+        "time_to_approval_hours": 24.0,
+        "manual_review_required": true
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field approved_by",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.approved",
+      "timestamp": "2025-10-03T17:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "api",
+      "properties": {
+        "document_id": 203,
+        "document_type": "cpf",
+        "time_to_approval_hours": 3.0,
+        "manual_review_required": false
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - negative time_to_approval_hours",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "documents.approved",
+      "timestamp": "2025-10-03T18:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "api",
+      "properties": {
+        "document_id": 204,
+        "document_type": "health_card",
+        "approved_by": "hash_admin1234567890abcdefadmin1234567890abcdefadmin1234567890abcdef12",
+        "time_to_approval_hours": -5.0,
+        "manual_review_required": true
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

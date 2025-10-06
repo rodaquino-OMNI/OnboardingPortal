@@ -1,0 +1,110 @@
+[
+  {
+    "name": "Valid points earned - registration completed",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.points_earned",
+      "timestamp": "2025-10-03T12:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "session_id": "session_abc123def456",
+      "platform": "web",
+      "properties": {
+        "action_type": "registration_completed",
+        "points_amount": 100,
+        "points_total_after": 100,
+        "bonus_type": null,
+        "related_entity_type": null,
+        "related_entity_id": null
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "screen_resolution": "1920x1080",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Valid points earned - with streak bonus",
+    "valid": true,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.points_earned",
+      "timestamp": "2025-10-03T13:30:00.000Z",
+      "user_id": "hash_abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "session_id": "session_xyz789ghi012",
+      "platform": "web",
+      "properties": {
+        "action_type": "document_approved",
+        "points_amount": 250,
+        "points_total_after": 850,
+        "bonus_type": "streak_bonus",
+        "related_entity_type": "document",
+        "related_entity_id": 42
+      },
+      "context": {
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "screen_resolution": "2560x1440",
+        "timezone": "America/Sao_Paulo",
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - missing required field points_amount",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.points_earned",
+      "timestamp": "2025-10-03T14:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "action_type": "email_verified",
+        "points_total_after": 150
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - points_amount exceeds maximum",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.points_earned",
+      "timestamp": "2025-10-03T15:00:00.000Z",
+      "user_id": "hash_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "platform": "web",
+      "properties": {
+        "action_type": "bonus_achievement",
+        "points_amount": 15000,
+        "points_total_after": 20000
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  },
+  {
+    "name": "Invalid - user_id not hashed",
+    "valid": false,
+    "event": {
+      "schema_version": "1.0.0",
+      "event": "gamification.points_earned",
+      "timestamp": "2025-10-03T16:00:00.000Z",
+      "user_id": "user_123",
+      "platform": "web",
+      "properties": {
+        "action_type": "profile_completed",
+        "points_amount": 50,
+        "points_total_after": 200
+      },
+      "context": {
+        "environment": "production"
+      }
+    }
+  }
+]

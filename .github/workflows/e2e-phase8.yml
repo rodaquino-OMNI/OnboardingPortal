@@ -1,0 +1,117 @@
+name: Phase 8 E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - 'tests/e2e/**'
+      - 'omni-portal/frontend/**'
+      - 'omni-portal/backend/routes/**'
+      - '.github/workflows/e2e-phase8.yml'
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  PLAYWRIGHT_BROWSERS: 'chromium,firefox'
+
+jobs:
+  e2e-tests:
+    name: Run Phase 8 E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install ${{ matrix.browser }} --with-deps
+
+      - name: Start backend services
+        run: |
+          cd omni-portal/backend
+          composer install --no-interaction --no-progress
+          php artisan config:cache
+          php artisan serve &
+          sleep 5
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+
+      - name: Start frontend development server
+        run: |
+          cd omni-portal/frontend
+          npm ci
+          npm run dev &
+          sleep 10
+
+      - name: Run Phase 8 E2E tests
+        run: npx playwright test tests/e2e/phase8-*.spec.ts --browser=${{ matrix.browser }}
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Calculate flake rate
+        if: always()
+        run: |
+          TOTAL=$(grep -c "test(" tests/e2e/phase8-*.spec.ts || echo 0)
+          FAILED=$(grep -c "✘" playwright-report/index.html || echo 0)
+          if [ "$TOTAL" -gt 0 ]; then
+            FLAKE_RATE=$(echo "scale=2; ($FAILED / $TOTAL) * 100" | bc)
+            echo "Flake rate: $FLAKE_RATE%"
+            if (( $(echo "$FLAKE_RATE > 5.0" | bc -l) )); then
+              echo "ERROR: Flake rate $FLAKE_RATE% exceeds 5% threshold"
+              exit 1
+            fi
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failures-${{ matrix.browser }}
+          path: test-results/**/test-failed-*.png
+          retention-days: 7
+
+  e2e-summary:
+    name: E2E Test Summary
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.e2e-tests.result }}" != "success" ]; then
+            echo "E2E tests failed or were cancelled"
+            exit 1
+          fi
+          echo "All E2E tests passed successfully"

@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "auth.registration_completed",
+  "title": "Authentication Registration Completed Event Schema",
+  "description": "Schema for tracking when users complete the registration process",
+  "allOf": [
+    {
+      "$ref": "base-event.schema.json"
+    }
+  ],
+  "properties": {
+    "event": {
+      "const": "auth.registration_completed"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^hash_[a-f0-9]{64}$",
+      "description": "Required after registration completion"
+    },
+    "properties": {
+      "type": "object",
+      "required": [
+        "time_to_complete_seconds",
+        "cpf_validation_passed",
+        "email_domain",
+        "phone_validated",
+        "lgpd_consent"
+      ],
+      "properties": {
+        "time_to_complete_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Time taken to complete registration in seconds"
+        },
+        "cpf_validation_passed": {
+          "type": "boolean",
+          "description": "Whether CPF validation passed (no CPF value stored)"
+        },
+        "email_domain": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+          "maxLength": 100,
+          "description": "Email domain only (no local part for privacy)"
+        },
+        "phone_validated": {
+          "type": "boolean",
+          "description": "Whether phone number was validated (no phone stored)"
+        },
+        "lgpd_consent": {
+          "type": "boolean",
+          "description": "Whether user provided LGPD consent"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "event",
+    "timestamp",
+    "user_id",
+    "platform",
+    "properties",
+    "context"
+  ]
+}

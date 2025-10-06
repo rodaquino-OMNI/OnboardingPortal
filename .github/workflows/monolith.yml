@@ -1,0 +1,851 @@
+name: Monolith CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  AWS_REGION: us-east-1
+  COVERAGE_THRESHOLD: 85
+  MAX_ERROR_RATE: 1
+  MAX_P95_LATENCY: 500
+
+jobs:
+  # Phase 1: Preparation
+  prepare:
+    name: Prepare Build Environment
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      cache-key: ${{ steps.cache.outputs.key }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --always --dirty)-$(git rev-parse --short HEAD)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Setup cache key
+        id: cache
+        run: |
+          HASH=${{ hashFiles('**/package-lock.json', '**/composer.lock') }}
+          echo "key=deps-$HASH" >> $GITHUB_OUTPUT
+
+  # Phase 2: Code Quality (Parallel)
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: omni-portal/frontend/package-lock.json
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          cd omni-portal/frontend && npm ci
+          cd ../backend && composer install --no-dev --prefer-dist
+
+      - name: Run ESLint (Frontend)
+        run: cd omni-portal/frontend && npm run lint
+
+      - name: Run PHP CS Fixer (Backend)
+        run: |
+          cd omni-portal/backend
+          composer require --dev friendsofphp/php-cs-fixer
+          vendor/bin/php-cs-fixer fix --dry-run --diff
+
+  typecheck:
+    name: TypeScript Type Checking
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: omni-portal/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd omni-portal/frontend && npm ci
+
+      - name: Type check
+        run: cd omni-portal/frontend && npm run typecheck
+
+  # Phase 3: Unit Testing
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: omni-portal/frontend/package-lock.json
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: |
+          cd omni-portal/frontend && npm ci
+          cd ../backend && composer install
+
+      - name: Run Frontend Tests
+        run: |
+          cd omni-portal/frontend
+          npm run test:coverage
+
+      - name: Run Backend Tests
+        run: |
+          cd omni-portal/backend
+          php artisan test --coverage --min=${{ env.COVERAGE_THRESHOLD }}
+
+      - name: Check Coverage Threshold
+        run: |
+          FRONTEND_COV=$(jq '.total.lines.pct' omni-portal/frontend/coverage/coverage-summary.json)
+          if (( $(echo "$FRONTEND_COV < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "Frontend coverage $FRONTEND_COV% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+          echo "Coverage check passed: $FRONTEND_COV%"
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./omni-portal/frontend/coverage/lcov.info,./omni-portal/backend/coverage/clover.xml
+          flags: unit-tests
+          fail_ci_if_error: true
+
+  # Phase 4: Mutation Testing
+  mutation-tests:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: cd omni-portal/backend && composer install
+
+      - name: Run Infection
+        run: |
+          cd omni-portal/backend
+          composer require --dev infection/infection
+          vendor/bin/infection --min-msi=75 --min-covered-msi=80 --threads=4
+
+  # Phase 5: Integration Testing
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: omni_portal_test
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 3306:3306
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          extensions: mysql, redis
+
+      - name: Install dependencies
+        run: cd omni-portal/backend && composer install
+
+      - name: Run migrations
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: omni_portal_test
+          DB_USERNAME: root
+          DB_PASSWORD: test_password
+          REDIS_HOST: 127.0.0.1
+        run: |
+          cd omni-portal/backend
+          php artisan migrate --force
+          php artisan db:seed --force
+
+      - name: Run integration tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: omni_portal_test
+          DB_USERNAME: root
+          DB_PASSWORD: test_password
+          REDIS_HOST: 127.0.0.1
+        run: |
+          cd omni-portal/backend
+          php artisan test --filter Integration
+
+  # Phase 6: Build
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [mutation-tests, integration-tests]
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=${{ needs.prepare.outputs.version }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./omni-portal/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+
+  # Phase 7: SBOM Generation
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: sbom/cyclonedx.json
+          upload-artifact: true
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: sbom/spdx.json
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports
+          path: sbom/
+          retention-days: 90
+
+  # Phase 8: Security Scanning
+  sast:
+    name: SAST Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/php
+            p/typescript
+          generateSarif: true
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+      - name: Fail on high/critical findings
+        run: |
+          if [ -f semgrep.sarif ]; then
+            HIGH_CRITICAL=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' semgrep.sarif)
+            if [ "$HIGH_CRITICAL" -gt 0 ]; then
+              echo "Found $HIGH_CRITICAL high/critical security issues"
+              exit 1
+            fi
+          fi
+
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    needs: sbom
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-reports
+          path: sbom/
+
+      - name: Run Grype vulnerability scanner
+        uses: anchore/scan-action@v3
+        with:
+          sbom: sbom/cyclonedx.json
+          fail-build: true
+          severity-cutoff: high
+          output-format: sarif
+
+      - name: Upload vulnerability report
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+
+  iac-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: infra/terraform
+          soft_fail: false
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra/terraform
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov.sarif
+          soft_fail: false
+
+      - name: Upload Checkov SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+
+      - name: Scan Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: omni-portal/Dockerfile
+          failure-threshold: error
+
+  # Phase 9: Package & Artifacts
+  package:
+    name: Package Artifacts
+    runs-on: ubuntu-latest
+    needs: [sast, dependency-audit, iac-scan]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-reports
+          path: artifacts/sbom/
+
+      - name: Package deployment artifacts
+        run: |
+          mkdir -p artifacts/{configs,scripts,migrations}
+          cp -r infra/terraform artifacts/
+          cp -r omni-portal/backend/database/migrations artifacts/migrations/
+          tar -czf artifacts.tar.gz artifacts/
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: artifacts.tar.gz
+          retention-days: 30
+
+  # Phase 10: Deploy to Dev
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: package
+    environment:
+      name: development
+      url: https://dev.omniportal.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+
+      - name: Extract artifacts
+        run: tar -xzf artifacts.tar.gz
+
+      - name: Deploy infrastructure
+        run: |
+          cd artifacts/terraform/environments/dev
+          terraform init -backend-config=backend.tfvars
+          terraform plan -var-file=terraform.tfvars -out=tfplan
+          terraform apply tfplan
+
+      - name: Run database migrations
+        env:
+          DB_HOST: ${{ secrets.DEV_DB_HOST }}
+          DB_USERNAME: ${{ secrets.DEV_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DEV_DB_PASSWORD }}
+        run: |
+          cd omni-portal/backend
+          php artisan migrate --force
+
+      - name: Deploy ECS service
+        run: |
+          aws ecs update-service \
+            --cluster omni-portal-dev \
+            --service omni-portal-api \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster omni-portal-dev \
+            --services omni-portal-api \
+            --region ${{ env.AWS_REGION }}
+
+  # Phase 11: E2E Tests (Dev)
+  e2e-dev:
+    name: E2E Tests (Development)
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          cd omni-portal/frontend
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: https://dev.omniportal.example.com
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          cd omni-portal/frontend
+          npx playwright test --reporter=html,json
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-dev
+          path: omni-portal/frontend/playwright-report/
+
+  # Phase 12: Canary Deployment (Staging)
+  canary-staging:
+    name: Canary Deployment (Staging)
+    runs-on: ubuntu-latest
+    needs: e2e-dev
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.omniportal.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+
+      - name: Extract artifacts
+        run: tar -xzf artifacts.tar.gz
+
+      - name: Deploy canary (10% traffic)
+        run: |
+          # Update ECS task definition with new image
+          TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition omni-portal-staging \
+            --query 'taskDefinition' \
+            --region ${{ env.AWS_REGION }})
+
+          NEW_TASK_DEF=$(echo $TASK_DEFINITION | \
+            jq --arg IMAGE "${{ needs.build.outputs.image-tag }}" \
+            '.containerDefinitions[0].image = $IMAGE')
+
+          aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --region ${{ env.AWS_REGION }}
+
+          # Deploy canary with 10% traffic
+          aws ecs update-service \
+            --cluster omni-portal-staging \
+            --service omni-portal-api \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100,deploymentCircuitBreaker={enable=true,rollback=true}" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Monitor canary metrics
+        id: monitor
+        run: |
+          echo "Monitoring canary for 10 minutes..."
+          sleep 600
+
+          # Check error rate
+          ERROR_RATE=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/ApplicationELB \
+            --metric-name HTTPCode_Target_5XX_Count \
+            --dimensions Name=LoadBalancer,Value=omni-portal-staging \
+            --start-time $(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 600 \
+            --statistics Sum \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Datapoints[0].Sum' \
+            --output text)
+
+          # Check P95 latency
+          P95_LATENCY=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/ApplicationELB \
+            --metric-name TargetResponseTime \
+            --dimensions Name=LoadBalancer,Value=omni-portal-staging \
+            --start-time $(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 600 \
+            --statistics p95 \
+            --extended-statistics p95 \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Datapoints[0].ExtendedStatistics.p95' \
+            --output text)
+
+          echo "Error rate: $ERROR_RATE"
+          echo "P95 latency: $P95_LATENCY ms"
+
+          if (( $(echo "$ERROR_RATE > ${{ env.MAX_ERROR_RATE }}" | bc -l) )); then
+            echo "ERROR: Error rate exceeds threshold"
+            echo "rollback=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if (( $(echo "$P95_LATENCY > ${{ env.MAX_P95_LATENCY }}" | bc -l) )); then
+            echo "ERROR: P95 latency exceeds threshold"
+            echo "rollback=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "Canary metrics within SLO"
+          echo "rollback=false" >> $GITHUB_OUTPUT
+
+      - name: Rollback on failure
+        if: steps.monitor.outputs.rollback == 'true'
+        run: |
+          echo "Rolling back canary deployment..."
+          aws ecs update-service \
+            --cluster omni-portal-staging \
+            --service omni-portal-api \
+            --force-new-deployment \
+            --task-definition $(aws ecs describe-services \
+              --cluster omni-portal-staging \
+              --services omni-portal-api \
+              --query 'services[0].deployments[1].taskDefinition' \
+              --output text) \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Promote to full staging
+        if: steps.monitor.outputs.rollback == 'false'
+        run: |
+          echo "Promoting canary to 100% traffic..."
+          aws ecs update-service \
+            --cluster omni-portal-staging \
+            --service omni-portal-api \
+            --desired-count 3 \
+            --region ${{ env.AWS_REGION }}
+
+  # Phase 13: E2E Tests (Staging)
+  e2e-staging:
+    name: E2E Tests (Staging)
+    runs-on: ubuntu-latest
+    needs: canary-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          cd omni-portal/frontend
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: https://staging.omniportal.example.com
+          E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+        run: |
+          cd omni-portal/frontend
+          npx playwright test --reporter=html,json
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-staging
+          path: omni-portal/frontend/playwright-report/
+
+  # Phase 14: Production Deployment
+  promote-prod:
+    name: Promote to Production
+    runs-on: ubuntu-latest
+    needs: e2e-staging
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://omniportal.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+
+      - name: Extract artifacts
+        run: tar -xzf artifacts.tar.gz
+
+      - name: Create backup
+        run: |
+          # Snapshot RDS before deployment
+          aws rds create-db-snapshot \
+            --db-instance-identifier omni-portal-prod \
+            --db-snapshot-identifier prod-snapshot-$(date +%Y%m%d-%H%M%S) \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Blue/Green Deployment
+        id: deploy
+        run: |
+          # Deploy new version (green)
+          aws ecs update-service \
+            --cluster omni-portal-prod \
+            --service omni-portal-api \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100,deploymentCircuitBreaker={enable=true,rollback=true}" \
+            --region ${{ env.AWS_REGION }}
+
+          # Wait for stable deployment
+          aws ecs wait services-stable \
+            --cluster omni-portal-prod \
+            --services omni-portal-api \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Monitor production SLOs
+        id: slo-check
+        run: |
+          echo "Monitoring production for 15 minutes..."
+          sleep 900
+
+          # Check error rate
+          ERROR_RATE=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/ApplicationELB \
+            --metric-name HTTPCode_Target_5XX_Count \
+            --dimensions Name=LoadBalancer,Value=omni-portal-prod \
+            --start-time $(date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 900 \
+            --statistics Average \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Datapoints[0].Average' \
+            --output text)
+
+          # Check P95 latency
+          P95_LATENCY=$(aws cloudwatch get-metric-statistics \
+            --namespace AWS/ApplicationELB \
+            --metric-name TargetResponseTime \
+            --dimensions Name=LoadBalancer,Value=omni-portal-prod \
+            --start-time $(date -u -d '15 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 900 \
+            --extended-statistics p95 \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Datapoints[0].ExtendedStatistics.p95' \
+            --output text)
+
+          echo "Production error rate: $ERROR_RATE%"
+          echo "Production P95 latency: $P95_LATENCY ms"
+
+          if (( $(echo "$ERROR_RATE > ${{ env.MAX_ERROR_RATE }}" | bc -l) )); then
+            echo "CRITICAL: Production error rate breach!"
+            echo "rollback=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if (( $(echo "$P95_LATENCY > ${{ env.MAX_P95_LATENCY }}" | bc -l) )); then
+            echo "CRITICAL: Production latency SLO breach!"
+            echo "rollback=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "Production SLOs satisfied"
+          echo "rollback=false" >> $GITHUB_OUTPUT
+
+      - name: Auto-rollback on SLO breach
+        if: failure() && steps.slo-check.outputs.rollback == 'true'
+        run: |
+          echo "INITIATING AUTOMATIC ROLLBACK"
+
+          # Trigger PagerDuty alert
+          curl -X POST https://events.pagerduty.com/v2/enqueue \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "routing_key": "${{ secrets.PAGERDUTY_KEY }}",
+              "event_action": "trigger",
+              "payload": {
+                "summary": "Production deployment rolled back - SLO breach",
+                "severity": "critical",
+                "source": "GitHub Actions",
+                "custom_details": {
+                  "error_rate": "${{ steps.slo-check.outputs.error_rate }}",
+                  "p95_latency": "${{ steps.slo-check.outputs.p95_latency }}",
+                  "workflow": "${{ github.workflow }}",
+                  "run_id": "${{ github.run_id }}"
+                }
+              }
+            }'
+
+          # Rollback ECS service
+          aws ecs update-service \
+            --cluster omni-portal-prod \
+            --service omni-portal-api \
+            --force-new-deployment \
+            --task-definition $(aws ecs describe-services \
+              --cluster omni-portal-prod \
+              --services omni-portal-api \
+              --query 'services[0].deployments[1].taskDefinition' \
+              --output text) \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "Production deployment successful!"
+          # Send Slack notification
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "✅ Production deployment completed successfully",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Successful*\n\nVersion: `${{ needs.prepare.outputs.version }}`\nCommit: `${{ github.sha }}`\nActor: @${{ github.actor }}"
+                  }
+                }
+              ]
+            }'

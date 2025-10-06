@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "documents.upload_completed",
+  "title": "Documents Upload Completed Event Schema",
+  "description": "Schema for tracking when users successfully upload documents",
+  "allOf": [
+    {
+      "$ref": "base-event.schema.json"
+    }
+  ],
+  "properties": {
+    "event": {
+      "const": "documents.upload_completed"
+    },
+    "user_id": {
+      "type": "string",
+      "pattern": "^hash_[a-f0-9]{64}$",
+      "description": "Required for document events"
+    },
+    "properties": {
+      "type": "object",
+      "required": [
+        "document_id",
+        "document_type",
+        "upload_duration_ms",
+        "file_size_bytes"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Unique document identifier"
+        },
+        "document_type": {
+          "type": "string",
+          "enum": [
+            "rg_front",
+            "rg_back",
+            "cpf",
+            "proof_residence",
+            "medical_report",
+            "insurance_card",
+            "employment_proof",
+            "other"
+          ],
+          "description": "Type of document uploaded"
+        },
+        "upload_duration_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000,
+          "description": "Time taken to upload document in milliseconds (max 5 minutes)"
+        },
+        "file_size_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52428800,
+          "description": "Size of uploaded file in bytes (max 50MB)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "event",
+    "timestamp",
+    "user_id",
+    "platform",
+    "properties",
+    "context"
+  ]
+}

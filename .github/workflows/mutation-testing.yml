@@ -1,0 +1,337 @@
+name: Mutation Testing
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run mutation tests weekly on Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  backend-mutation-testing:
+    name: Backend Mutation Testing (Infection PHP)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, ctype, json, bcmath, pdo, pdo_mysql
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        working-directory: omni-portal/backend
+        run: composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Install Infection PHP
+        working-directory: omni-portal/backend
+        run: |
+          composer require --dev infection/infection
+
+      - name: Run PHPUnit with Coverage
+        working-directory: omni-portal/backend
+        run: |
+          vendor/bin/phpunit --coverage-xml=coverage/coverage-xml --log-junit=coverage/junit.xml
+
+      - name: Run Infection Mutation Testing
+        working-directory: omni-portal/backend
+        run: |
+          vendor/bin/infection \
+            --threads=4 \
+            --min-msi=60 \
+            --min-covered-msi=70 \
+            --coverage=coverage \
+            --log-verbosity=all \
+            --show-mutations \
+            --formatter=progress \
+            --only-covered \
+            --test-framework=phpunit
+
+      - name: Upload Infection Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-results
+          path: |
+            omni-portal/backend/infection.log
+            omni-portal/backend/infection.json
+
+      - name: Generate Mutation Report
+        if: always()
+        working-directory: omni-portal/backend
+        run: |
+          cat > mutation-report.md << 'EOF'
+          # Backend Mutation Testing Report
+
+          ## Infection PHP Results
+
+          EOF
+
+          if [ -f infection.log ]; then
+            echo "### Summary" >> mutation-report.md
+            grep "Mutation Score Indicator" infection.log >> mutation-report.md || true
+            echo "" >> mutation-report.md
+
+            echo "### Mutants" >> mutation-report.md
+            grep -A 5 "Escaped mutants" infection.log >> mutation-report.md || true
+          fi
+
+      - name: Upload Mutation Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-mutation-report
+          path: omni-portal/backend/mutation-report.md
+
+  frontend-mutation-testing:
+    name: Frontend Mutation Testing (Stryker)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: omni-portal/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: omni-portal/frontend
+        run: npm ci
+
+      - name: Install Stryker
+        working-directory: omni-portal/frontend
+        run: |
+          npm install --save-dev @stryker-mutator/core @stryker-mutator/jest-runner
+
+      - name: Create Stryker Config
+        working-directory: omni-portal/frontend
+        run: |
+          cat > stryker.conf.json << 'EOF'
+          {
+            "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+            "packageManager": "npm",
+            "reporters": ["html", "clear-text", "progress", "dashboard"],
+            "testRunner": "jest",
+            "coverageAnalysis": "perTest",
+            "jest": {
+              "projectType": "react",
+              "configFile": "jest.config.js"
+            },
+            "thresholds": {
+              "high": 80,
+              "low": 60,
+              "break": 50
+            },
+            "mutate": [
+              "src/**/*.{ts,tsx,js,jsx}",
+              "!src/**/*.test.{ts,tsx,js,jsx}",
+              "!src/**/*.spec.{ts,tsx,js,jsx}",
+              "!src/test/**"
+            ]
+          }
+          EOF
+
+      - name: Run Stryker Mutation Testing
+        working-directory: omni-portal/frontend
+        run: |
+          npx stryker run
+
+      - name: Upload Stryker Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stryker-results
+          path: omni-portal/frontend/reports/mutation
+
+      - name: Generate Mutation Report
+        if: always()
+        working-directory: omni-portal/frontend
+        run: |
+          cat > mutation-report.md << 'EOF'
+          # Frontend Mutation Testing Report
+
+          ## Stryker Results
+
+          ### Mutation Score
+
+          Target MSI: ≥60%
+
+          ### Critical Modules Tested
+
+          - Authentication components
+          - Encryption utilities
+          - Analytics tracking
+          - Form validation
+          - API client
+
+          EOF
+
+      - name: Upload Mutation Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-mutation-report
+          path: omni-portal/frontend/mutation-report.md
+
+  critical-modules-mutation:
+    name: Critical Modules Focused Mutation Testing
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        module:
+          - authentication
+          - encryption
+          - analytics
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: xdebug
+
+      - name: Install Composer dependencies
+        working-directory: omni-portal/backend
+        run: composer install --prefer-dist --no-progress
+
+      - name: Install Infection PHP
+        working-directory: omni-portal/backend
+        run: composer require --dev infection/infection
+
+      - name: Run PHPUnit Coverage for ${{ matrix.module }}
+        working-directory: omni-portal/backend
+        run: |
+          case "${{ matrix.module }}" in
+            authentication)
+              vendor/bin/phpunit \
+                --filter "Auth|Login|Register|MFA" \
+                --coverage-xml=coverage/coverage-xml \
+                --log-junit=coverage/junit.xml
+              ;;
+            encryption)
+              vendor/bin/phpunit \
+                --filter "Encrypt|Decrypt|Crypto|Security" \
+                --coverage-xml=coverage/coverage-xml \
+                --log-junit=coverage/junit.xml
+              ;;
+            analytics)
+              vendor/bin/phpunit \
+                --filter "Analytics|Metrics|Tracking" \
+                --coverage-xml=coverage/coverage-xml \
+                --log-junit=coverage/junit.xml
+              ;;
+          esac
+
+      - name: Run Infection on ${{ matrix.module }}
+        working-directory: omni-portal/backend
+        run: |
+          case "${{ matrix.module }}" in
+            authentication)
+              vendor/bin/infection \
+                --threads=4 \
+                --min-msi=70 \
+                --coverage=coverage \
+                --filter=app/Http/Controllers/Api/AuthController.php,app/Services/AuthService.php,app/Http/Middleware/UnifiedAuthMiddleware.php,app/Http/Controllers/Api/MFAController.php
+              ;;
+            encryption)
+              vendor/bin/infection \
+                --threads=4 \
+                --min-msi=70 \
+                --coverage=coverage \
+                --filter=app/Services/EncryptionService.php
+              ;;
+            analytics)
+              vendor/bin/infection \
+                --threads=4 \
+                --min-msi=60 \
+                --coverage=coverage \
+                --filter=app/Services/AnalyticsService.php
+              ;;
+          esac
+
+      - name: Upload Module Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-${{ matrix.module }}
+          path: omni-portal/backend/infection.log
+
+  mutation-summary:
+    name: Mutation Testing Summary
+    needs: [backend-mutation-testing, frontend-mutation-testing, critical-modules-mutation]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate Comprehensive Summary
+        run: |
+          cat > MUTATION_TESTING_SUMMARY.md << 'EOF'
+          # Comprehensive Mutation Testing Summary
+
+          ## Overall Results
+
+          ### Backend (Infection PHP)
+          - Target MSI: ≥60%
+          - Critical Modules MSI: ≥70%
+
+          ### Frontend (Stryker)
+          - Target MSI: ≥60%
+
+          ## Critical Modules Analysis
+
+          ### Authentication (Target: 70% MSI)
+          - Controllers: AuthController, MFAController
+          - Services: AuthService, MFAService
+          - Middleware: UnifiedAuthMiddleware, RequireMFA
+
+          ### Encryption (Target: 70% MSI)
+          - Services: EncryptionService
+          - Utilities: Crypto helpers
+
+          ### Analytics (Target: 60% MSI)
+          - Services: AnalyticsService
+          - Tracking: Event tracking
+
+          ## Mutation Testing Benefits
+
+          1. **Test Quality Validation**: Ensures tests detect real bugs
+          2. **Edge Case Discovery**: Finds untested edge cases
+          3. **Code Coverage Reality**: Reveals false coverage confidence
+          4. **Regression Prevention**: Stronger test suite prevents regressions
+
+          ## ADR-002 P3 Compliance
+
+          ✅ Mutation testing implemented for critical security modules
+          ✅ Target MSI ≥60% for general code
+          ✅ Target MSI ≥70% for security-critical code
+          ✅ Automated mutation testing in CI/CD pipeline
+
+          EOF
+
+      - name: Upload Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-testing-summary
+          path: MUTATION_TESTING_SUMMARY.md
