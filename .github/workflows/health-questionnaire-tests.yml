@@ -1,0 +1,411 @@
+name: Health Questionnaire CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/sliceC-*', 'phase8/*']
+    paths:
+      - 'omni-portal/backend/app/Modules/Health/**'
+      - 'omni-portal/backend/app/Http/Controllers/Api/HealthQuestionnaireController.php'
+      - 'omni-portal/backend/app/Services/HealthAIService.php'
+      - 'apps/web/src/hooks/useQuestionnaireOrchestration.ts'
+      - 'apps/web/src/containers/health/**'
+      - 'packages/ui/src/forms/DynamicFormRenderer.tsx'
+      - '.github/workflows/health-questionnaire-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'omni-portal/backend/app/Modules/Health/**'
+      - 'omni-portal/backend/app/Http/Controllers/Api/HealthQuestionnaireController.php'
+      - 'apps/web/src/hooks/useQuestionnaireOrchestration.ts'
+      - 'apps/web/src/containers/health/**'
+
+env:
+  PHP_VERSION: '8.2'
+  NODE_VERSION: '20'
+  COVERAGE_THRESHOLD: 85
+  MUTATION_SCORE_THRESHOLD: 60
+
+jobs:
+  backend-tests:
+    name: Backend Tests (PHP 8.2)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, xml, ctype, json, mysql, pdo_mysql, redis, bcmath
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+        working-directory: omni-portal/backend
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        working-directory: omni-portal/backend
+
+      - name: Copy environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        working-directory: omni-portal/backend
+
+      - name: Run database migrations
+        run: php artisan migrate --force
+        working-directory: omni-portal/backend
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Run PHPUnit Health Module Tests
+        run: |
+          vendor/bin/phpunit \
+            --testsuite=Health \
+            --coverage-clover coverage.xml \
+            --coverage-text \
+            --coverage-html coverage-html \
+            --log-junit junit.xml
+        working-directory: omni-portal/backend
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Check coverage threshold (${{ env.COVERAGE_THRESHOLD }}%)
+        run: |
+          COVERAGE=$(php -r "
+            \$xml = simplexml_load_file('coverage.xml');
+            \$metrics = \$xml->project->metrics;
+            \$lines = (int)\$metrics['coveredstatements'];
+            \$total = (int)\$metrics['statements'];
+            echo round((\$lines / \$total) * 100, 2);
+          ")
+          echo "Coverage: $COVERAGE%"
+          if (( $(echo "$COVERAGE < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
+            echo "::error::Coverage $COVERAGE% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
+            exit 1
+          fi
+        working-directory: omni-portal/backend
+
+      - name: PHI Encryption Validation
+        run: |
+          vendor/bin/phpunit \
+            tests/Feature/Health/PHIEncryptionGuardTest.php \
+            --fail-on-risky \
+            --fail-on-warning
+        working-directory: omni-portal/backend
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./omni-portal/backend/coverage.xml
+          flags: backend-health
+          name: backend-health-coverage
+          fail_ci_if_error: true
+
+      - name: Archive coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: omni-portal/backend/coverage-html
+          retention-days: 7
+
+  frontend-tests:
+    name: Frontend Tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest health module tests
+        run: |
+          npm run test:health -- \
+            --coverage \
+            --coverageThreshold='{
+              "global": {
+                "lines": 85,
+                "functions": 85,
+                "branches": 80,
+                "statements": 85
+              }
+            }' \
+            --maxWorkers=2
+
+      - name: Accessibility tests (axe-core)
+        run: |
+          npm run test:a11y -- \
+            apps/web/src/__tests__/health/questionnaire-a11y.test.tsx \
+            --verbose
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage-final.json
+          flags: frontend-health
+          name: frontend-health-coverage
+          fail_ci_if_error: true
+
+      - name: Archive coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: coverage
+          retention-days: 7
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run health questionnaire E2E tests
+        run: |
+          npx playwright test \
+            apps/web/e2e/health/ \
+            --reporter=html,json \
+            --max-failures=3
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: SAST scan with Semgrep
+        run: |
+          pip install semgrep
+          semgrep \
+            --config=p/security-audit \
+            --config=p/owasp-top-ten \
+            --config=p/php \
+            --json \
+            --output=semgrep-results.json \
+            omni-portal/backend/app/Modules/Health/ \
+            omni-portal/backend/app/Http/Controllers/Api/HealthQuestionnaireController.php
+
+      - name: Check for PHI leaks in frontend code
+        run: |
+          echo "Checking for PHI field references in frontend..."
+          if grep -r "answers_encrypted_json" apps/web/src/ 2>/dev/null; then
+            echo "::error::Found PHI field references in frontend code"
+            exit 1
+          fi
+          echo "✓ No PHI field references in frontend"
+
+      - name: Check for plaintext PHI queries
+        run: |
+          echo "Checking for plaintext PHI queries in backend..."
+          if grep -r "SELECT.*answers_encrypted_json" omni-portal/backend/ 2>/dev/null; then
+            echo "::error::Found plaintext PHI queries in backend"
+            exit 1
+          fi
+          echo "✓ No plaintext PHI queries"
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Checking for hardcoded secrets..."
+          if grep -rE "(password|secret|api_key|token)\s*=\s*['\"]" omni-portal/backend/app/Modules/Health/ 2>/dev/null; then
+            echo "::error::Found potential hardcoded secrets"
+            exit 1
+          fi
+          echo "✓ No hardcoded secrets found"
+
+      - name: Upload Semgrep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+          retention-days: 7
+
+  mutation-testing:
+    name: Mutation Testing (PHP)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ env.PHP_VERSION }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, xml, ctype, json, mysql, pdo_mysql
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+        working-directory: omni-portal/backend
+
+      - name: Install Infection
+        run: composer require --dev infection/infection --with-all-dependencies
+        working-directory: omni-portal/backend
+
+      - name: Copy environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        working-directory: omni-portal/backend
+
+      - name: Run Infection (Mutation Testing)
+        run: |
+          vendor/bin/infection \
+            --min-msi=${{ env.MUTATION_SCORE_THRESHOLD }} \
+            --min-covered-msi=70 \
+            --threads=4 \
+            --test-framework=phpunit \
+            --only-covered \
+            --show-mutations \
+            --log-verbosity=default
+        working-directory: omni-portal/backend
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: root
+
+      - name: Upload Infection report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-report
+          path: omni-portal/backend/infection-log.txt
+          retention-days: 7
+
+  quality-gates:
+    name: Quality Gates Summary
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests, e2e-tests, security-scan, mutation-testing]
+    if: always()
+
+    steps:
+      - name: Check all jobs passed
+        run: |
+          echo "Quality Gates Summary:"
+          echo "====================="
+          echo "Backend Tests: ${{ needs.backend-tests.result }}"
+          echo "Frontend Tests: ${{ needs.frontend-tests.result }}"
+          echo "E2E Tests: ${{ needs.e2e-tests.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "Mutation Testing: ${{ needs.mutation-testing.result }}"
+          echo "====================="
+
+          if [[ "${{ needs.backend-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.e2e-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.security-scan.result }}" != "success" ]] || \
+             [[ "${{ needs.mutation-testing.result }}" != "success" ]]; then
+            echo "::error::One or more quality gates failed"
+            exit 1
+          fi
+
+          echo "✓ All quality gates passed"
+
+      - name: Create check run
+        uses: LouisBrunner/checks-action@v2.0.0
+        if: always()
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: Health Questionnaire Quality Gates
+          conclusion: ${{ job.status }}
+          output: |
+            {"summary":"Quality gates enforcement for health questionnaire module","text":"All quality gates must pass:\n- Backend coverage ≥85%\n- Frontend coverage ≥85%\n- E2E tests pass\n- Accessibility (Axe) no violations\n- Mutation score ≥60%\n- SAST security scan clean\n- NO PHI in frontend code"}

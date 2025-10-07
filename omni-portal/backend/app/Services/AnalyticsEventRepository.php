@@ -253,12 +253,23 @@ class AnalyticsEventRepository
             'gamification.level_up' => ['old_level', 'new_level', 'total_points'],
             'gamification.badge_earned' => ['badge_id', 'badge_name'],
 
-            // Health events
+            // Health events (legacy)
             'health.questionnaire_completed' => ['questionnaire_type', 'question_count', 'completion_time_seconds'],
 
-            // Document events
+            // Slice C: Health questionnaire events (new)
+            'health.questionnaire_started' => ['questionnaire_id', 'version'],
+            'health.questionnaire_submitted' => ['version', 'duration_ms', 'risk_band', 'score_redacted'],
+            'health.questionnaire_reviewed' => ['reviewer_id', 'response_id', 'review_status'],
+
+            // Document events (legacy)
             'document.upload_success' => ['document_type', 'file_size_bytes'],
             'document.verification_complete' => ['document_type', 'verification_status', 'processing_time_seconds'],
+
+            // Slice B: Documents events (new)
+            'documents.presigned_generated' => ['document_type', 'filename_hash', 'file_extension'],
+            'documents.submitted' => ['document_type', 'file_size_bytes', 'status'],
+            'documents.approved' => ['document_type', 'review_duration_hours', 'reviewer_role'],
+            'documents.rejected' => ['document_type', 'rejection_reason_category', 'review_duration_hours'],
 
             // Interview events
             'interview.scheduled' => ['interview_type', 'scheduled_date', 'interviewer_id'],

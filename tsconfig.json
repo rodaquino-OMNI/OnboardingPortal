@@ -16,9 +16,10 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    "baseUrl": ".",
     "paths": {
-      "@austa/ui": ["packages/ui/src/index.ts"],
-      "@austa/ui/*": ["packages/ui/src/*"]
+      "@austa/ui": ["./packages/ui/src/index.ts"],
+      "@austa/ui/*": ["./packages/ui/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", "archive"]

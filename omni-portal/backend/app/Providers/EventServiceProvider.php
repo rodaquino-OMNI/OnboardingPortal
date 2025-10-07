@@ -2,40 +2,47 @@
 
 namespace App\Providers;
 
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
-use Illuminate\Support\Facades\Event;
-use App\Events\UserAction;
-use App\Events\DocumentProcessed;
-use App\Events\SessionFingerprintMismatch;
-use App\Listeners\AwardPoints;
-use App\Listeners\CheckBadges;
-use App\Listeners\CheckLevelUp;
-use App\Listeners\ProcessDocumentGamification;
-use App\Listeners\LogSessionFingerprintMismatch;
+use App\Modules\Gamification\Events\PointsEarnedEvent;
+use App\Modules\Gamification\Events\LevelUpEvent;
+use App\Modules\Gamification\Listeners\EmitAnalyticsEvents;
+use App\Modules\Gamification\Listeners\UpdateDerivedStats;
+use App\Modules\Health\Events\HealthQuestionnaireSubmitted;
+use App\Modules\Health\Listeners\PersistHealthAnalytics;
 
+/**
+ * EventServiceProvider - Wires domain events to listeners
+ *
+ * Event-driven architecture for gamification system:
+ * - PointsEarnedEvent → EmitAnalyticsEvents, UpdateDerivedStats
+ * - LevelUpEvent → EmitAnalyticsEvents, UpdateDerivedStats
+ *
+ * All listeners are idempotent and can handle event replay.
+ *
+ * @see docs/ARCHITECTURE_DECISIONS.md - ADR-003: State Management
+ */
 class EventServiceProvider extends ServiceProvider
 {
     /**
-     * The event to listener mappings for the application.
+     * The event listener mappings for the application.
      *
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        Registered::class => [
-            SendEmailVerificationNotification::class,
+        // Gamification events
+        PointsEarnedEvent::class => [
+            EmitAnalyticsEvents::class . '@handlePointsEarned',
+            UpdateDerivedStats::class . '@handlePointsEarned',
         ],
-        UserAction::class => [
-            AwardPoints::class,
-            CheckBadges::class,
-            CheckLevelUp::class,
+
+        LevelUpEvent::class => [
+            EmitAnalyticsEvents::class . '@handleLevelUp',
+            UpdateDerivedStats::class . '@handleLevelUp',
         ],
-        DocumentProcessed::class => [
-            ProcessDocumentGamification::class,
-        ],
-        SessionFingerprintMismatch::class => [
-            LogSessionFingerprintMismatch::class,
+
+        // Health questionnaire events
+        HealthQuestionnaireSubmitted::class => [
+            PersistHealthAnalytics::class,
         ],
     ];
 
@@ -52,6 +59,6 @@ class EventServiceProvider extends ServiceProvider
      */
     public function shouldDiscoverEvents(): bool
     {
-        return false;
+        return false; // Explicit mapping for clarity
     }
 }

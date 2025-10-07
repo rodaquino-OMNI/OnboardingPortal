@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omni-portal.example.com/schemas/analytics/health/page_turned.json",
+  "title": "Health Questionnaire Page Turned Event",
+  "description": "Analytics event for health questionnaire pagination (ADR-004 compliant, no PHI, no answer data)",
+  "type": "object",
+  "required": [
+    "event_name",
+    "timestamp",
+    "user_hash",
+    "session_id",
+    "from_step",
+    "to_step",
+    "direction"
+  ],
+  "properties": {
+    "event_name": {
+      "const": "health.page_turned",
+      "description": "Event identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event"
+    },
+    "user_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of user_id for de-identified tracking"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique session identifier (not user-identifying)"
+    },
+    "from_step": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Step number navigating from"
+    },
+    "to_step": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Step number navigating to"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["forward", "backward", "jump"],
+      "description": "Navigation direction"
+    },
+    "time_on_step_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Time spent on previous step in milliseconds"
+    },
+    "step_completion_percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Percentage of overall questionnaire completed"
+    },
+    "validation_errors": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of validation errors encountered (no details)"
+    },
+    "interaction_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of field interactions on the step"
+    }
+  },
+  "additionalProperties": false
+}

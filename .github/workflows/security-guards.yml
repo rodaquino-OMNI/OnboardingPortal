@@ -32,7 +32,7 @@ jobs:
             # Pattern matches: filename:linenum:content
             # We exclude lines where content starts with //, /*, or * (block comment)
             if grep -r --include=\*.{ts,tsx,js,jsx} -n "$pattern" "$path" 2>/dev/null | \
-               grep -v "://\s*.*$pattern" | grep -v ":/\*.*$pattern" | grep -v ":\s*\*.*$pattern"; then
+               grep -v ":\s*//" | grep -v ":\s*/\*" | grep -v ":\s*\*"; then
               echo ""
               echo "❌ VIOLATION: $name found in $path"
               return 1
@@ -114,24 +114,31 @@ jobs:
           # We exclude lines where content starts with //, /*, or * (block comment)
           if grep -r --include=\*.{ts,tsx,js,jsx} -n "localStorage\|sessionStorage\|IndexedDB\|indexedDB" \
             packages/ui/src 2>/dev/null | \
-            grep -v "://\s*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB" | \
-            grep -v ":/\*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB" | \
-            grep -v ":\s*\*.*localStorage\|sessionStorage\|IndexedDB\|indexedDB"; then
+            grep -v ":\s*//" | \
+            grep -v ":\s*/\*" | \
+            grep -v ":\s*\*" | \
+            grep -v "//.*localStorage\|sessionStorage\|IndexedDB\|indexedDB"; then
             echo ""
             echo "❌ VIOLATION: Browser storage APIs found in UI package"
             VIOLATIONS=$((VIOLATIONS + 1))
           fi
 
-          # Check for network calls
+          # Check for network calls (excluding comments)
           if grep -r --include=\*.{ts,tsx,js,jsx} -n "fetch(" \
-            packages/ui/src 2>/dev/null; then
+            packages/ui/src 2>/dev/null | \
+            grep -v ":\s*//" | \
+            grep -v ":\s*/\*" | \
+            grep -v ":\s*\*"; then
             echo ""
             echo "❌ VIOLATION: fetch() calls found in UI package"
             VIOLATIONS=$((VIOLATIONS + 1))
           fi
 
           if grep -r --include=\*.{ts,tsx,js,jsx} -n "axios\|XMLHttpRequest" \
-            packages/ui/src 2>/dev/null; then
+            packages/ui/src 2>/dev/null | \
+            grep -v ":\s*//" | \
+            grep -v ":\s*/\*" | \
+            grep -v ":\s*\*"; then
             echo ""
             echo "❌ VIOLATION: axios/XMLHttpRequest found in UI package"
             VIOLATIONS=$((VIOLATIONS + 1))

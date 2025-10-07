@@ -1,0 +1,481 @@
+# Health Questionnaire AlertManager Configuration
+# Defines alerting rules for monitoring and incident response
+
+groups:
+  # ==========================================================================
+  # CRITICAL ALERTS - Immediate Response Required
+  # ==========================================================================
+  - name: health_questionnaire_critical
+    interval: 30s
+    rules:
+      # CRITICAL: PHI Guard Violation
+      - alert: PHIGuardViolation
+        expr: rate(health_phi_guard_violations_total[5m]) > 0
+        for: 0s  # Immediate alert, no waiting period
+        labels:
+          severity: critical
+          compliance: HIPAA
+          team: security
+          escalation: pagerduty
+        annotations:
+          summary: "PHI security guard detected violation"
+          description: |
+            CRITICAL SECURITY INCIDENT
+
+            Guard Type: {{ $labels.guard_type }}
+            Violation: {{ $labels.violation_type }}
+            Severity: {{ $labels.severity }}
+
+            IMMEDIATE ACTIONS REQUIRED:
+            1. Review audit logs for affected user
+            2. Verify data encryption status
+            3. Check for data exfiltration
+            4. Notify compliance officer
+            5. Document incident per HIPAA breach protocol
+          runbook: "https://docs.internal/runbooks/phi-violation-response.md"
+          dashboard: "https://grafana.internal/d/phi-security"
+          slack_channel: "#security-incidents"
+
+      # CRITICAL: Encryption Service Failure
+      - alert: EncryptionServiceDown
+        expr: rate(health_encryption_operations_total{status="failure"}[5m]) > 0.10
+        for: 1m
+        labels:
+          severity: critical
+          compliance: HIPAA
+          team: platform
+        annotations:
+          summary: "PHI encryption service failure rate >10%"
+          description: |
+            Encryption operations failing - PHI may be at risk
+
+            Failure Rate: {{ $value | humanizePercentage }}
+            Operation: {{ $labels.operation }}
+
+            IMMEDIATE ACTIONS:
+            1. Stop accepting new questionnaire submissions
+            2. Verify KMS key status
+            3. Check encryption service logs
+            4. Rollback recent changes if applicable
+          runbook: "https://docs.internal/runbooks/encryption-failure.md"
+
+      # CRITICAL: Database Connection Pool Exhausted
+      - alert: HealthDBConnectionPoolExhausted
+        expr: health_db_connections_active{connection_state="waiting"} > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: |
+            Health service cannot acquire database connections
+
+            Waiting Connections: {{ $value }}
+            Pool: {{ $labels.pool }}
+
+            Impact: New questionnaire submissions blocked
+          runbook: "https://docs.internal/runbooks/db-pool-exhausted.md"
+
+  # ==========================================================================
+  # HIGH SEVERITY ALERTS - Urgent Response Required
+  # ==========================================================================
+  - name: health_questionnaire_high
+    interval: 1m
+    rules:
+      # HIGH: API Error Rate Spike
+      - alert: HealthAPIErrorRate
+        expr: |
+          (
+            sum(rate(health_api_response_time_seconds_count{status_code=~"5.."}[5m]))
+            /
+            sum(rate(health_api_response_time_seconds_count[5m]))
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: high
+          team: backend
+        annotations:
+          summary: "Health API error rate >5%"
+          description: |
+            API experiencing elevated error rates
+
+            Error Rate: {{ $value | humanizePercentage }}
+            Endpoint: {{ $labels.endpoint }}
+            Status Codes: 5xx
+
+            Potential causes:
+            - Database connectivity issues
+            - Third-party API failures
+            - Resource exhaustion
+            - Recent deployment issues
+          runbook: "https://docs.internal/runbooks/api-error-spike.md"
+          dashboard: "https://grafana.internal/d/health-api"
+
+      # HIGH: API Response Time P95 Violation
+      - alert: HealthAPISlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            rate(health_api_response_time_seconds_bucket[5m])
+          ) > 2.5
+        for: 5m
+        labels:
+          severity: high
+          team: backend
+        annotations:
+          summary: "Health API P95 latency >2.5s"
+          description: |
+            95th percentile response time exceeds SLA
+
+            P95 Latency: {{ $value }}s
+            Endpoint: {{ $labels.endpoint }}
+
+            User Impact: Degraded questionnaire experience
+          runbook: "https://docs.internal/runbooks/api-latency.md"
+
+      # HIGH: Database Query Performance Degradation
+      - alert: SlowHealthQueries
+        expr: |
+          histogram_quantile(0.95,
+            rate(health_db_query_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: high
+          team: database
+        annotations:
+          summary: "Database queries P95 >500ms"
+          description: |
+            Health database queries running slowly
+
+            P95 Duration: {{ $value }}s
+            Query Type: {{ $labels.query_type }}
+            Table: {{ $labels.table }}
+
+            Recommended Actions:
+            - Check for missing indexes
+            - Review recent schema changes
+            - Analyze query execution plans
+            - Consider query optimization
+          runbook: "https://docs.internal/runbooks/slow-queries.md"
+
+      # HIGH: Audit Log Failures
+      - alert: AuditLogFailures
+        expr: rate(health_audit_log_entries_total{event_type="error"}[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: high
+          compliance: HIPAA
+          team: platform
+        annotations:
+          summary: "Audit logging failures detected"
+          description: |
+            HIPAA compliance risk - audit logs failing to write
+
+            Failure Rate: {{ $value }}
+
+            This may indicate:
+            - Storage issues
+            - Log service outage
+            - Permission problems
+
+            COMPLIANCE RISK: PHI access may not be auditable
+          runbook: "https://docs.internal/runbooks/audit-log-failure.md"
+
+  # ==========================================================================
+  # MEDIUM SEVERITY ALERTS - Action Required Within Hours
+  # ==========================================================================
+  - name: health_questionnaire_medium
+    interval: 2m
+    rules:
+      # MEDIUM: High Abandonment Rate
+      - alert: HighAbandonmentRate
+        expr: health_questionnaire_abandonment_rate > 0.30
+        for: 15m
+        labels:
+          severity: medium
+          team: product
+        annotations:
+          summary: "30%+ users abandoning questionnaire"
+          description: |
+            Questionnaire abandonment rate elevated
+
+            Abandonment Rate: {{ $value | humanizePercentage }}
+            Step Abandoned: {{ $labels.step_abandoned }}
+            User Segment: {{ $labels.user_segment }}
+
+            Potential causes:
+            - UX issues at specific step
+            - Form validation too strict
+            - Performance degradation
+            - Mobile device issues
+
+            Recommended Actions:
+            - Review UX analytics for step
+            - Check validation error rates
+            - Test on mobile devices
+            - A/B test form simplification
+          runbook: "https://docs.internal/runbooks/high-abandonment.md"
+          dashboard: "https://grafana.internal/d/questionnaire-ux"
+
+      # MEDIUM: Cache Miss Rate High
+      - alert: HighCacheMissRate
+        expr: |
+          (
+            sum(rate(health_cache_operations_total{result="miss"}[10m]))
+            /
+            sum(rate(health_cache_operations_total{operation="get"}[10m]))
+          ) > 0.70
+        for: 20m
+        labels:
+          severity: medium
+          team: backend
+        annotations:
+          summary: "Cache miss rate >70%"
+          description: |
+            Cache effectiveness degraded
+
+            Miss Rate: {{ $value | humanizePercentage }}
+            Cache Type: {{ $labels.cache_key_type }}
+
+            Impact: Increased database load and latency
+
+            Investigate:
+            - Cache eviction policy
+            - Cache capacity
+            - Key TTL settings
+            - Recent traffic patterns
+          runbook: "https://docs.internal/runbooks/cache-performance.md"
+
+      # MEDIUM: Validation Failure Spike
+      - alert: ValidationFailureSpike
+        expr: |
+          rate(health_validation_failures_total[10m])
+          >
+          avg_over_time(rate(health_validation_failures_total[1h])[1d:1h]) * 2
+        for: 10m
+        labels:
+          severity: medium
+          team: backend
+        annotations:
+          summary: "Validation failures 2x normal rate"
+          description: |
+            Unusual spike in validation failures
+
+            Field: {{ $labels.field }}
+            Validation Rule: {{ $labels.validation_rule }}
+
+            Possible causes:
+            - Bot/scraper activity
+            - Frontend bug sending invalid data
+            - Localization issues
+            - Recent validation rule changes
+          runbook: "https://docs.internal/runbooks/validation-spike.md"
+
+      # MEDIUM: Background Job Failures
+      - alert: HealthBackgroundJobFailures
+        expr: |
+          (
+            sum(rate(health_background_jobs_total{status="failure"}[10m]))
+            /
+            sum(rate(health_background_jobs_total[10m]))
+          ) > 0.10
+        for: 15m
+        labels:
+          severity: medium
+          team: backend
+        annotations:
+          summary: "Background job failure rate >10%"
+          description: |
+            Async processing experiencing failures
+
+            Failure Rate: {{ $value | humanizePercentage }}
+            Job Type: {{ $labels.job_type }}
+            Queue: {{ $labels.queue }}
+
+            Impact may include:
+            - Delayed risk calculations
+            - Missing notifications
+            - Incomplete reports
+          runbook: "https://docs.internal/runbooks/background-jobs.md"
+
+  # ==========================================================================
+  # LOW SEVERITY ALERTS - Informational / Preventive
+  # ==========================================================================
+  - name: health_questionnaire_low
+    interval: 5m
+    rules:
+      # LOW: Database Connection Pool Utilization
+      - alert: HighDBConnectionUtilization
+        expr: |
+          (
+            health_db_connections_active{connection_state="active"}
+            /
+            (health_db_connections_active{connection_state="active"}
+             + health_db_connections_active{connection_state="idle"})
+          ) > 0.80
+        for: 30m
+        labels:
+          severity: low
+          team: platform
+        annotations:
+          summary: "Database connection pool >80% utilized"
+          description: |
+            Connection pool approaching capacity
+
+            Utilization: {{ $value | humanizePercentage }}
+            Pool: {{ $labels.pool }}
+
+            Consider:
+            - Increasing pool size
+            - Optimizing connection lifecycle
+            - Reviewing long-running queries
+          runbook: "https://docs.internal/runbooks/db-connections.md"
+
+      # LOW: External API Latency
+      - alert: ExternalAPISlowResponses
+        expr: |
+          histogram_quantile(0.95,
+            rate(health_external_api_calls_duration_bucket[10m])
+          ) > 5.0
+        for: 20m
+        labels:
+          severity: low
+          team: integrations
+        annotations:
+          summary: "External API P95 latency >5s"
+          description: |
+            Third-party API responding slowly
+
+            API: {{ $labels.api_name }}
+            Endpoint: {{ $labels.endpoint }}
+            P95: {{ $value }}s
+
+            May impact:
+            - Risk scoring accuracy
+            - Clinical decision support
+            - Notification delivery
+          runbook: "https://docs.internal/runbooks/external-api.md"
+
+      # LOW: Progressive Disclosure Trigger Rate
+      - alert: HighProgressiveDisclosureRate
+        expr: |
+          rate(health_progressive_disclosure_triggers_total[30m]) > 0.5
+        for: 1h
+        labels:
+          severity: low
+          team: product
+        annotations:
+          summary: ">50% users triggering additional questions"
+          description: |
+            High rate of progressive disclosure activations
+
+            Trigger Condition: {{ $labels.trigger_condition }}
+            Rate: {{ $value | humanizePercentage }}
+
+            Consider:
+            - Reviewing trigger thresholds
+            - Simplifying initial questions
+            - Pre-populating known data
+          dashboard: "https://grafana.internal/d/questionnaire-logic"
+
+# ==========================================================================
+# ALERTING ROUTES AND INTEGRATIONS
+# ==========================================================================
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'severity', 'team']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # CRITICAL: PagerDuty + Slack
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true
+
+    - match:
+        severity: critical
+      receiver: 'slack-security'
+      continue: true
+
+    # HIGH: Slack + Email
+    - match:
+        severity: high
+      receiver: 'slack-alerts'
+      continue: true
+
+    # MEDIUM: Slack only
+    - match:
+        severity: medium
+      receiver: 'slack-alerts'
+
+    # LOW: Email digest
+    - match:
+        severity: low
+      receiver: 'email-digest'
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - channel: '#health-alerts'
+        title: 'Health Questionnaire Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        severity: 'critical'
+        description: '{{ .CommonAnnotations.summary }}'
+
+  - name: 'slack-security'
+    slack_configs:
+      - channel: '#security-incidents'
+        username: 'AlertManager'
+        color: 'danger'
+        title: 'SECURITY ALERT: {{ .CommonAnnotations.summary }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Runbook:* {{ .Annotations.runbook }}
+          {{ end }}
+
+  - name: 'slack-alerts'
+    slack_configs:
+      - channel: '#health-alerts'
+        username: 'AlertManager'
+        title: '{{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+
+  - name: 'email-digest'
+    email_configs:
+      - to: 'health-team@company.com'
+        from: 'alerts@company.com'
+        smarthost: 'smtp.company.com:587'
+        html: '{{ template "email.default.html" . }}'
+
+# ==========================================================================
+# INHIBITION RULES
+# ==========================================================================
+inhibit_rules:
+  # If PHI violation fires, suppress other alerts for same component
+  - source_match:
+      alertname: 'PHIGuardViolation'
+    target_match_re:
+      alertname: '.*'
+    equal: ['component']
+
+  # If encryption service down, suppress encryption operation failures
+  - source_match:
+      alertname: 'EncryptionServiceDown'
+    target_match:
+      alertname: 'EncryptionOperationFailure'
+
+  # If database down, suppress slow query alerts
+  - source_match:
+      alertname: 'HealthDBConnectionPoolExhausted'
+    target_match:
+      alertname: 'SlowHealthQueries'

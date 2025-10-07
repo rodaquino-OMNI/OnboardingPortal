@@ -1,0 +1,854 @@
+openapi: 3.0.0
+info:
+  title: Health Questionnaire API
+  version: 1.0.0
+  description: |
+    RESTful API for health questionnaire management with PHI encryption and compliance.
+
+    **Security Features:**
+    - All endpoints require JWT authentication via Laravel Sanctum
+    - PHI data encrypted at rest using AES-256-GCM
+    - Zero PHI in API responses (encrypted storage only)
+    - Comprehensive audit logging for all PHI access
+    - Rate limiting: 10 submissions per hour per user
+
+    **Feature Flags:**
+    - Feature flag: `sliceC_health` required for all endpoints
+    - Middleware: `feature.flag:sliceC_health`
+
+    **Compliance:**
+    - LGPD compliant
+    - ADR-004: PHI Encryption Policy
+    - Phase 2: RESTful API Endpoints & Domain Events
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: Proprietary
+    url: https://example.com/license
+
+servers:
+  - url: https://api.example.com/api/v1
+    description: Production server
+  - url: https://staging-api.example.com/api/v1
+    description: Staging server
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+
+tags:
+  - name: Health Questionnaire
+    description: Operations for health questionnaire management
+  - name: Schema
+    description: Questionnaire schema and structure
+  - name: Responses
+    description: User questionnaire responses (PHI protected)
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health/schema:
+    get:
+      summary: Get questionnaire schema
+      description: |
+        Returns the active questionnaire schema including questions, branching rules, and metadata.
+
+        **No PHI** - Returns only template structure and configuration.
+
+        **Events Emitted:**
+        - `HealthQuestionnaireStarted` - User started questionnaire session
+
+        **Audit Logged:**
+        - Action: `health.questionnaire.schema_accessed`
+        - PHI Access: No
+      operationId: getQuestionnaireSchema
+      tags:
+        - Schema
+        - Health Questionnaire
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Feature-Flag
+          in: header
+          description: Feature flag override (admin only)
+          required: false
+          schema:
+            type: string
+            example: sliceC_health
+      responses:
+        '200':
+          description: Questionnaire schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireSchema'
+              example:
+                version: "v1.0.0"
+                schema:
+                  questions:
+                    - id: "phq9_q1"
+                      text: "Little interest or pleasure in doing things?"
+                      type: "likert_scale"
+                      required: true
+                      options:
+                        - value: 0
+                          label: "Not at all"
+                        - value: 1
+                          label: "Several days"
+                        - value: 2
+                          label: "More than half the days"
+                        - value: 3
+                          label: "Nearly every day"
+                    - id: "phq9_q2"
+                      text: "Feeling down, depressed, or hopeless?"
+                      type: "likert_scale"
+                      required: true
+                      options:
+                        - value: 0
+                          label: "Not at all"
+                        - value: 1
+                          label: "Several days"
+                        - value: 2
+                          label: "More than half the days"
+                        - value: 3
+                          label: "Nearly every day"
+                branching_rules:
+                  phq9_q1:
+                    if_value: [2, 3]
+                    show: ["phq9_followup"]
+                metadata:
+                  total_questions: 9
+                  estimated_minutes: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/FeatureDisabled'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health/response:
+    post:
+      summary: Create or submit questionnaire response
+      description: |
+        Creates a new questionnaire response with encrypted PHI storage.
+
+        **Modes:**
+        - **Draft Mode** (`is_draft: true`): Save without submission
+        - **Final Submission** (`is_draft: false`): Calculate score, emit events, lock submission
+
+        **Security:**
+        - Requires `verified` email status for final submission
+        - Answers encrypted using AES-256-GCM
+        - Hash generated for deduplication (SHA-256)
+
+        **Rate Limiting:**
+        - 10 submissions per hour per user
+        - Rate limit key: `health_submission:{user_id}`
+
+        **Events Emitted (Final Submission Only):**
+        - `HealthQuestionnaireSubmitted` - Analytics pipeline trigger
+
+        **Audit Logged:**
+        - Draft: `health.questionnaire.draft_saved` (PHI accessed)
+        - Final: `health.questionnaire.submitted` (PHI accessed)
+      operationId: createQuestionnaireResponse
+      tags:
+        - Responses
+        - Health Questionnaire
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestionnaireRequest'
+            examples:
+              phq9_draft:
+                summary: PHQ-9 Draft Response
+                value:
+                  questionnaire_id: 1
+                  is_draft: true
+                  answers:
+                    - question_id: "phq9_q1"
+                      value: 2
+                    - question_id: "phq9_q2"
+                      value: 1
+              phq9_final:
+                summary: PHQ-9 Final Submission
+                value:
+                  questionnaire_id: 1
+                  is_draft: false
+                  answers:
+                    - question_id: "phq9_q1"
+                      value: 2
+                    - question_id: "phq9_q2"
+                      value: 1
+                    - question_id: "phq9_q3"
+                      value: 0
+                    - question_id: "phq9_q4"
+                      value: 3
+                    - question_id: "phq9_q5"
+                      value: 2
+                    - question_id: "phq9_q6"
+                      value: 1
+                    - question_id: "phq9_q7"
+                      value: 1
+                    - question_id: "phq9_q8"
+                      value: 0
+                    - question_id: "phq9_q9"
+                      value: 1
+      responses:
+        '201':
+          description: Questionnaire response created successfully
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+                example: 10
+              description: Request limit per hour
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+                example: 9
+              description: Remaining requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireResponse'
+              examples:
+                draft_response:
+                  summary: Draft Saved
+                  value:
+                    id: 123
+                    status: "draft"
+                    score_redacted: null
+                    risk_band: null
+                    created_at: "2025-10-06T14:30:00Z"
+                    message: "Draft saved successfully"
+                final_response:
+                  summary: Final Submission
+                  value:
+                    id: 124
+                    status: "submitted"
+                    score_redacted: 11
+                    risk_band: "moderate"
+                    created_at: "2025-10-06T14:35:00Z"
+                    message: "Questionnaire submitted successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/FeatureDisabled'
+        '409':
+          description: Conflict - Already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Already submitted"
+                message: "You have already submitted a response to this questionnaire"
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          description: Too Many Requests - Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+                example: 10
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+                example: 0
+            Retry-After:
+              schema:
+                type: integer
+                example: 3456
+              description: Seconds until next allowed request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Too many submissions"
+                message: "Please wait 3456 seconds before submitting again"
+                retry_after: 3456
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health/response/{id}:
+    get:
+      summary: Get questionnaire response metadata
+      description: |
+        Retrieves questionnaire response metadata **without decrypted answers**.
+
+        **Security:**
+        - Users can only access their own responses
+        - Admin role can access all responses (review workflow)
+
+        **Response Includes:**
+        - Response ID, status, timestamps
+        - Redacted score and risk band
+        - Metadata (non-PHI only)
+
+        **Response Excludes:**
+        - Encrypted answers (PHI)
+        - Answers hash
+        - Raw score
+
+        **Audit Logged:**
+        - Action: `health.questionnaire.response_viewed`
+        - PHI Access: No (metadata only)
+      operationId: getQuestionnaireResponse
+      tags:
+        - Responses
+        - Health Questionnaire
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Questionnaire response ID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 123
+      responses:
+        '200':
+          description: Response metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireResponseMetadata'
+              example:
+                id: 123
+                status: "submitted"
+                score_redacted: 11
+                risk_band: "moderate"
+                submitted_at: "2025-10-06T14:35:00Z"
+                created_at: "2025-10-06T14:30:00Z"
+                metadata:
+                  questionnaire_version: "v1.0.0"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - Cannot access other users' responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Forbidden"
+                message: "You can only access your own questionnaire responses"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update draft questionnaire response
+      description: |
+        Updates a draft questionnaire response before submission.
+
+        **Restrictions:**
+        - Only draft responses can be updated (`submitted_at` must be null)
+        - User must own the response
+        - Updates are encrypted before storage
+
+        **Audit Logged:**
+        - Action: `health.questionnaire.draft_updated`
+        - PHI Access: Yes (encrypted answers updated)
+      operationId: updateQuestionnaireResponse
+      tags:
+        - Responses
+        - Health Questionnaire
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Questionnaire response ID
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionnaireRequest'
+            example:
+              answers:
+                - question_id: "phq9_q1"
+                  value: 3
+                - question_id: "phq9_q2"
+                  value: 2
+      responses:
+        '200':
+          description: Draft updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireResponse'
+              example:
+                id: 123
+                status: "draft"
+                updated_at: "2025-10-06T14:40:00Z"
+                message: "Draft updated successfully"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - Cannot update other users' responses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Forbidden"
+                message: "You can only update your own questionnaire responses"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict - Cannot update submitted response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Cannot update submitted response"
+                message: "This questionnaire has already been submitted"
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from Laravel Sanctum authentication.
+
+        **Obtaining Token:**
+        1. POST /api/v1/auth/login with credentials
+        2. Extract `token` from response
+        3. Include as `Authorization: Bearer {token}` header
+
+        **Token Lifecycle:**
+        - Expiration: 24 hours (configurable)
+        - Refresh: POST /api/v1/auth/refresh
+        - Revoke: POST /api/v1/auth/logout
+
+        **Scopes:**
+        - `user` - Standard authenticated user
+        - `verified` - Email verified user (required for submissions)
+        - `admin` - Administrator access (review workflows)
+
+  schemas:
+    QuestionnaireSchema:
+      type: object
+      required:
+        - version
+        - schema
+        - metadata
+      properties:
+        version:
+          type: string
+          description: Questionnaire version identifier
+          example: "v1.0.0"
+        schema:
+          type: object
+          description: Question structure and configuration
+          required:
+            - questions
+          properties:
+            questions:
+              type: array
+              description: Array of questionnaire questions
+              items:
+                $ref: '#/components/schemas/Question'
+        branching_rules:
+          type: object
+          description: Conditional logic for question display
+          additionalProperties:
+            type: object
+            properties:
+              if_value:
+                type: array
+                description: Trigger values for branching
+                items:
+                  type: integer
+              show:
+                type: array
+                description: Question IDs to show
+                items:
+                  type: string
+              skip:
+                type: array
+                description: Question IDs to skip
+                items:
+                  type: string
+        metadata:
+          type: object
+          description: Non-PHI metadata
+          required:
+            - total_questions
+            - estimated_minutes
+          properties:
+            total_questions:
+              type: integer
+              description: Total number of questions
+              example: 9
+            estimated_minutes:
+              type: integer
+              description: Estimated completion time
+              example: 5
+
+    Question:
+      type: object
+      required:
+        - id
+        - text
+        - type
+        - required
+      properties:
+        id:
+          type: string
+          description: Unique question identifier
+          example: "phq9_q1"
+        text:
+          type: string
+          description: Question text
+          example: "Little interest or pleasure in doing things?"
+        type:
+          type: string
+          description: Question input type
+          enum:
+            - boolean
+            - likert_scale
+            - multiple_choice
+            - text
+            - numeric
+          example: "likert_scale"
+        required:
+          type: boolean
+          description: Whether question is required
+          example: true
+        options:
+          type: array
+          description: Answer options (for multiple choice/likert)
+          items:
+            type: object
+            required:
+              - value
+              - label
+            properties:
+              value:
+                type: integer
+                description: Option value for scoring
+                example: 0
+              label:
+                type: string
+                description: Display label
+                example: "Not at all"
+        conditional:
+          type: object
+          description: Conditional display rules
+          additionalProperties:
+            type: boolean
+
+    CreateQuestionnaireRequest:
+      type: object
+      required:
+        - questionnaire_id
+        - answers
+      properties:
+        questionnaire_id:
+          type: integer
+          description: Questionnaire template ID
+          minimum: 1
+          example: 1
+        answers:
+          type: array
+          description: User's answers to questions (PHI - will be encrypted)
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Answer'
+        is_draft:
+          type: boolean
+          description: Save as draft without submission
+          default: false
+          example: false
+
+    UpdateQuestionnaireRequest:
+      type: object
+      required:
+        - answers
+      properties:
+        answers:
+          type: array
+          description: Updated answers (PHI - will be encrypted)
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Answer'
+
+    Answer:
+      type: object
+      required:
+        - question_id
+        - value
+      properties:
+        question_id:
+          type: string
+          description: Question identifier from schema
+          example: "phq9_q1"
+        value:
+          oneOf:
+            - type: integer
+            - type: string
+            - type: boolean
+          description: User's answer value
+          example: 2
+
+    QuestionnaireResponse:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+        - message
+      properties:
+        id:
+          type: integer
+          description: Response record ID
+          example: 123
+        status:
+          type: string
+          description: Response status
+          enum:
+            - draft
+            - submitted
+          example: "submitted"
+        score_redacted:
+          type: integer
+          description: Redacted risk score (0-100, only for submitted responses)
+          nullable: true
+          minimum: 0
+          maximum: 100
+          example: 11
+        risk_band:
+          type: string
+          description: Risk category (only for submitted responses)
+          nullable: true
+          enum:
+            - low
+            - moderate
+            - high
+            - critical
+          example: "moderate"
+        created_at:
+          type: string
+          format: date-time
+          description: Response creation timestamp (ISO 8601)
+          example: "2025-10-06T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Response update timestamp (ISO 8601)
+          example: "2025-10-06T14:35:00Z"
+        message:
+          type: string
+          description: Success message
+          example: "Questionnaire submitted successfully"
+
+    QuestionnaireResponseMetadata:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+        - metadata
+      properties:
+        id:
+          type: integer
+          description: Response record ID
+          example: 123
+        status:
+          type: string
+          description: Response status
+          enum:
+            - draft
+            - submitted
+          example: "submitted"
+        score_redacted:
+          type: integer
+          description: Redacted risk score (0-100)
+          nullable: true
+          minimum: 0
+          maximum: 100
+          example: 11
+        risk_band:
+          type: string
+          description: Risk category
+          nullable: true
+          enum:
+            - low
+            - moderate
+            - high
+            - critical
+          example: "moderate"
+        submitted_at:
+          type: string
+          format: date-time
+          description: Submission timestamp (null for drafts)
+          nullable: true
+          example: "2025-10-06T14:35:00Z"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp (ISO 8601)
+          example: "2025-10-06T14:30:00Z"
+        metadata:
+          type: object
+          description: Non-PHI metadata
+          properties:
+            questionnaire_version:
+              type: string
+              example: "v1.0.0"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error type/code
+          example: "Validation failed"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "The questionnaire_id field is required."
+        errors:
+          type: object
+          description: Field-level validation errors (422 only)
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            questionnaire_id:
+              - "The questionnaire_id field is required."
+            answers:
+              - "The answers field is required."
+        retry_after:
+          type: integer
+          description: Seconds until retry allowed (429 only)
+          example: 3456
+
+    AnalyticsEvent:
+      type: object
+      description: De-identified analytics event payload (emitted by domain events)
+      required:
+        - event_type
+        - user_id_hash
+        - timestamp
+      properties:
+        event_type:
+          type: string
+          description: Event type identifier
+          enum:
+            - health.questionnaire.started
+            - health.questionnaire.submitted
+          example: "health.questionnaire.submitted"
+        user_id_hash:
+          type: string
+          description: SHA-256 hashed user ID (de-identified)
+          example: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+        questionnaire_id:
+          type: integer
+          description: Questionnaire template ID
+          example: 1
+        risk_band:
+          type: string
+          description: Risk category (aggregated analytics only)
+          nullable: true
+          enum:
+            - low
+            - moderate
+            - high
+            - critical
+          example: "moderate"
+        duration_seconds:
+          type: integer
+          description: Time taken to complete (seconds)
+          nullable: true
+          example: 300
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp (ISO 8601)
+          example: "2025-10-06T14:35:00Z"
+
+  responses:
+    Unauthorized:
+      description: Unauthorized - Invalid or missing JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Unauthorized"
+            message: "Authentication required. Please provide a valid JWT token."
+
+    FeatureDisabled:
+      description: Forbidden - Feature flag disabled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Feature not enabled"
+            message: "Health questionnaire feature is currently disabled"
+
+    ValidationError:
+      description: Unprocessable Entity - Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Validation failed"
+            message: "The given data was invalid."
+            errors:
+              questionnaire_id:
+                - "The questionnaire_id field is required."
+              answers:
+                - "The answers field is required."
+                - "The answers must be an array."
+
+    NotFound:
+      description: Not Found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Not found"
+            message: "The requested resource was not found."
+
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Internal server error"
+            message: "An unexpected error occurred. Please try again later."

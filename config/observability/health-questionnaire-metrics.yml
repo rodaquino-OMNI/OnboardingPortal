@@ -1,0 +1,225 @@
+# Health Questionnaire Prometheus Metrics Configuration
+# Defines all metrics for monitoring health questionnaire feature
+
+metrics:
+  # ============================================================================
+  # BUSINESS METRICS
+  # ============================================================================
+
+  - name: health_questionnaire_submissions_total
+    type: counter
+    labels: [risk_band, questionnaire_version]
+    description: "Total questionnaire submissions by risk band"
+    help: |
+      Tracks completed questionnaire submissions categorized by:
+      - risk_band: low, medium, high, critical
+      - questionnaire_version: semantic version (e.g., 1.0.0, 1.1.0)
+
+  - name: health_questionnaire_duration_seconds
+    type: histogram
+    buckets: [30, 60, 120, 300, 600, 1800]
+    labels: [completion_status]
+    description: "Time to complete questionnaire"
+    help: |
+      Measures time from start to completion/abandonment:
+      - completion_status: completed, abandoned, draft, timeout
+      Buckets represent: 30s, 1m, 2m, 5m, 10m, 30m
+
+  - name: health_questionnaire_abandonment_rate
+    type: gauge
+    labels: [step_abandoned, user_segment]
+    description: "Percentage of users abandoning at each step"
+    help: |
+      Real-time abandonment rate by questionnaire step:
+      - step_abandoned: personal_info, medical_history, lifestyle, review
+      - user_segment: new_user, returning_user, high_risk
+
+  - name: health_questionnaire_risk_distribution
+    type: gauge
+    labels: [risk_band, age_group]
+    description: "Current distribution of users across risk bands"
+    help: |
+      Tracks risk profile distribution for population health insights:
+      - risk_band: low, medium, high, critical
+      - age_group: 18-30, 31-45, 46-60, 60+
+
+  # ============================================================================
+  # TECHNICAL METRICS
+  # ============================================================================
+
+  - name: health_api_response_time_seconds
+    type: histogram
+    buckets: [0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+    labels: [endpoint, status_code, method]
+    description: "API response time for health endpoints"
+    help: |
+      Tracks API performance for all health-related endpoints:
+      - endpoint: /api/health/questionnaire, /api/health/submit, etc.
+      - status_code: 200, 201, 400, 500, etc.
+      - method: GET, POST, PUT, DELETE
+
+  - name: health_encryption_operations_total
+    type: counter
+    labels: [operation, status, data_type]
+    description: "PHI encryption/decryption operations"
+    help: |
+      Monitors PHI security operations:
+      - operation: encrypt, decrypt, key_rotation
+      - status: success, failure, timeout
+      - data_type: questionnaire_data, medical_history, personal_info
+
+  - name: health_phi_guard_violations_total
+    type: counter
+    labels: [guard_type, violation_type, severity]
+    description: "PHI security guard violations (CRITICAL)"
+    help: |
+      CRITICAL SECURITY METRIC - Every increment triggers alerts
+      - guard_type: access_control, data_leakage, audit_trail, encryption
+      - violation_type: unauthorized_access, logging_phi, unencrypted_storage, missing_consent
+      - severity: critical, high, medium
+
+  - name: health_validation_failures_total
+    type: counter
+    labels: [field, validation_rule, user_type]
+    description: "Input validation failures by field and rule"
+    help: |
+      Tracks data quality and potential attack patterns:
+      - field: email, cpf, birth_date, medical_conditions
+      - validation_rule: required, format, range, enum
+      - user_type: new, existing, admin
+
+  # ============================================================================
+  # DATABASE METRICS
+  # ============================================================================
+
+  - name: health_db_query_duration_seconds
+    type: histogram
+    labels: [query_type, table, operation]
+    buckets: [0.01, 0.05, 0.1, 0.5, 1.0, 2.5]
+    description: "Database query execution time"
+    help: |
+      Monitors database performance for health data operations:
+      - query_type: select, insert, update, delete, aggregate
+      - table: health_questionnaires, clinical_alerts, questionnaire_templates
+      - operation: create_submission, fetch_history, generate_report
+
+  - name: health_db_connections_active
+    type: gauge
+    labels: [pool, connection_state]
+    description: "Active database connections for health service"
+    help: |
+      Tracks connection pool health:
+      - pool: read_replica, write_master
+      - connection_state: active, idle, waiting
+
+  - name: health_cache_operations_total
+    type: counter
+    labels: [operation, cache_key_type, result]
+    description: "Cache operations for health data"
+    help: |
+      Monitors caching effectiveness:
+      - operation: get, set, delete, invalidate
+      - cache_key_type: questionnaire_template, user_progress, risk_calculation
+      - result: hit, miss, error
+
+  # ============================================================================
+  # COMPLIANCE & AUDIT METRICS
+  # ============================================================================
+
+  - name: health_audit_log_entries_total
+    type: counter
+    labels: [event_type, actor_role, data_classification]
+    description: "Audit log entries for compliance tracking"
+    help: |
+      HIPAA/LGPD compliance audit trail:
+      - event_type: access, modify, delete, export, consent_change
+      - actor_role: patient, admin, system, third_party
+      - data_classification: phi, pii, anonymous, aggregated
+
+  - name: health_consent_status_changes_total
+    type: counter
+    labels: [consent_type, old_status, new_status]
+    description: "User consent status changes"
+    help: |
+      Tracks consent management for LGPD compliance:
+      - consent_type: data_collection, data_sharing, marketing, research
+      - old_status: granted, denied, not_asked
+      - new_status: granted, denied, revoked
+
+  # ============================================================================
+  # USER EXPERIENCE METRICS
+  # ============================================================================
+
+  - name: health_questionnaire_errors_total
+    type: counter
+    labels: [error_type, error_code, step]
+    description: "User-facing errors during questionnaire flow"
+    help: |
+      Tracks UX issues and technical errors:
+      - error_type: validation, network, server, timeout
+      - error_code: specific error identifier
+      - step: questionnaire step where error occurred
+
+  - name: health_progressive_disclosure_triggers_total
+    type: counter
+    labels: [trigger_condition, additional_questions]
+    description: "Progressive disclosure activations"
+    help: |
+      Monitors adaptive questionnaire logic:
+      - trigger_condition: high_risk_answer, specific_condition, age_threshold
+      - additional_questions: count of extra questions shown
+
+  # ============================================================================
+  # SYSTEM HEALTH METRICS
+  # ============================================================================
+
+  - name: health_background_jobs_total
+    type: counter
+    labels: [job_type, status, queue]
+    description: "Background job processing for health feature"
+    help: |
+      Monitors async processing:
+      - job_type: risk_calculation, report_generation, notification_send
+      - status: success, failure, retry
+      - queue: high_priority, standard, low_priority
+
+  - name: health_external_api_calls_total
+    type: counter
+    labels: [api_name, endpoint, status]
+    description: "External API calls for health integrations"
+    help: |
+      Tracks third-party integrations:
+      - api_name: clinical_decision_support, risk_scoring, notification_service
+      - endpoint: specific API endpoint
+      - status: success, failure, timeout
+
+# ============================================================================
+# ALERTING THRESHOLDS (for reference)
+# ============================================================================
+thresholds:
+  critical:
+    phi_violations: 0  # Any violation triggers CRITICAL alert
+    api_error_rate: 0.05  # 5% error rate
+    encryption_failures: 0.01  # 1% failure rate
+
+  high:
+    api_p95_latency: 2.5  # seconds
+    abandonment_rate: 0.30  # 30%
+    db_query_p95: 1.0  # seconds
+
+  medium:
+    cache_miss_rate: 0.70  # 70%
+    validation_failures: 0.10  # 10%
+
+  low:
+    db_connections_utilization: 0.80  # 80%
+    background_job_retry_rate: 0.05  # 5%
+
+# ============================================================================
+# RETENTION POLICIES
+# ============================================================================
+retention:
+  raw_metrics: 15d  # 15 days of raw data
+  aggregated_5m: 90d  # 90 days of 5-minute aggregates
+  aggregated_1h: 1y  # 1 year of hourly aggregates
+  aggregated_1d: 5y  # 5 years of daily aggregates (compliance)

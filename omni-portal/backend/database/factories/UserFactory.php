@@ -2,84 +2,41 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
- */
 class UserFactory extends Factory
 {
-    protected $model = User::class;
-
-    protected static ?string $password;
-
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
-            'role' => 'beneficiary',
-            'phone' => fake()->phoneNumber(),
-            'cpf' => fake()->unique()->numerify('###.###.###-##'),
-            'registration_step' => 'completed',
-            'status' => 'active',
-            'is_active' => true,
-            'lgpd_consent' => true,
-            'lgpd_consent_at' => now(),
-            'lgpd_consent_ip' => fake()->ipv4(),
-            'preferred_language' => 'pt-BR',
-            'preferences' => null,
+            'password' => Hash::make('password'),
             'remember_token' => Str::random(10),
+            'cpf' => fake()->numerify('###########'),
+            'birthdate' => fake()->date(),
+            'phone' => fake()->numerify('###########'),
+            'address' => [
+                'street' => fake()->streetAddress(),
+                'city' => fake()->city(),
+                'state' => fake()->state(),
+                'postal_code' => fake()->postcode(),
+            ],
+            'lgpd_consent' => true,
+            'terms_accepted' => true,
+            'points_balance' => 0,
+            'current_level' => 1,
+            'current_streak' => 0,
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
-        ]);
-    }
-
-    /**
-     * Indicate that the user's account is inactive.
-     */
-    public function inactive(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'is_active' => false,
-        ]);
-    }
-
-    /**
-     * Create a company admin user.
-     */
-    public function companyAdmin(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'role' => 'company_admin',
-        ]);
-    }
-
-    /**
-     * Create a super admin user.
-     */
-    public function superAdmin(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'role' => 'super_admin',
         ]);
     }
 }

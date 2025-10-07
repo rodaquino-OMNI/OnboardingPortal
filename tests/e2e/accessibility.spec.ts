@@ -375,4 +375,60 @@ test.describe('Accessibility - WCAG 2.1 AA Compliance', () => {
       expect(buttonText?.trim()).toBeTruthy();
     }
   });
+
+  test('documents page meets WCAG 2.1 AA (Slice B)', async ({ page }) => {
+    // Login first
+    await page.goto('/login');
+    await page.fill('input[type="email"]', 'demo@example.com');
+    await page.fill('input[type="password"]', 'demo123');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/profile');
+
+    // Navigate to documents page
+    await page.goto('/documents');
+
+    // Inject axe-core for accessibility testing
+    await injectAxe(page);
+
+    // Run accessibility scan
+    const violations = await getViolations(page, null, {
+      detailedReport: true,
+      detailedReportOptions: { html: true }
+    });
+
+    // Zero violations tolerance
+    expect(violations).toHaveLength(0);
+
+    // If violations found, log detailed information
+    if (violations.length > 0) {
+      console.error('❌ WCAG 2.1 AA Violations Found:');
+      violations.forEach((violation, index) => {
+        console.error(`\nViolation ${index + 1}:`);
+        console.error(`  Rule: ${violation.id}`);
+        console.error(`  Impact: ${violation.impact}`);
+        console.error(`  Description: ${violation.description}`);
+        console.error(`  Help: ${violation.help}`);
+        console.error(`  Help URL: ${violation.helpUrl}`);
+        console.error(`  Elements affected: ${violation.nodes.length}`);
+
+        violation.nodes.forEach((node, nodeIndex) => {
+          console.error(`    Element ${nodeIndex + 1}:`);
+          console.error(`      HTML: ${node.html}`);
+          console.error(`      Target: ${node.target.join(' > ')}`);
+        });
+      });
+
+      // Save violations to file for evidence
+      const fs = require('fs');
+      const reportDir = 'a11y-reports';
+      if (!fs.existsSync(reportDir)) {
+        fs.mkdirSync(reportDir, { recursive: true });
+      }
+
+      fs.writeFileSync(
+        `${reportDir}/documents-violations-${Date.now()}.json`,
+        JSON.stringify(violations, null, 2)
+      );
+    }
+  });
 });

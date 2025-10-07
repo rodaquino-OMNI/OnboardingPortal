@@ -37,7 +37,7 @@ fi
 echo ""
 echo "🔒 Testing Guard 3: UI package purity..."
 if grep -r --include=\*.{ts,tsx,js,jsx} -n "localStorage\|sessionStorage\|fetch(\|axios" \
-  packages/ui/src 2>/dev/null | grep -v "// "; then
+  packages/ui/src 2>/dev/null | grep -v ":\s*//" | grep -v ":\s*/\*" | grep -v ":\s*\*"; then
   echo "❌ Guard 3 FAILED"
   FAILED=$((FAILED + 1))
 else

@@ -3,7 +3,7 @@ const nextConfig = {
   experimental: {
     appDir: true,
   },
-  transpilePackages: ['@onboarding-portal/ui'],
+  transpilePackages: ['@onboarding/ui'],
   eslint: {
     ignoreDuringBuilds: true,
   },

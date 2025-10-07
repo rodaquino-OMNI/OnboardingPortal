@@ -8,12 +8,23 @@ use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 class Kernel extends ConsoleKernel
 {
     /**
+     * The Artisan commands provided by your application.
+     *
+     * @var array
+     */
+    protected $commands = [
+        Commands\PruneAnalyticsEvents::class,
+        Commands\MigratePhiFieldsEncryption::class,
+        Commands\VerifyPhiEncryption::class,
+    ];
+
+    /**
      * Define the application's command schedule.
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
-        $schedule->command('horizon:snapshot')->everyFiveMinutes();
+        // Analytics retention: Prune events older than 90 days daily at 2:00 AM
+        $schedule->command('analytics:prune')->daily()->at('02:00');
     }
 
     /**

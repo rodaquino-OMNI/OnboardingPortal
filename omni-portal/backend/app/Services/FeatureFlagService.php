@@ -2,413 +2,270 @@
 
 namespace App\Services;
 
+use App\Models\FeatureFlag;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Feature Flag Service for gradual rollout of admin features
- * Implements technical excellence with no workarounds
+ * FeatureFlagService - Feature flag management with caching
+ *
+ * Purpose: Manage feature toggles for gradual rollout and A/B testing
+ *
+ * Features:
+ * - Environment-based filtering (production, staging, testing)
+ * - Percentage-based rollout (0-100%)
+ * - Cache invalidation on updates
+ * - Default values for missing flags
+ * - Audit logging for flag changes
+ *
+ * Caching:
+ * - TTL: 5 minutes (configurable)
+ * - Invalidation on flag update
+ * - Per-flag cache keys
+ *
+ * Usage:
+ * ```php
+ * if ($featureFlags->isEnabled('sliceB_documents')) {
+ *     // Execute new flow
+ * } else {
+ *     // Execute legacy flow
+ * }
+ * ```
+ *
+ * @see app/Models/FeatureFlag.php
+ * @see database/migrations/2025_09_30_000001_create_feature_flags_table.php
  */
 class FeatureFlagService
 {
     /**
-     * Feature flag definitions with default states
+     * Cache TTL in seconds (5 minutes)
      */
-    private const FEATURES = [
-        'admin.role_management_ui' => [
-            'name' => 'Role Management UI',
-            'description' => 'Enable frontend UI for role management',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin'],
-        ],
-        'admin.security_audit_ui' => [
-            'name' => 'Security Audit UI',
-            'description' => 'Enable frontend UI for security audit',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin', 'admin'],
-        ],
-        'admin.system_settings_ui' => [
-            'name' => 'System Settings UI',
-            'description' => 'Enable frontend UI for system settings',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin'],
-        ],
-        'admin.user_management_enhanced' => [
-            'name' => 'Enhanced User Management',
-            'description' => 'Enable enhanced user management features',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin', 'admin', 'hr'],
-        ],
-        'admin.custom_role_system' => [
-            'name' => 'Custom Role System',
-            'description' => 'Use custom admin role system instead of Spatie',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin'],
-        ],
-        'admin.real_time_analytics' => [
-            'name' => 'Real-time Analytics',
-            'description' => 'Enable real-time analytics dashboard',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin', 'admin'],
-        ],
-        'admin.bulk_operations' => [
-            'name' => 'Bulk Operations',
-            'description' => 'Enable bulk operations on users and documents',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin', 'admin'],
-        ],
-        'admin.advanced_security' => [
-            'name' => 'Advanced Security Features',
-            'description' => 'Enable advanced security monitoring and alerts',
-            'default' => false,
-            'rollout_percentage' => 0,
-            'allowed_roles' => ['super-admin'],
-        ],
-    ];
+    private const CACHE_TTL = 300;
 
     /**
-     * Check if a feature is enabled for a user
+     * Cache key prefix
      */
-    public static function isEnabled(string $feature, ?User $user = null): bool
+    private const CACHE_PREFIX = 'feature_flag:';
+
+    /**
+     * Check if a feature flag is enabled
+     *
+     * @param string $key Feature flag key
+     * @param int|null $userId User ID for percentage rollout (optional)
+     * @return bool True if enabled, false otherwise
+     */
+    public function isEnabled(string $key, ?int $userId = null): bool
     {
-        // Check if feature exists
-        if (!isset(self::FEATURES[$feature])) {
+        $cacheKey = self::CACHE_PREFIX . $key;
+
+        // Check cache first
+        $flag = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($key) {
+            return FeatureFlag::where('key', $key)->first();
+        });
+
+        // Flag not found - return default (false)
+        if (!$flag) {
+            Log::debug("Feature flag not found: {$key} - defaulting to disabled");
             return false;
         }
 
-        $config = self::FEATURES[$feature];
-
-        // Check database override first
-        $override = self::getDatabaseOverride($feature, $user);
-        if ($override !== null) {
-            return $override;
-        }
-
-        // Check user-specific flag
-        if ($user && self::hasUserFlag($feature, $user)) {
-            return true;
-        }
-
-        // Check role-based access
-        if ($user && !self::hasRoleAccess($feature, $user)) {
+        // Check global enabled status
+        if (!$flag->enabled) {
             return false;
         }
 
-        // Check rollout percentage
-        if ($user && self::isInRolloutPercentage($feature, $user)) {
-            return true;
+        // Check environment filtering
+        if (!$this->isEnvironmentAllowed($flag)) {
+            return false;
         }
 
-        // Return default value
-        return $config['default'];
+        // Check percentage rollout
+        if (!$this->isWithinRolloutPercentage($flag, $userId)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
-     * Enable a feature globally or for specific users/roles
+     * Create or update a feature flag
+     *
+     * @param string $key Feature flag key
+     * @param bool $enabled Enabled status
+     * @param int $rolloutPercentage Rollout percentage (0-100)
+     * @param array $environments Allowed environments
+     * @param string|null $description Flag description
+     * @return FeatureFlag Created or updated flag
      */
-    public static function enable(string $feature, array $options = []): bool
-    {
-        try {
-            if (!self::ensureTableExists()) {
-                return false;
-            }
-
-            $data = [
-                'feature' => $feature,
-                'enabled' => true,
-                'rollout_percentage' => $options['rollout_percentage'] ?? 100,
-                'allowed_roles' => json_encode($options['allowed_roles'] ?? []),
-                'allowed_users' => json_encode($options['allowed_users'] ?? []),
-                'metadata' => json_encode($options['metadata'] ?? []),
-                'updated_at' => now(),
-            ];
-
-            DB::table('feature_flags')->updateOrInsert(
-                ['feature' => $feature],
-                array_merge($data, ['created_at' => now()])
-            );
-
-            self::clearCache($feature);
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Failed to enable feature flag: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Disable a feature
-     */
-    public static function disable(string $feature): bool
-    {
-        try {
-            if (!self::ensureTableExists()) {
-                return false;
-            }
-
-            DB::table('feature_flags')
-                ->where('feature', $feature)
-                ->update([
-                    'enabled' => false,
-                    'updated_at' => now(),
-                ]);
-
-            self::clearCache($feature);
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Failed to disable feature flag: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Set rollout percentage for gradual deployment
-     */
-    public static function setRolloutPercentage(string $feature, int $percentage): bool
-    {
-        if ($percentage < 0 || $percentage > 100) {
-            return false;
+    public function set(
+        string $key,
+        bool $enabled = true,
+        int $rolloutPercentage = 100,
+        array $environments = ['production', 'staging', 'testing'],
+        ?string $description = null
+    ): FeatureFlag {
+        // Validate rollout percentage
+        if ($rolloutPercentage < 0 || $rolloutPercentage > 100) {
+            throw new \InvalidArgumentException('Rollout percentage must be between 0 and 100');
         }
 
-        try {
-            if (!self::ensureTableExists()) {
-                return false;
-            }
-
-            DB::table('feature_flags')
-                ->where('feature', $feature)
-                ->update([
-                    'rollout_percentage' => $percentage,
-                    'updated_at' => now(),
-                ]);
-
-            self::clearCache($feature);
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Failed to set rollout percentage: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Get all feature flags with their current states
-     */
-    public static function getAllFlags(?User $user = null): array
-    {
-        $flags = [];
-        
-        foreach (self::FEATURES as $key => $config) {
-            $dbFlag = self::getDatabaseFlag($key);
-            
-            $flags[$key] = [
-                'name' => $config['name'],
-                'description' => $config['description'],
-                'enabled' => self::isEnabled($key, $user),
-                'default' => $config['default'],
-                'rollout_percentage' => $dbFlag->rollout_percentage ?? $config['rollout_percentage'],
-                'allowed_roles' => $dbFlag ? json_decode($dbFlag->allowed_roles, true) : $config['allowed_roles'],
-                'user_enabled' => $user ? self::isEnabled($key, $user) : null,
-            ];
-        }
-        
-        return $flags;
-    }
-
-    /**
-     * Enable feature for specific user
-     */
-    public static function enableForUser(string $feature, User $user): bool
-    {
-        try {
-            if (!self::ensureTableExists()) {
-                return false;
-            }
-
-            DB::table('feature_flag_users')->updateOrInsert(
-                [
-                    'feature' => $feature,
-                    'user_id' => $user->id,
-                ],
-                [
-                    'enabled' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
-
-            self::clearCache($feature);
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Failed to enable feature for user: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Check if user has specific feature flag enabled
-     */
-    private static function hasUserFlag(string $feature, User $user): bool
-    {
-        if (!Schema::hasTable('feature_flag_users')) {
-            return false;
-        }
-
-        return Cache::remember(
-            "feature_flag:{$feature}:user:{$user->id}",
-            300,
-            function () use ($feature, $user) {
-                return DB::table('feature_flag_users')
-                    ->where('feature', $feature)
-                    ->where('user_id', $user->id)
-                    ->where('enabled', true)
-                    ->exists();
-            }
+        // Create or update flag
+        $flag = FeatureFlag::updateOrCreate(
+            ['key' => $key],
+            [
+                'enabled' => $enabled,
+                'rollout_percentage' => $rolloutPercentage,
+                'environments' => $environments,
+                'description' => $description,
+            ]
         );
+
+        // Invalidate cache
+        $this->invalidateCache($key);
+
+        // Audit log
+        Log::info('Feature flag updated', [
+            'key' => $key,
+            'enabled' => $enabled,
+            'rollout_percentage' => $rolloutPercentage,
+            'environments' => $environments,
+        ]);
+
+        return $flag;
     }
 
     /**
-     * Check if user's role has access to feature
+     * Toggle a feature flag on/off
+     *
+     * @param string $key Feature flag key
+     * @return bool New enabled status
      */
-    private static function hasRoleAccess(string $feature, User $user): bool
+    public function toggle(string $key): bool
     {
-        $config = self::FEATURES[$feature];
-        $allowedRoles = $config['allowed_roles'] ?? [];
-        
-        // Check database override
-        $dbFlag = self::getDatabaseFlag($feature);
-        if ($dbFlag && $dbFlag->allowed_roles) {
-            $allowedRoles = json_decode($dbFlag->allowed_roles, true) ?: $allowedRoles;
-        }
-        
-        if (empty($allowedRoles)) {
-            return true; // No role restrictions
-        }
-        
-        // Check user roles
-        $userRoles = $user->roles->pluck('name')->toArray();
-        return !empty(array_intersect($userRoles, $allowedRoles));
+        $flag = FeatureFlag::where('key', $key)->firstOrFail();
+        $flag->enabled = !$flag->enabled;
+        $flag->save();
+
+        // Invalidate cache
+        $this->invalidateCache($key);
+
+        // Audit log
+        Log::info('Feature flag toggled', [
+            'key' => $key,
+            'enabled' => $flag->enabled,
+        ]);
+
+        return $flag->enabled;
     }
 
     /**
-     * Check if user is in rollout percentage
+     * Get all feature flags
+     *
+     * @return \Illuminate\Database\Eloquent\Collection
      */
-    private static function isInRolloutPercentage(string $feature, User $user): bool
+    public function all()
     {
-        $config = self::FEATURES[$feature];
-        $percentage = $config['rollout_percentage'] ?? 0;
-        
-        // Check database override
-        $dbFlag = self::getDatabaseFlag($feature);
-        if ($dbFlag && $dbFlag->rollout_percentage !== null) {
-            $percentage = $dbFlag->rollout_percentage;
-        }
-        
-        if ($percentage >= 100) {
-            return true;
-        }
-        
-        if ($percentage <= 0) {
+        return FeatureFlag::orderBy('key')->get();
+    }
+
+    /**
+     * Delete a feature flag
+     *
+     * @param string $key Feature flag key
+     * @return bool Success
+     */
+    public function delete(string $key): bool
+    {
+        $flag = FeatureFlag::where('key', $key)->first();
+
+        if (!$flag) {
             return false;
         }
-        
-        // Use consistent hash for user to ensure same result
-        $hash = crc32($feature . ':' . $user->id);
-        return ($hash % 100) < $percentage;
+
+        $flag->delete();
+
+        // Invalidate cache
+        $this->invalidateCache($key);
+
+        // Audit log
+        Log::info('Feature flag deleted', ['key' => $key]);
+
+        return true;
     }
 
     /**
-     * Get database flag configuration
+     * Invalidate cache for a feature flag
+     *
+     * @param string $key Feature flag key
+     * @return void
      */
-    private static function getDatabaseFlag(string $feature)
+    public function invalidateCache(string $key): void
     {
-        if (!Schema::hasTable('feature_flags')) {
-            return null;
+        Cache::forget(self::CACHE_PREFIX . $key);
+    }
+
+    /**
+     * Clear all feature flag cache
+     *
+     * @return void
+     */
+    public function clearAllCache(): void
+    {
+        $flags = FeatureFlag::all();
+
+        foreach ($flags as $flag) {
+            $this->invalidateCache($flag->key);
         }
 
-        return Cache::remember(
-            "feature_flag:db:{$feature}",
-            300,
-            function () use ($feature) {
-                return DB::table('feature_flags')
-                    ->where('feature', $feature)
-                    ->first();
-            }
-        );
+        Log::info('All feature flag cache cleared');
     }
 
     /**
-     * Get database override for feature and user
+     * Check if current environment is allowed for flag
+     *
+     * @param FeatureFlag $flag Feature flag
+     * @return bool True if allowed
      */
-    private static function getDatabaseOverride(string $feature, ?User $user): ?bool
+    private function isEnvironmentAllowed(FeatureFlag $flag): bool
     {
-        $dbFlag = self::getDatabaseFlag($feature);
-        
-        if (!$dbFlag) {
-            return null;
-        }
-        
-        // Global override
-        if ($dbFlag->enabled !== null) {
-            return (bool) $dbFlag->enabled;
-        }
-        
-        return null;
-    }
+        $currentEnv = app()->environment();
+        $allowedEnvs = $flag->environments ?? [];
 
-    /**
-     * Clear cache for feature flag
-     */
-    private static function clearCache(string $feature): void
-    {
-        Cache::forget("feature_flag:db:{$feature}");
-        Cache::flush(); // Clear all user-specific caches
-    }
-
-    /**
-     * Ensure feature flags tables exist
-     */
-    private static function ensureTableExists(): bool
-    {
-        try {
-            if (!Schema::hasTable('feature_flags')) {
-                Schema::create('feature_flags', function ($table) {
-                    $table->id();
-                    $table->string('feature')->unique();
-                    $table->boolean('enabled')->default(false);
-                    $table->integer('rollout_percentage')->default(0);
-                    $table->json('allowed_roles')->nullable();
-                    $table->json('allowed_users')->nullable();
-                    $table->json('metadata')->nullable();
-                    $table->timestamps();
-                    $table->index('enabled');
-                });
-            }
-
-            if (!Schema::hasTable('feature_flag_users')) {
-                Schema::create('feature_flag_users', function ($table) {
-                    $table->id();
-                    $table->string('feature');
-                    $table->foreignId('user_id')->constrained()->onDelete('cascade');
-                    $table->boolean('enabled')->default(true);
-                    $table->timestamps();
-                    $table->unique(['feature', 'user_id']);
-                    $table->index('enabled');
-                });
-            }
-
+        // If no environments specified, allow all
+        if (empty($allowedEnvs)) {
             return true;
-        } catch (\Exception $e) {
-            \Log::error('Failed to create feature flag tables: ' . $e->getMessage());
+        }
+
+        return in_array($currentEnv, $allowedEnvs);
+    }
+
+    /**
+     * Check if user/request falls within rollout percentage
+     *
+     * Uses consistent hashing for stable user assignment
+     *
+     * @param FeatureFlag $flag Feature flag
+     * @param int|null $userId User ID (optional)
+     * @return bool True if within percentage
+     */
+    private function isWithinRolloutPercentage(FeatureFlag $flag, ?int $userId = null): bool
+    {
+        // 100% rollout - everyone gets it
+        if ($flag->rollout_percentage >= 100) {
+            return true;
+        }
+
+        // 0% rollout - nobody gets it
+        if ($flag->rollout_percentage <= 0) {
             return false;
         }
+
+        // Use user ID for consistent hashing, or fall back to session/IP
+        $identifier = $userId ?? request()->session()?->getId() ?? request()->ip();
+
+        // Hash identifier to get consistent number (0-99)
+        $hash = crc32($flag->key . $identifier) % 100;
+
+        return $hash < $flag->rollout_percentage;
     }
 }

@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://omni-portal.example.com/schemas/analytics/health/questionnaire_submitted.json",
+  "title": "Health Questionnaire Submitted Event",
+  "description": "Analytics event for health questionnaire completion (ADR-004 compliant, no PHI, risk band and redacted score only)",
+  "type": "object",
+  "required": [
+    "event_name",
+    "timestamp",
+    "user_hash",
+    "session_id",
+    "version",
+    "total_duration_ms",
+    "risk_band",
+    "score_redacted"
+  ],
+  "properties": {
+    "event_name": {
+      "const": "health.questionnaire_submitted",
+      "description": "Event identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of the event"
+    },
+    "user_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash of user_id for de-identified tracking"
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique session identifier (not user-identifying)"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Questionnaire schema version number"
+    },
+    "total_duration_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total time from start to submission in milliseconds"
+    },
+    "risk_band": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Calculated risk band category only (ADR-004 compliant)"
+    },
+    "score_redacted": {
+      "type": "string",
+      "enum": ["0-25", "26-50", "51-75", "76-100"],
+      "description": "Score range only, not exact score (ADR-004 compliant)"
+    },
+    "total_steps_completed": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of steps completed"
+    },
+    "validation_error_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total validation errors encountered during session"
+    },
+    "backward_navigation_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of backward navigations"
+    },
+    "average_step_duration_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Average time per step in milliseconds"
+    },
+    "abandonment_recovered": {
+      "type": "boolean",
+      "description": "Whether this submission recovered from a previous abandonment"
+    },
+    "submission_method": {
+      "type": "string",
+      "enum": ["button_click", "enter_key", "auto_save"],
+      "description": "How the questionnaire was submitted"
+    }
+  },
+  "additionalProperties": false
+}

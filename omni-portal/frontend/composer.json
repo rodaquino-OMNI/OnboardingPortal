@@ -1,7 +1,0 @@
-{
-    "require": {
-        "laravel/socialite": "^5.23",
-        "aws/aws-sdk-php": "^3.356",
-        "pusher/pusher-php-server": "^7.2"
-    }
-}
