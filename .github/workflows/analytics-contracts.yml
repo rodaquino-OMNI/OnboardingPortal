@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   ANALYTICS_SALT: ${{ secrets.ANALYTICS_SALT || 'default_test_salt' }}
 
 jobs:
