@@ -116,7 +116,7 @@ Route::prefix('v1')->middleware(['auth:sanctum'])->group(function () {
             ->name('api.health.response.show');
 
         // Update draft response (before submission)
-        Route::patch('/response/{id}', [QuestionnaireController::class, 'updateDraft'])
+        Route::patch('/response/{id}', [QuestionnaireController::class, 'updateResponse'])
             ->name('api.health.response.update');
     });
 });

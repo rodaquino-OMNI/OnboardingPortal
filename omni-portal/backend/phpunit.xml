@@ -23,6 +23,11 @@
         <testsuite name="Performance">
             <directory>tests/Performance</directory>
         </testsuite>
+        <testsuite name="Health">
+            <directory>tests/Unit/Health</directory>
+            <directory>tests/Feature/Health</directory>
+            <directory>tests/Integration/Health</directory>
+        </testsuite>
     </testsuites>
 
     <source>

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Health;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Modules\Health\Models\Questionnaire;
+use App\Modules\Health\Models\QuestionnaireResponse;
 use App\Modules\Health\Events\HealthQuestionnaireStarted;
 use App\Modules\Health\Events\HealthQuestionnaireSubmitted;
 use App\Services\FeatureFlagService;
@@ -78,39 +80,53 @@ class QuestionnaireController extends Controller
 
         try {
             // Get active questionnaire template
-            // TODO: Replace with actual QuestionnaireTemplate model query
-            $schema = [
-                'version' => 'v1.0.0',
-                'schema_json' => [
-                    'questions' => [
-                        [
-                            'id' => 'q1',
-                            'text' => 'Do you have any pre-existing health conditions?',
-                            'type' => 'boolean',
-                            'required' => true,
-                        ],
-                        [
-                            'id' => 'q2',
-                            'text' => 'Are you currently taking any medications?',
-                            'type' => 'boolean',
-                            'required' => true,
-                            'conditional' => ['q1' => true],
+            $questionnaire = Questionnaire::active()->published()->first();
+
+            if (!$questionnaire) {
+                // Fallback to placeholder if no active questionnaire
+                $schema = [
+                    'version' => 'v1.0.0',
+                    'schema_json' => [
+                        'questions' => [
+                            [
+                                'id' => 'q1',
+                                'text' => 'Do you have any pre-existing health conditions?',
+                                'type' => 'boolean',
+                                'required' => true,
+                            ],
+                            [
+                                'id' => 'q2',
+                                'text' => 'Are you currently taking any medications?',
+                                'type' => 'boolean',
+                                'required' => true,
+                                'conditional' => ['q1' => true],
+                            ],
                         ],
                     ],
-                ],
-                'branching_rules' => [
-                    'q1' => [
-                        'if_true' => ['show' => ['q2']],
-                        'if_false' => ['skip' => ['q2']],
+                    'branching_rules' => [
+                        'q1' => [
+                            'if_true' => ['show' => ['q2']],
+                            'if_false' => ['skip' => ['q2']],
+                        ],
                     ],
-                ],
-            ];
+                ];
+                $questionnaireId = 1;
+                $version = 1;
+            } else {
+                $schema = [
+                    'version' => "v{$questionnaire->version}.0.0",
+                    'schema_json' => $questionnaire->schema_json,
+                    'branching_rules' => $questionnaire->schema_json['branching_rules'] ?? [],
+                ];
+                $questionnaireId = $questionnaire->id;
+                $version = $questionnaire->version;
+            }
 
             // Emit domain event - user started questionnaire
             event(new HealthQuestionnaireStarted(
                 user: auth()->user(),
-                questionnaireId: 1, // TODO: Get from active template
-                version: 1
+                questionnaireId: $questionnaireId,
+                version: $version
             ));
 
             // Audit log - NO PHI accessed
@@ -170,7 +186,7 @@ class QuestionnaireController extends Controller
 
         // Validation
         $validator = Validator::make($request->all(), [
-            'questionnaire_id' => 'required|integer|exists:questionnaire_templates,id',
+            'questionnaire_id' => 'required|integer|exists:questionnaires,id',
             'answers' => 'required|array',
             'answers.*.question_id' => 'required|string',
             'answers.*.value' => 'required',
@@ -190,8 +206,10 @@ class QuestionnaireController extends Controller
             DB::beginTransaction();
 
             // Check if user already submitted to this questionnaire
-            // TODO: Query actual QuestionnaireResponse model
-            $existingResponse = null; // DB::table('questionnaire_responses')->where(...)->first();
+            $existingResponse = QuestionnaireResponse::where('user_id', auth()->id())
+                ->where('questionnaire_id', $request->input('questionnaire_id'))
+                ->whereNotNull('submitted_at')
+                ->first();
 
             if ($existingResponse && !$isDraft) {
                 DB::rollBack();
@@ -201,35 +219,32 @@ class QuestionnaireController extends Controller
                 ], 409);
             }
 
-            // Encrypt answers (PHI protection)
-            $encryptedAnswers = encrypt(json_encode($request->input('answers')));
-
             // Calculate score (only for final submission)
             $score = null;
             $scoreRedacted = null;
             $riskBand = null;
 
             if (!$isDraft) {
-                // TODO: Implement actual scoring logic
                 $score = $this->calculateScore($request->input('answers'));
                 $scoreRedacted = $this->redactScore($score);
                 $riskBand = $this->getRiskBand($score);
             }
 
-            // Create response record
-            // TODO: Replace with actual model creation
-            $responseId = DB::table('health_questionnaires')->insertGetId([
+            // Create response record (model handles encryption automatically)
+            $response = QuestionnaireResponse::create([
                 'user_id' => auth()->id(),
                 'questionnaire_id' => $request->input('questionnaire_id'),
-                'answers_encrypted' => $encryptedAnswers,
-                'score' => $score,
+                'answers_encrypted_json' => $request->input('answers'), // Auto-encrypted by model
                 'score_redacted' => $scoreRedacted,
                 'risk_band' => $riskBand,
-                'status' => $isDraft ? 'draft' : 'submitted',
                 'submitted_at' => $isDraft ? null : now(),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'metadata' => [
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ],
             ]);
+
+            $responseId = $response->id;
 
             DB::commit();
 
@@ -240,15 +255,11 @@ class QuestionnaireController extends Controller
 
             // Emit domain event (only for final submission)
             if (!$isDraft) {
+                $questionnaire = Questionnaire::find($request->input('questionnaire_id'));
                 event(new HealthQuestionnaireSubmitted(
                     user: auth()->user(),
-                    response: (object) [
-                        'id' => $responseId,
-                        'questionnaire' => (object) ['version' => 1],
-                        'risk_band' => $riskBand,
-                        'score_redacted' => $scoreRedacted,
-                    ],
-                    durationSeconds: 300 // TODO: Calculate actual duration
+                    response: $response,
+                    durationSeconds: 300 // TODO: Calculate actual duration from session start
                 ));
             }
 
@@ -301,17 +312,16 @@ class QuestionnaireController extends Controller
         }
 
         try {
-            // TODO: Replace with actual model query
-            $response = DB::table('health_questionnaires')
-                ->where('id', $id)
-                ->first();
+            // Get response with relationships
+            $response = QuestionnaireResponse::with('questionnaire')->find($id);
 
             if (!$response) {
                 return response()->json(['error' => 'Not found'], 404);
             }
 
             // Authorization: User can only access their own responses
-            if ($response->user_id !== auth()->id() && !auth()->user()->hasRole('admin')) {
+            $isAdmin = auth()->user()->hasRole('admin') ?? false;
+            if ($response->user_id !== auth()->id() && !$isAdmin) {
                 return response()->json([
                     'error' => 'Forbidden',
                     'message' => 'You can only access your own questionnaire responses',
@@ -323,13 +333,15 @@ class QuestionnaireController extends Controller
 
             return response()->json([
                 'id' => $response->id,
-                'status' => $response->status,
+                'status' => $response->submitted_at ? 'submitted' : 'draft',
                 'score_redacted' => $response->score_redacted,
                 'risk_band' => $response->risk_band,
-                'submitted_at' => $response->submitted_at,
-                'created_at' => $response->created_at,
+                'submitted_at' => $response->submitted_at?->toIso8601String(),
+                'created_at' => $response->created_at->toIso8601String(),
                 'metadata' => [
-                    'questionnaire_version' => 'v1.0.0',
+                    'questionnaire_version' => $response->questionnaire
+                        ? "v{$response->questionnaire->version}.0.0"
+                        : 'v1.0.0',
                 ],
             ], 200);
         } catch (\Exception $e) {
@@ -377,8 +389,8 @@ class QuestionnaireController extends Controller
         }
 
         try {
-            // TODO: Replace with actual model query
-            $response = DB::table('health_questionnaires')->where('id', $id)->first();
+            // Get response
+            $response = QuestionnaireResponse::find($id);
 
             if (!$response) {
                 return response()->json(['error' => 'Not found'], 404);
@@ -397,15 +409,14 @@ class QuestionnaireController extends Controller
                 ], 409);
             }
 
-            // Update draft
-            $encryptedAnswers = encrypt(json_encode($request->input('answers')));
-
-            DB::table('health_questionnaires')
-                ->where('id', $id)
-                ->update([
-                    'answers_encrypted' => $encryptedAnswers,
-                    'updated_at' => now(),
-                ]);
+            // Update draft (model handles encryption automatically)
+            $response->update([
+                'answers_encrypted_json' => $request->input('answers'),
+                'metadata' => array_merge($response->metadata ?? [], [
+                    'last_updated_ip' => request()->ip(),
+                    'last_updated_user_agent' => request()->userAgent(),
+                ]),
+            ]);
 
             // Audit log
             $this->auditLog('health.questionnaire.draft_updated', $id, true);
@@ -413,7 +424,7 @@ class QuestionnaireController extends Controller
             return response()->json([
                 'id' => $id,
                 'status' => 'draft',
-                'updated_at' => now()->toIso8601String(),
+                'updated_at' => $response->updated_at->toIso8601String(),
                 'message' => 'Draft updated successfully',
             ], 200);
         } catch (\Exception $e) {
