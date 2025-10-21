@@ -46,8 +46,8 @@ class FeatureFlagSeeder extends Seeder
             [
                 'name' => 'Slice C - Health Questionnaire',
                 'description' => 'Adaptive health questionnaire with PHI encryption and risk scoring',
-                'enabled' => false, // Default off
-                'rollout_percentage' => 0,
+                'enabled' => true, // ✅ ENABLED for integration testing
+                'rollout_percentage' => 100, // Full rollout for testing
                 'environments' => ['production', 'staging', 'testing'],
             ]
         );
