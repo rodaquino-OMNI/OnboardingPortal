@@ -107,19 +107,19 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: omni-portal/frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: npm ci
 
       - name: Install Stryker
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: |
           npm install --save-dev @stryker-mutator/core @stryker-mutator/jest-runner
 
       - name: Create Stryker Config
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: |
           cat > stryker.conf.json << 'EOF'
           {
@@ -147,7 +147,7 @@ jobs:
           EOF
 
       - name: Run Stryker Mutation Testing
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: |
           npx stryker run
 
@@ -156,11 +156,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: stryker-results
-          path: omni-portal/frontend/reports/mutation
+          path: apps/web/reports/mutation
 
       - name: Generate Mutation Report
         if: always()
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: |
           cat > mutation-report.md << 'EOF'
           # Frontend Mutation Testing Report
@@ -186,7 +186,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-mutation-report
-          path: omni-portal/frontend/mutation-report.md
+          path: apps/web/mutation-report.md
 
   critical-modules-mutation:
     name: Critical Modules Focused Mutation Testing

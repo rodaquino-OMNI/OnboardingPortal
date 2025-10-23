@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: omni-portal/frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Cache Composer dependencies
         uses: actions/cache@v4
@@ -65,7 +65,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Install frontend dependencies
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: npm ci
 
       - name: Create reports directory

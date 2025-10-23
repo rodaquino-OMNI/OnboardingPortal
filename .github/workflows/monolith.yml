@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd apps/web && npm ci
-          cd ../backend && composer install --no-dev --prefer-dist
+          cd ../../omni-portal/backend && composer install --no-dev --prefer-dist
 
       - name: Run ESLint (Frontend)
         run: cd apps/web && npm run lint
@@ -123,7 +123,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd apps/web && npm ci
-          cd ../backend && composer install
+          cd ../../omni-portal/backend && composer install
 
       - name: Run Frontend Tests
         run: |

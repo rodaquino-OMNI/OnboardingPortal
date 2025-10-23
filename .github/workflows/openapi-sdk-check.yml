@@ -5,7 +5,7 @@ on:
     paths:
       - 'docs/API_SPEC.yaml'
       - 'omni-portal/backend/routes/**'
-      - 'omni-portal/frontend/src/services/api/**'
+      - 'apps/web/src/services/api/**'
   push:
     branches:
       - main
@@ -44,7 +44,7 @@ jobs:
 
       - name: Compare with committed SDK
         run: |
-          SDK_PATH="omni-portal/frontend/src/services/api"
+          SDK_PATH="apps/web/src/services/api"
 
           echo "Comparing generated SDK with committed version..."
 

@@ -64,7 +64,7 @@ jobs:
           cat composer-audit.json
 
       - name: Run NPM Security Audit (Frontend)
-        working-directory: omni-portal/frontend
+        working-directory: apps/web
         run: |
           npm audit --audit-level=moderate --json > npm-audit.json || true
           cat npm-audit.json
@@ -81,7 +81,7 @@ jobs:
           name: security-audit-results
           path: |
             omni-portal/backend/composer-audit.json
-            omni-portal/frontend/npm-audit.json
+            apps/web/npm-audit.json
             npm-audit-root.json
 
   # ===============================
@@ -153,8 +153,8 @@ jobs:
       - name: Build Docker image for scanning
         uses: docker/build-push-action@v5
         with:
-          context: ./omni-portal/${{ matrix.service }}
-          file: ./omni-portal/${{ matrix.service }}/Dockerfile
+          context: ${{ matrix.service == 'frontend' && './apps/web' || './omni-portal/backend' }}
+          file: ${{ matrix.service == 'frontend' && './apps/web/Dockerfile' || './omni-portal/backend/Dockerfile' }}
           target: production
           tags: local/${{ matrix.service }}:security-scan
           load: true

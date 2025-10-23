@@ -113,7 +113,7 @@ jobs:
           node-version: '20'
 
       - name: Run npm audit for frontend
-        working-directory: ./omni-portal/frontend
+        working-directory: ./apps/web
         run: |
           npm ci
           npm audit --audit-level=moderate
