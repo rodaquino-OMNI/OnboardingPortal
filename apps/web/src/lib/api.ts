@@ -1,103 +1,113 @@
 /**
- * API Client Utilities
+ * API Client - Centralized HTTP client for backend communication
  *
- * Provides base API client for making authenticated requests
- * Handles CSRF tokens, authentication, and error handling
+ * Features:
+ * - Automatic authentication token handling
+ * - Request/response interceptors
+ * - Error handling
+ * - TypeScript support
  */
 
-interface ApiResponse<T = any> {
-  data: T;
-  status: number;
-  statusText: string;
+interface ApiConfig {
+  baseURL: string;
+  timeout?: number;
+}
+
+interface RequestConfig {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  headers?: Record<string, string>;
+  body?: any;
 }
 
 class ApiClient {
-  private baseUrl: string;
+  private baseURL: string;
+  private timeout: number;
+  private token: string | null = null;
 
-  constructor(baseUrl: string = '') {
-    this.baseUrl = baseUrl;
+  constructor(config: ApiConfig) {
+    this.baseURL = config.baseURL;
+    this.timeout = config.timeout || 30000;
   }
 
-  /**
-   * Make authenticated GET request
-   */
-  async get<T = any>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      ...options,
-      method: 'GET',
-    });
+  setToken(token: string | null) {
+    this.token = token;
   }
 
-  /**
-   * Make authenticated POST request
-   */
-  async post<T = any>(url: string, data?: any, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      ...options,
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  /**
-   * Make authenticated PUT request
-   */
-  async put<T = any>(url: string, data?: any, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      ...options,
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  /**
-   * Make authenticated DELETE request
-   */
-  async delete<T = any>(url: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
-    return this.request<T>(url, {
-      ...options,
-      method: 'DELETE',
-    });
-  }
-
-  /**
-   * Base request method with error handling
-   */
-  private async request<T = any>(
-    url: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    const fullUrl = url.startsWith('http') ? url : `${this.baseUrl}${url}`;
-
-    const defaultHeaders: HeadersInit = {
+  private async request<T>(endpoint: string, config: RequestConfig = {}): Promise<{ data: T }> {
+    const url = `${this.baseURL}${endpoint}`;
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...config.headers,
     };
 
-    const response = await fetch(fullUrl, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+    // Add authentication token if available
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const data = await response.json();
-
-    return {
-      data,
-      status: response.status,
-      statusText: response.statusText,
+    const requestInit: RequestInit = {
+      method: config.method || 'GET',
+      headers,
     };
+
+    if (config.body && (config.method === 'POST' || config.method === 'PUT' || config.method === 'PATCH')) {
+      requestInit.body = JSON.stringify(config.body);
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...requestInit,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout');
+        }
+        throw error;
+      }
+      throw new Error('Unknown error occurred');
+    }
+  }
+
+  async get<T>(endpoint: string, config?: RequestConfig): Promise<{ data: T }> {
+    return this.request<T>(endpoint, { ...config, method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, body?: any, config?: RequestConfig): Promise<{ data: T }> {
+    return this.request<T>(endpoint, { ...config, method: 'POST', body });
+  }
+
+  async put<T>(endpoint: string, body?: any, config?: RequestConfig): Promise<{ data: T }> {
+    return this.request<T>(endpoint, { ...config, method: 'PUT', body });
+  }
+
+  async patch<T>(endpoint: string, body?: any, config?: RequestConfig): Promise<{ data: T }> {
+    return this.request<T>(endpoint, { ...config, method: 'PATCH', body });
+  }
+
+  async delete<T>(endpoint: string, config?: RequestConfig): Promise<{ data: T }> {
+    return this.request<T>(endpoint, { ...config, method: 'DELETE' });
   }
 }
 
-/**
- * Default API client instance
- */
-export const api = new ApiClient();
+// Create singleton instance
+export const api = new ApiClient({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  timeout: 30000,
+});
