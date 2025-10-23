@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: omni-portal/frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -66,11 +66,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd omni-portal/frontend && npm ci
+          cd apps/web && npm ci
           cd ../backend && composer install --no-dev --prefer-dist
 
       - name: Run ESLint (Frontend)
-        run: cd omni-portal/frontend && npm run lint
+        run: cd apps/web && npm run lint
 
       - name: Run PHP CS Fixer (Backend)
         run: |
@@ -90,13 +90,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: omni-portal/frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install dependencies
-        run: cd omni-portal/frontend && npm ci
+        run: cd apps/web && npm ci
 
       - name: Type check
-        run: cd omni-portal/frontend && npm run typecheck
+        run: cd apps/web && npm run typecheck
 
   # Phase 3: Unit Testing
   unit-tests:
@@ -111,7 +111,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: omni-portal/frontend/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -122,12 +122,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd omni-portal/frontend && npm ci
+          cd apps/web && npm ci
           cd ../backend && composer install
 
       - name: Run Frontend Tests
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npm run test:coverage
 
       - name: Run Backend Tests
@@ -137,7 +137,7 @@ jobs:
 
       - name: Check Coverage Threshold
         run: |
-          FRONTEND_COV=$(jq '.total.lines.pct' omni-portal/frontend/coverage/coverage-summary.json)
+          FRONTEND_COV=$(jq '.total.lines.pct' apps/web/coverage/coverage-summary.json)
           if (( $(echo "$FRONTEND_COV < ${{ env.COVERAGE_THRESHOLD }}" | bc -l) )); then
             echo "Frontend coverage $FRONTEND_COV% is below threshold ${{ env.COVERAGE_THRESHOLD }}%"
             exit 1
@@ -147,7 +147,7 @@ jobs:
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         with:
-          files: ./omni-portal/frontend/coverage/lcov.info,./omni-portal/backend/coverage/clover.xml
+          files: ./apps/web/coverage/lcov.info,./omni-portal/backend/coverage/clover.xml
           flags: unit-tests
           fail_ci_if_error: true
 
@@ -512,7 +512,7 @@ jobs:
 
       - name: Install Playwright
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npm ci
           npx playwright install --with-deps
 
@@ -522,7 +522,7 @@ jobs:
           E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npx playwright test --reporter=html,json
 
       - name: Upload test results
@@ -530,7 +530,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results-dev
-          path: omni-portal/frontend/playwright-report/
+          path: apps/web/playwright-report/
 
   # Phase 12: Canary Deployment (Staging)
   canary-staging:
@@ -673,7 +673,7 @@ jobs:
 
       - name: Install Playwright
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npm ci
           npx playwright install --with-deps
 
@@ -683,7 +683,7 @@ jobs:
           E2E_USERNAME: ${{ secrets.E2E_USERNAME }}
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npx playwright test --reporter=html,json
 
       - name: Upload test results
@@ -691,7 +691,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-results-staging
-          path: omni-portal/frontend/playwright-report/
+          path: apps/web/playwright-report/
 
   # Phase 14: Production Deployment
   promote-prod:

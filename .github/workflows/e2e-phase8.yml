@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'tests/e2e/**'
-      - 'omni-portal/frontend/**'
+      - 'apps/web/**'
       - 'omni-portal/backend/routes/**'
       - '.github/workflows/e2e-phase8.yml'
   push:
@@ -58,7 +58,7 @@ jobs:
 
       - name: Start frontend development server
         run: |
-          cd omni-portal/frontend
+          cd apps/web
           npm ci
           npm run dev &
           sleep 10

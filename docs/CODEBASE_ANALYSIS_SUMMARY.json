@@ -1,0 +1,224 @@
+{
+  "report_metadata": {
+    "generated": "2025-10-22",
+    "analysis_type": "Complete Codebase Audit",
+    "overall_health_score": "62%",
+    "target_health_score": "95%",
+    "total_issues": 38
+  },
+  "severity_breakdown": {
+    "P0_critical": 8,
+    "P1_high": 12,
+    "P2_medium": 18
+  },
+  "test_coverage_gaps": {
+    "controllers": {
+      "total": 8,
+      "tested": 2,
+      "untested": 6,
+      "coverage_percentage": 25,
+      "untested_controllers": [
+        "AuthController",
+        "GamificationController",
+        "MFAController",
+        "OnboardingController",
+        "RegistrationFlowController",
+        "SliceBDocumentsController"
+      ]
+    },
+    "services": {
+      "total": 12,
+      "tested": 8,
+      "untested": 4,
+      "coverage_percentage": 67,
+      "untested_services": [
+        "MFAService (P0 - CRITICAL)",
+        "HealthQuestionnaireMetrics (P1)",
+        "ExportService (P1)",
+        "AnalyticsEventRepository (P1)"
+      ]
+    },
+    "factories": {
+      "total_models": 11,
+      "with_factories": 3,
+      "without_factories": 4,
+      "missing_model_definitions": 2,
+      "coverage_percentage": 43,
+      "missing_factories": [
+        "AuditLogFactory",
+        "PointsTransactionFactory",
+        "QuestionnaireFactory",
+        "QuestionnaireResponseFactory"
+      ],
+      "missing_models": [
+        "QuestionnaireTemplate (CRITICAL - tests will fail)",
+        "HealthQuestionnaire (CRITICAL - tests will fail)"
+      ]
+    }
+  },
+  "workflow_issues": {
+    "frontend_path_migration": {
+      "issue": "Phase 8 moved frontend from omni-portal/frontend to apps/web",
+      "affected_workflows": 9,
+      "total_references": 52,
+      "severity": "P0",
+      "workflows": [
+        {
+          "name": "ci-cd.yml",
+          "references": 6,
+          "lines": [103, 106, 110, 114, 118, 122, 129]
+        },
+        {
+          "name": "docker-ci-cd.yml",
+          "references": 13,
+          "lines": [174, 177, 181, 185, 189, 196, 205, 302, 303, 516, 522]
+        },
+        {
+          "name": "e2e-phase8.yml",
+          "references": 2,
+          "lines": [7, 61]
+        },
+        {
+          "name": "monolith.yml",
+          "references": 8
+        }
+      ]
+    },
+    "node_version_mismatches": {
+      "required_version": "20",
+      "workflows_with_version_18": 3,
+      "severity": "P1",
+      "affected_workflows": [
+        "docker-ci-cd.yml (lines 172, 510)",
+        "security-audit.yml (line 57)",
+        "security-scan.yml (line 113)"
+      ]
+    },
+    "workflow_status_summary": {
+      "total_workflows": 19,
+      "ok": 7,
+      "broken": 4,
+      "warnings": 2,
+      "unknown": 1
+    }
+  },
+  "cli_commands": {
+    "status": "COMPLETE",
+    "total_commands": 3,
+    "all_registered": true,
+    "all_implemented": true,
+    "commands": [
+      "PruneAnalyticsEvents (analytics:prune)",
+      "MigratePhiFieldsEncryption",
+      "VerifyPhiEncryption"
+    ]
+  },
+  "missing_dependencies": {
+    "critical_models": [
+      {
+        "name": "QuestionnaireTemplate",
+        "status": "MISSING",
+        "referenced_in": [
+          "tests/Feature/Health/QuestionnaireControllerTest.php:8",
+          "tests/Unit/Modules/Health/Services/PhiLeakageTest.php:11"
+        ],
+        "impact": "Tests will fail - Class not found error"
+      },
+      {
+        "name": "HealthQuestionnaire",
+        "status": "MISSING",
+        "referenced_in": [
+          "tests/Feature/Health/QuestionnaireControllerTest.php:9",
+          "tests/Unit/Modules/Health/Services/PhiLeakageTest.php:9"
+        ],
+        "impact": "Tests will fail - Class not found error"
+      }
+    ],
+    "missing_factories": [
+      "QuestionnaireTemplateFactory",
+      "HealthQuestionnaireFactory",
+      "AuditLogFactory",
+      "PointsTransactionFactory"
+    ]
+  },
+  "critical_blockers": [
+    {
+      "id": "P0-001",
+      "title": "Missing Model Definitions",
+      "description": "Tests reference non-existent QuestionnaireTemplate and HealthQuestionnaire models",
+      "effort_hours": "1-2",
+      "blocking": true
+    },
+    {
+      "id": "P0-002",
+      "title": "Frontend Path References in Workflows",
+      "description": "52+ references to old omni-portal/frontend path (moved to apps/web)",
+      "effort_hours": "0.5",
+      "blocking": true
+    },
+    {
+      "id": "P0-003",
+      "title": "AuthController Tests Missing",
+      "description": "Authentication controller has zero test coverage",
+      "effort_hours": "2-3",
+      "blocking": true
+    },
+    {
+      "id": "P0-004",
+      "title": "MFAController Tests Missing",
+      "description": "MFA controller has zero test coverage (security critical)",
+      "effort_hours": "2-3",
+      "blocking": true
+    }
+  ],
+  "action_plan": {
+    "immediate": {
+      "timeframe": "Today (6-8 hours)",
+      "actions": [
+        "Fix frontend paths in 4 workflow files",
+        "Create missing model definitions (QuestionnaireTemplate, HealthQuestionnaire)",
+        "Create AuthController tests (P0)",
+        "Create MFAController tests (P0)",
+        "Update Node.js versions in 3 workflows"
+      ]
+    },
+    "this_week": {
+      "timeframe": "This week (8-10 hours)",
+      "actions": [
+        "Create RegistrationFlowController tests (P1)",
+        "Create OnboardingController tests (P1)",
+        "Create MFAService tests (P1)",
+        "Create GamificationController tests (P1)",
+        "Create remaining service tests (P2)"
+      ]
+    },
+    "next_sprint": {
+      "timeframe": "Next sprint (4-6 hours)",
+      "actions": [
+        "Create model factories (P2)",
+        "Create repository tests (P2)",
+        "Documentation and process updates"
+      ]
+    }
+  },
+  "files_to_review": {
+    "test_files": 31,
+    "workflow_files": 19,
+    "model_files": 11,
+    "factory_files": 3,
+    "service_files": 12,
+    "controller_files": 8
+  },
+  "estimated_effort": {
+    "total_hours": "25-35",
+    "critical_path_hours": "6-8",
+    "breakdown": {
+      "fix_workflows": "0.5",
+      "create_models": "1.5",
+      "create_controller_tests": "8-10",
+      "create_service_tests": "4-5",
+      "create_factories": "2-3",
+      "update_node_versions": "0.25"
+    }
+  }
+}

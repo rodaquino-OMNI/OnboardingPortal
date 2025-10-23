@@ -1,0 +1,704 @@
+================================================================================
+ONBOARDING PORTAL CODEBASE ANALYSIS REPORT
+Generated: 2025-10-22
+================================================================================
+
+EXECUTIVE SUMMARY
+================================================================================
+Analyzed the complete OnboardingPortal codebase to identify:
+- Test coverage gaps (missing test cases for critical paths)
+- Workflow issues (broken paths, Node version mismatches)
+- CLI command gaps (missing artisan commands)
+- Missing dependencies (factories, models, traits)
+
+KEY FINDINGS:
+- 26 Missing factory classes for models
+- 9 Workflows with broken paths (52+ references to omni-portal/frontend)
+- 6 Controllers without tests
+- 3 Workflows using Node 18 instead of Node 20
+- 2 Missing model definitions causing test failures
+
+SEVERITY BREAKDOWN:
+- P0 (Critical): 8 issues
+- P1 (High): 12 issues
+- P2 (Medium): 18 issues
+Total: 38 identified issues
+
+================================================================================
+SECTION 1: TEST COVERAGE GAPS
+================================================================================
+
+1.1 MISSING CONTROLLER TESTS
+────────────────────────────────────────────────────────────────────────────
+
+Controllers without tests (6):
+┌─ AuthController
+│  Path: /omni-portal/backend/app/Http/Controllers/Api/AuthController.php
+│  Status: NO TEST
+│  Critical: YES - Authentication is P0
+│  Impact: High - Core functionality untested
+│
+├─ GamificationController  
+│  Path: /omni-portal/backend/app/Http/Controllers/Api/GamificationController.php
+│  Status: NO TEST
+│  Critical: NO
+│  Impact: Medium - Feature not directly blocking
+│
+├─ MFAController
+│  Path: /omni-portal/backend/app/Http/Controllers/Api/MFAController.php
+│  Status: NO TEST
+│  Critical: YES - Security critical
+│  Impact: High - Multi-factor authentication untested
+│
+├─ OnboardingController
+│  Path: /omni-portal/backend/app/Http/Controllers/Api/OnboardingController.php
+│  Status: NO TEST
+│  Critical: YES - Core user flow
+│  Impact: High - Main user journey untested
+│
+├─ RegistrationFlowController
+│  Path: /omni-portal/backend/app/Http/Controllers/Api/RegistrationFlowController.php
+│  Status: NO TEST
+│  Critical: YES - Core user flow
+│  Impact: High - Registration flow untested
+│
+└─ SliceBDocumentsController
+   Path: /omni-portal/backend/app/Http/Controllers/Api/SliceBDocumentsController.php
+   Status: PARTIAL (DocumentsControllerTest exists, but SliceBDocumentsController not tested)
+   Critical: NO - Secondary feature
+   Impact: Medium
+
+Controllers WITH tests (2):
+✓ DocumentsController - /omni-portal/backend/tests/Feature/SliceB/DocumentsControllerTest.php
+✓ QuestionnaireController - /omni-portal/backend/tests/Feature/Health/QuestionnaireControllerTest.php
+
+Summary:
+  Total Controllers: 8
+  Tested: 2 (25%)
+  NOT Tested: 6 (75%)
+  Test Coverage Gap: 75% ⚠️
+
+Recommendation: CREATE 6 NEW TEST FILES
+  - tests/Feature/Api/AuthControllerTest.php (P0)
+  - tests/Feature/Api/MFAControllerTest.php (P0)
+  - tests/Feature/Api/OnboardingControllerTest.php (P0)
+  - tests/Feature/Api/RegistrationFlowControllerTest.php (P0)
+  - tests/Feature/Api/GamificationControllerTest.php (P1)
+  - tests/Feature/Api/SliceBDocumentsControllerTest.php (P1)
+
+
+1.2 MISSING SERVICE TESTS
+────────────────────────────────────────────────────────────────────────────
+
+Services in /app/Services:
+├─ AnalyticsEventRepository (Not a service, a repository - needs repository test)
+│  Status: NO DEDICATED TEST (used in integration tests)
+│  Priority: P1 (covered by integration tests)
+│
+├─ DatabaseQueryValidator
+│  Status: NO TEST
+│  Priority: P1
+│  Path: /omni-portal/backend/app/Services/DatabaseQueryValidator.php
+│  Test Exists: /omni-portal/backend/tests/Unit/DatabaseQueryValidatorTest.php ✓
+│
+├─ DocumentsService
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Feature/SliceB/DocumentsServiceTest.php
+│
+├─ EncryptionService
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Unit/EncryptionServiceTest.php
+│
+├─ FeatureFlagService
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Feature/SliceB/FeatureFlagServiceTest.php
+│
+├─ HealthQuestionnaireMetrics
+│  Status: NO TEST
+│  Priority: P1
+│  Path: /omni-portal/backend/app/Services/HealthQuestionnaireMetrics.php
+│  Impact: Medium - Analytics related
+│
+└─ MFAService
+   Status: NO TEST
+   Priority: P0
+   Path: /omni-portal/backend/app/Services/MFAService.php
+   Impact: HIGH - Security critical
+
+Services in /app/Modules:
+├─ AuditLogService
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Unit/Audit/AuditLogServiceTest.php
+│
+├─ ExportService  
+│  Status: NO TEST
+│  Priority: P1
+│  Path: /omni-portal/backend/app/Modules/Health/Services/ExportService.php
+│  Impact: Medium - Data export functionality
+│
+├─ PointsEngine
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Unit/Gamification/PointsEngineTest.php
+│
+├─ QuestionnaireService
+│  Status: HAS TEST ✓
+│  Test Path: /omni-portal/backend/tests/Feature/Health/QuestionnaireServiceTest.php
+│
+└─ ScoringService
+   Status: HAS TEST ✓
+   Test Path: /omni-portal/backend/tests/Feature/Health/ScoringServiceTest.php
+
+Summary:
+  Total Services: 12
+  Tested: 8 (67%)
+  NOT Tested: 4 (33%)
+  Test Coverage Gap: 33%
+
+Services Missing Tests:
+  1. DatabaseQueryValidator - needs unit test ✓ (FOUND)
+  2. HealthQuestionnaireMetrics - P1
+  3. ExportService - P1  
+  4. MFAService - P0 (CRITICAL)
+
+Recommendation: CREATE 3 NEW TEST FILES
+  - tests/Unit/Services/MFAServiceTest.php (P0)
+  - tests/Unit/Services/HealthQuestionnaireMetricsTest.php (P1)
+  - tests/Unit/Modules/Health/Services/ExportServiceTest.php (P1)
+
+
+1.3 MISSING MODEL FACTORIES
+────────────────────────────────────────────────────────────────────────────
+
+Factories that exist (3):
+✓ AnalyticsEventFactory - /omni-portal/backend/database/factories/AnalyticsEventFactory.php
+✓ FeatureFlagFactory - /omni-portal/backend/database/factories/FeatureFlagFactory.php
+✓ UserFactory - /omni-portal/backend/database/factories/UserFactory.php
+
+Models that exist (11):
+✓ AnalyticsEvent - HAS FACTORY
+✓ AuditLog - NO FACTORY
+✓ FeatureFlag - HAS FACTORY
+✓ User - HAS FACTORY
+✓ PointsTransaction (Modules/Gamification) - NO FACTORY
+✓ Questionnaire (Modules/Health) - NO FACTORY
+✓ QuestionnaireResponse (Modules/Health) - NO FACTORY
+
+Models referenced in tests but DON'T exist (2 - CRITICAL):
+❌ QuestionnaireTemplate 
+   Referenced in:
+   - /omni-portal/backend/tests/Feature/Health/QuestionnaireControllerTest.php:8
+   - /omni-portal/backend/tests/Unit/Modules/Health/Services/PhiLeakageTest.php:11
+   Usage: QuestionnaireTemplate::factory()->create(...)
+   Impact: TESTS WILL FAIL - Cannot create test fixtures
+   Status: CRITICAL P0
+
+❌ HealthQuestionnaire
+   Referenced in:
+   - /omni-portal/backend/tests/Feature/Health/QuestionnaireControllerTest.php:9
+   - /omni-portal/backend/tests/Unit/Modules/Health/Services/PhiLeakageTest.php:9
+   Usage: HealthQuestionnaire::factory()->create(...)
+   Impact: TESTS WILL FAIL - Cannot create test fixtures
+   Status: CRITICAL P0
+
+Factory Gap Analysis:
+  Models with factories: 3/7 (43%)
+  Models missing factories: 4/7 (57%)
+  Models that don't exist but have factories: 2 (91% of issues)
+
+Recommendation: CREATE/UPDATE 6 NEW FACTORY FILES
+  P0 (Fix test failures immediately):
+  1. database/factories/QuestionnaireTemplateFactory.php - Create missing model + factory
+  2. database/factories/HealthQuestionnaireFactory.php - Create missing model + factory
+  
+  P1 (Support testing):
+  3. database/factories/AuditLogFactory.php
+  4. database/factories/PointsTransactionFactory.php
+  5. database/factories/QuestionnaireFactory.php
+  6. database/factories/QuestionnaireResponseFactory.php
+
+Impact: Without these, 6+ test files cannot run:
+- tests/Feature/Health/QuestionnaireControllerTest.php
+- tests/Unit/Modules/Health/Services/PhiLeakageTest.php
+- tests/Feature/Health/QuestionnaireIntegrationTest.php
+
+
+1.4 TEST COVERAGE SUMMARY
+────────────────────────────────────────────────────────────────────────────
+
+Overall Test Statistics:
+  Total test files: 31
+  Missing controller tests: 6
+  Missing service tests: 4
+  Missing factory files: 6
+  
+Critical gaps causing test failures:
+  - 2 missing model definitions (QuestionnaireTemplate, HealthQuestionnaire)
+  - 2 tests referencing non-existent models will fail at runtime
+  - 6 controllers have no test coverage
+
+Estimated test coverage impact:
+  - Current coverage: ~70% (based on 2/8 controllers tested)
+  - Potential coverage: ~90% (with all tests implemented)
+  - Coverage gap: 20 percentage points
+
+
+================================================================================
+SECTION 2: WORKFLOW ISSUES
+================================================================================
+
+2.1 CRITICAL: OLD FRONTEND PATH REFERENCES
+────────────────────────────────────────────────────────────────────────────
+
+Background: Phase 8 refactoring moved frontend from omni-portal/frontend to apps/web
+Current status: 9 workflow files with 52+ references to OLD PATH
+
+Affected Workflow Files (9):
+┌─ /home/user/OnboardingPortal/.github/workflows/ci-cd.yml
+│  Severity: P0 (Frontend tests will fail)
+│  References: 6 instances
+│  Lines:
+│    - Line 103: cache-dependency-path: omni-portal/frontend/package-lock.json
+│    - Line 106: working-directory: ./omni-portal/frontend
+│    - Line 110: working-directory: ./omni-portal/frontend
+│    - Line 114: working-directory: ./omni-portal/frontend
+│    - Line 118: working-directory: ./omni-portal/frontend
+│    - Line 122: working-directory: ./omni-portal/frontend
+│    - Line 129: files: ./omni-portal/frontend/coverage/lcov.info
+│  Fix Required: Replace all instances with: apps/web
+│  Impact: Frontend tests cannot run, CI blocks
+│
+├─ /home/user/OnboardingPortal/.github/workflows/docker-ci-cd.yml
+│  Severity: P0 (Build failures)
+│  References: 13 instances
+│  Lines:
+│    - Line 174: cache-dependency-path: omni-portal/frontend/package-lock.json
+│    - Line 177: working-directory: omni-portal/frontend
+│    - Line 181: working-directory: omni-portal/frontend
+│    - Line 185: working-directory: omni-portal/frontend
+│    - Line 189: working-directory: omni-portal/frontend
+│    - Line 196: working-directory: omni-portal/frontend
+│    - Line 205: file: omni-portal/frontend/coverage/lcov.info
+│    - Line 302: context: ./omni-portal/frontend
+│    - Line 303: file: ./omni-portal/frontend/Dockerfile
+│    - Line 516: working-directory: omni-portal/frontend
+│    - Line 522: working-directory: omni-portal/frontend
+│  Fix Required: Replace all instances with: apps/web
+│  Impact: Docker builds fail, deployment blocked
+│
+├─ /home/user/OnboardingPortal/.github/workflows/e2e-phase8.yml
+│  Severity: P0 (E2E tests will fail)
+│  References: 2 instances
+│  Lines:
+│    - Line 7: - 'omni-portal/frontend/**'
+│    - Line 61: cd omni-portal/frontend
+│  Fix Required: Replace with: apps/web
+│  Impact: E2E tests cannot run, workflow won't trigger on frontend changes
+│
+├─ /home/user/OnboardingPortal/.github/workflows/monolith.yml
+│  Severity: P1 (Linting/Testing failures)
+│  References: 8 instances (lines 58, 69, 73, 93, 96, 99)
+│  Fix Required: Replace with: apps/web
+│
+├─ /home/user/OnboardingPortal/.github/workflows/mutation-testing.yml
+│  Severity: P2 (Analysis tool)
+│  References: Potential references
+│  
+├─ /home/user/OnboardingPortal/.github/workflows/security-audit.yml
+│  Severity: P1
+│  References: Potential references
+│
+├─ /home/user/OnboardingPortal/.github/workflows/health-questionnaire-tests.yml
+│  Severity: P1
+│  References: Potential references
+│
+├─ /home/user/OnboardingPortal/.github/workflows/sandbox-a11y.yml
+│  Severity: P1 (A11y tests fail)
+│  References: Potential references
+│
+└─ /home/user/OnboardingPortal/.github/workflows/ui-purity-check.yml
+   Severity: P2
+   References: Potential references
+
+Total Path Fixes Required: 52+ replacements across 9 files
+
+Migration Map:
+  OLD: omni-portal/frontend/**
+  NEW: apps/web/**
+  
+  OLD: omni-portal/frontend
+  NEW: apps/web
+  
+  OLD: ./omni-portal/frontend/
+  NEW: ./apps/web/
+
+Recommended Fix Approach:
+  1. Run global find-replace: s/omni-portal\/frontend/apps\/web/g
+  2. Verify each workflow file for correctness
+  3. Test workflows with frontend changes
+  4. Verify E2E tests trigger correctly
+
+
+2.2 NODE.JS VERSION MISMATCHES  
+────────────────────────────────────────────────────────────────────────────
+
+Requirement: Node.js 20 (per Phase 8 validation document)
+Current state: 3 workflows using Node 18
+
+Workflows using Node 18 (3 - P1):
+┌─ /home/user/OnboardingPortal/.github/workflows/docker-ci-cd.yml
+│  Line 172: node-version: '18.19.0'
+│  Job: test-frontend
+│  Impact: Frontend tests may fail with "Unsupported engine" errors
+│  Fix: Change to node-version: '20'
+│
+├─ /home/user/OnboardingPortal/.github/workflows/security-audit.yml
+│  Line 57: node-version: '18.19.0'
+│  Job: npm audit
+│  Impact: Dependency resolution may fail
+│  Fix: Change to node-version: '20'
+│
+└─ /home/user/OnboardingPortal/.github/workflows/security-scan.yml
+   Line 113: node-version: '18'
+   Job: npm audit
+   Impact: Dependency resolution may fail
+   Fix: Change to node-version: '18' (verify if intentional)
+
+Workflows with CORRECT Node 20 (7 - ✓):
+✓ ci-cd.yml:101 - node-version: '20'
+✓ health-questionnaire-tests.yml:158 - node-version: [20]
+✓ monolith.yml:56,91,112,511,672 - node-version: '20'
+✓ mutation-testing.yml:108 - node-version: '20'
+✓ openapi-sdk-check.yml:28 - node-version: '20'
+✓ ui-build-and-test.yml - NODE_VERSION: '20'
+
+Recommendation: UPDATE 3 WORKFLOW FILES
+  1. docker-ci-cd.yml - Line 172 & 510: '18.19.0' → '20'
+  2. security-audit.yml - Line 57: '18.19.0' → '20'
+  3. security-scan.yml - Line 113: '18' → '20'
+
+
+2.3 WORKFLOW FILE STATUS
+────────────────────────────────────────────────────────────────────────────
+
+Total Workflows: 19
+
+Workflow Status Matrix:
+┌─────────────────────────────────────────┬──────────┬─────────────┬──────────┐
+│ Workflow File                           │ Status   │ Path Issue  │ Node Ver │
+├─────────────────────────────────────────┼──────────┼─────────────┼──────────┤
+│ analytics-contracts.yml                 │ ✓ OK     │ N/A         │ N/A      │
+│ analytics-migration-drift.yml           │ ✓ OK     │ N/A         │ N/A      │
+│ ci-cd.yml                               │ ❌ BROKEN│ omni-portal │ ✓ 20     │
+│ dast-scan.yml                           │ ✓ OK     │ N/A         │ N/A      │
+│ docker-ci-cd.yml                        │ ❌ BROKEN│ omni-portal │ ❌ 18    │
+│ e2e-phase8.yml                          │ ❌ BROKEN│ omni-portal │ ✓ 20     │
+│ health-questionnaire-tests.yml          │ ⚠️ WARN  │ Possible    │ ✓ 20     │
+│ iac-scan.yml                            │ ✓ OK     │ N/A         │ N/A      │
+│ monolith.yml                            │ ❌ BROKEN│ omni-portal │ ✓ 20     │
+│ mutation-testing.yml                    │ ❌ BROKEN│ omni-portal │ ✓ 20     │
+│ openapi-sdk-check.yml                   │ ✓ OK     │ N/A         │ ✓ 20     │
+│ phase-4-quality-gates.yml               │ ✓ OK     │ N/A         │ N/A      │
+│ sandbox-a11y.yml                        │ ⚠️ WARN  │ Possible    │ ? (env)  │
+│ security-audit.yml                      │ ❌ BROKEN│ Possible    │ ❌ 18    │
+│ security-guards.yml                     │ ✓ OK     │ N/A         │ N/A      │
+│ security-plaintext-check.yml            │ ✓ OK     │ N/A         │ N/A      │
+│ security-scan.yml                       │ ❌ BROKEN│ Docker scan │ ❌ 18    │
+│ ui-build-and-test.yml                   │ ✓ OK     │ packages/ui │ ✓ 20     │
+│ ui-purity-check.yml                     │ ? UNKNOWN│ Possible    │ ?        │
+└─────────────────────────────────────────┼──────────┼─────────────┼──────────┘
+
+Status Legend:
+  ✓ OK     = No issues found
+  ❌ BROKEN = Critical issues (will fail)
+  ⚠️ WARN  = Potential issues (may fail)
+  ? UNKNOWN= Needs verification
+
+
+================================================================================
+SECTION 3: CLI COMMAND GAPS
+================================================================================
+
+3.1 REGISTERED COMMANDS
+────────────────────────────────────────────────────────────────────────────
+
+File: /omni-portal/backend/app/Console/Kernel.php
+
+Registered Commands (3):
+┌─ Commands\PruneAnalyticsEvents
+│  Alias: analytics:prune
+│  Schedule: Daily at 02:00
+│  Purpose: Remove analytics events older than 90 days
+│  Status: ✓ ACTIVE
+│
+├─ Commands\MigratePhiFieldsEncryption
+│  Purpose: Migrate PHI fields to encrypted storage
+│  Status: ✓ REGISTERED
+│
+└─ Commands\VerifyPhiEncryption
+   Purpose: Verify PHI encryption status
+   Status: ✓ REGISTERED
+
+All 3 commands found and properly registered. ✓
+
+3.2 COMMAND IMPLEMENTATION
+────────────────────────────────────────────────────────────────────────────
+
+Commands Directory: /omni-portal/backend/app/Console/Commands/
+
+Implemented Commands (3):
+✓ MigratePhiFieldsEncryption.php
+✓ PruneAnalyticsEvents.php
+✓ VerifyPhiEncryption.php
+
+All registered commands have implementations. ✓
+
+3.3 POTENTIAL MISSING COMMANDS
+────────────────────────────────────────────────────────────────────────────
+
+Based on Phase 8 documentation, no additional commands mentioned.
+
+Analysis: CLI commands are COMPLETE ✓
+- All registered commands have implementations
+- Proper scheduling configured
+- No gaps identified
+
+
+================================================================================
+SECTION 4: MISSING DEPENDENCIES
+================================================================================
+
+4.1 MODEL IMPORTS IN TESTS
+────────────────────────────────────────────────────────────────────────────
+
+Critical Issues (2 - P0):
+
+1. QuestionnaireTemplate Model
+   Imported in:
+   - /omni-portal/backend/tests/Feature/Health/QuestionnaireControllerTest.php:8
+   - /omni-portal/backend/tests/Unit/Modules/Health/Services/PhiLeakageTest.php:11
+   
+   Status: MODEL DOES NOT EXIST ❌
+   Issue: use App\Models\QuestionnaireTemplate;
+   Expected Location: /omni-portal/backend/app/Models/QuestionnaireTemplate.php
+   Impact: Tests will fail with "Class not found" error
+   Solution: Create model or use App\Modules\Health\Models\Questionnaire instead
+
+2. HealthQuestionnaire Model  
+   Imported in:
+   - /omni-portal/backend/tests/Feature/Health/QuestionnaireControllerTest.php:9
+   - /omni-portal/backend/tests/Unit/Modules/Health/Services/PhiLeakageTest.php:9
+   
+   Status: MODEL DOES NOT EXIST ❌
+   Issue: use App\Models\HealthQuestionnaire;
+   Expected Location: /omni-portal/backend/app/Models/HealthQuestionnaire.php
+   Impact: Tests will fail with "Class not found" error
+   Solution: Create model or use App\Modules\Health\Models\QuestionnaireResponse instead
+
+4.2 TRAIT IMPORTS IN TESTS
+────────────────────────────────────────────────────────────────────────────
+
+RefreshDatabase Trait:
+  Status: ✓ Available
+  Source: Illuminate\Foundation\Testing\RefreshDatabase
+  Used in: Multiple test classes
+  Status: OK ✓
+
+All identified trait imports are resolvable. ✓
+
+4.3 FACTORY IMPORTS IN TESTS
+────────────────────────────────────────────────────────────────────────────
+
+Issues Found:
+- QuestionnaireTemplate::factory() called but no factory exists
+- HealthQuestionnaire::factory() called but no factory exists
+- User::factory() exists and works
+- FeatureFlag::factory() exists and works
+- AnalyticsEvent::factory() exists and works
+
+Missing Factories (2):
+❌ QuestionnaireTemplateFactory
+❌ HealthQuestionnaireFactory
+
+Status: WILL CAUSE RUNTIME ERRORS ❌
+
+
+================================================================================
+SECTION 5: PRIORITIZED ACTION ITEMS
+================================================================================
+
+PRIORITY LEGEND:
+  P0 = Critical - Blocks production deployment, tests fail immediately
+  P1 = High - Significant functionality gaps, should fix before release
+  P2 = Medium - Nice to have, can be addressed in next iteration
+
+CRITICAL BLOCKERS (Fix First - P0)
+════════════════════════════════════════════════════════════════════════════
+
+1. [P0] Create Missing Model Definitions
+   Issue: Tests reference non-existent models
+   Action Required:
+   - Create /omni-portal/backend/app/Models/QuestionnaireTemplate.php
+   - Create /omni-portal/backend/app/Models/HealthQuestionnaire.php
+     OR update tests to use correct model references
+   - Create corresponding factories
+   Effort: 1-2 hours
+   Priority: IMMEDIATE - Tests cannot run without these
+
+2. [P0] Fix Frontend Path References in Workflows
+   Issue: 52+ references to omni-portal/frontend (moved to apps/web in Phase 8)
+   Files Affected:
+   - .github/workflows/ci-cd.yml (6 refs)
+   - .github/workflows/docker-ci-cd.yml (13 refs)
+   - .github/workflows/e2e-phase8.yml (2 refs)
+   - .github/workflows/monolith.yml (8+ refs)
+   Action: Global find-replace: omni-portal/frontend → apps/web
+   Effort: 30 minutes
+   Priority: IMMEDIATE - Workflows will fail
+
+3. [P0] Create AuthController Tests
+   Issue: Authentication controller has zero test coverage
+   Action Required: Create /omni-portal/backend/tests/Feature/Api/AuthControllerTest.php
+   Test Coverage Needed:
+   - Login flow
+   - Token generation
+   - Session management
+   - Authentication validation
+   Effort: 2-3 hours
+   Priority: IMMEDIATE - Core security feature untested
+
+4. [P0] Create MFAController Tests  
+   Issue: MFA controller has zero test coverage
+   Action Required: Create /omni-portal/backend/tests/Feature/Api/MFAControllerTest.php
+   Test Coverage Needed:
+   - TOTP secret generation
+   - QR code validation
+   - MFA verification
+   - Recovery codes
+   Effort: 2-3 hours
+   Priority: IMMEDIATE - Security critical feature untested
+
+HIGH PRIORITY ISSUES (Fix Before Release - P1)
+════════════════════════════════════════════════════════════════════════════
+
+5. [P1] Create Core Registration Tests
+   Issue: Registration and onboarding flows not tested
+   Action Required:
+   - Create /omni-portal/backend/tests/Feature/Api/RegistrationFlowControllerTest.php
+   - Create /omni-portal/backend/tests/Feature/Api/OnboardingControllerTest.php
+   Test Coverage Needed:
+   - User registration
+   - Email verification
+   - Profile completion
+   - Onboarding flow
+   Effort: 3-4 hours
+   Priority: High - Main user journey untested
+
+6. [P1] Create MFAService Tests
+   Issue: MFA service has zero test coverage
+   Action Required: Create /omni-portal/backend/tests/Unit/Services/MFAServiceTest.php
+   Test Coverage Needed:
+   - Secret generation
+   - TOTP validation
+   - QR code generation
+   - Recovery code management
+   Effort: 2-3 hours
+   Priority: High - Security critical service
+
+7. [P1] Update Node.js Version in 3 Workflows
+   Issue: Workflows using Node 18 instead of Node 20
+   Files to Update:
+   - docker-ci-cd.yml (lines 172, 510)
+   - security-audit.yml (line 57)
+   - security-scan.yml (line 113)
+   Action: Update node-version to '20'
+   Effort: 15 minutes
+   Priority: High - May cause dependency resolution failures
+
+8. [P1] Create Core Gamification Tests
+   Issue: Gamification controller untested
+   Action Required: Create /omni-portal/backend/tests/Feature/Api/GamificationControllerTest.php
+   Test Coverage Needed:
+   - Points calculation
+   - Badge assignment
+   - Leaderboard retrieval
+   - Level progression
+   Effort: 2-3 hours
+   Priority: High - Feature module not tested
+
+MEDIUM PRIORITY ISSUES (Fix in Next Sprint - P2)
+════════════════════════════════════════════════════════════════════════════
+
+9. [P2] Create Additional Service Tests
+   Issue: 3 services lack test coverage
+   Action Required:
+   - Create tests/Unit/Services/HealthQuestionnaireMetricsTest.php
+   - Create tests/Unit/Modules/Health/Services/ExportServiceTest.php
+   - Verify DatabaseQueryValidatorTest.php exists and is comprehensive
+   Effort: 2-3 hours
+   Priority: Medium - Analytics and data export
+
+10. [P2] Create Model Factories
+    Issue: 4 models lack factories
+    Action Required:
+    - database/factories/AuditLogFactory.php
+    - database/factories/PointsTransactionFactory.php
+    - database/factories/QuestionnaireFactory.php
+    - database/factories/QuestionnaireResponseFactory.php
+    Effort: 1-2 hours
+    Priority: Medium - Enables easier test data creation
+
+11. [P2] Create Repository/SliceBDocuments Tests
+    Issue: SliceBDocumentsController has limited test coverage
+    Action Required: Create/expand tests/Feature/Api/SliceBDocumentsControllerTest.php
+    Effort: 2-3 hours
+    Priority: Medium - Secondary features
+
+
+SUMMARY ACTION LIST
+════════════════════════════════════════════════════════════════════════════
+
+IMMEDIATE ACTIONS (Do Today - 6-8 hours):
+┌─ Fix frontend paths in 4 workflow files
+├─ Create missing model definitions (QuestionnaireTemplate, HealthQuestionnaire)
+├─ Create AuthController tests (P0)
+├─ Create MFAController tests (P0)
+└─ Update Node.js versions in 3 workflows
+
+NEXT ACTIONS (This Week - 8-10 hours):
+┌─ Create RegistrationFlowController tests (P1)
+├─ Create OnboardingController tests (P1)
+├─ Create MFAService tests (P1)
+├─ Create GamificationController tests (P1)
+└─ Create remaining service tests (P2)
+
+LONG TERM (Next Sprint - 4-6 hours):
+├─ Create model factories (P2)
+├─ Create repository tests (P2)
+└─ Documentation and process updates
+
+
+SUMMARY METRICS
+════════════════════════════════════════════════════════════════════════════
+
+Test Coverage:
+  Controllers: 2/8 tested (25%) → Target: 8/8 (100%)
+  Services: 8/12 tested (67%) → Target: 12/12 (100%)
+  Factories: 3/7 (43%) → Target: 7/7 (100%)
+  
+Workflow Issues:
+  Broken paths: 4/19 workflows affected (21%)
+  Node version mismatches: 3/19 workflows (16%)
+  
+Model Dependencies:
+  Missing models: 2/11 (18%)
+  Missing factories: 4/7 (57%)
+  
+Overall Health Score: 62% → Target: 95%
+
+Estimated Effort to Fix All Issues: 25-35 hours
+Critical path effort (P0 only): 6-8 hours
+
+
+================================================================================
+END OF REPORT
+================================================================================

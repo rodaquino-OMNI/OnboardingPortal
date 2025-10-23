@@ -54,7 +54,7 @@ jobs:
       - name: Setup Node.js for NPM Audit
         uses: actions/setup-node@v4
         with:
-          node-version: '18.19.0'
+          node-version: '20'
 
       - name: Run Composer Security Audit (Backend)
         working-directory: omni-portal/backend
